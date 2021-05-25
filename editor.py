@@ -1,25 +1,18 @@
-import pywikibot
-from pywikibot import pagegenerators
+def find_start(text, j):
+	st = {'\n', '.', '>'}
+	ind = next((i for i in range(j-1, -1, -1) if text[i] in st), None)
+	if text[ind] == '\n':
+		return ind + 1
+	else:
+		return ind + 2
 
-site = pywikibot.Site('en', 'wikipedia')
-page = pywikibot.Page(site, "Transformers (film)")
-print(page.text)
 
 
 
-def find_rtscore(s):
-	"""
-	Given the Wikipedia page text of a film's page, attempts to find the
-	Rotten Tomatoes score and url of the film.
 
-	Arguments:
-		s: A string of the page text to look in.
 
-	Returns:
-		An empty list if the Rotten Tomatoes score is absent,
-		otherwise a list of the following form:
-			[score percentage, rating count, average rating, url]
-	"""
-	regex = r"\s\[\[[rR]otten [tT]omatoes\]\]\D+(\d{1,3}%)\D+(\d{1,3})\D+(\d+(?:\.\d+)?)(?:/| out of )10"
-	p = re.compile(regex)
-	
+
+
+
+if __name__ == "__main__":
+	print(find_start("df. dfasdfasdf", 5))

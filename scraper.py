@@ -1,10 +1,8 @@
 import urllib.request
 import json
 import re
-import pywikibot
 
 from datetime import date
-from pywikibot import pagegenerators
 
 
 def url_contents(url):

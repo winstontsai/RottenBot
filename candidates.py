@@ -1,9 +1,17 @@
+# This module basically does some preprocessing.
+# It identifies "candidate" pages that contain Rotten Tomatoes rating info,
+# finds the corresponding Rotten Tomatoes url,
+# and also finds the start of the sentence in which the rating info is contained.
+
 import re
 
 from patterns import *
 
 
 candidate_re = rt_re + r"[^.\n%]+?" + score_re + r".*?" + s_citeweb
+
+def rt_url(movieid):
+	return "https://www.rottentomatoes.com/m/iron_man" + movieid
 
 def find_candidates(xmldump, pattern = candidate_re):
 	"""

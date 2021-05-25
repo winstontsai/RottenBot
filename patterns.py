@@ -21,9 +21,10 @@ average_re = r"(?P<average>\d{1,2}(?:\.\d{1,2})?)(?:/| out of )10"
 fill = r"[^\d.\n]+?"
 
 
+url_re = r"rottentomatoes.com/m/(?P<movieid>[-a-z0-9_]+)"
 # Regular expressions for the source/citation, where we will find the
 # Rotten Tomatoes URL for the movie.
-s_citeweb = r"<ref>{{(?P<citeweb>[cC]ite web.+?rottentomatoes.com/m/[-a-z0-9_]+.*?)}}</ref>"
+s_citeweb = r"<ref>{{(?P<citeweb>[cC]ite web.+?" + url_re + ".+?)}}</ref>"
 
 s_citert = r"<ref>{{(?P<citert>" + construct_redirects_re([
 	"Cite Rotten Tomatoes", "Cite rotten tomatoes", "Cite rt", "Cite RT"

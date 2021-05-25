@@ -1,0 +1,24 @@
+# pywikibot files
+logs/
+apicache-py3
+throttle.ctrl
+user-config.py
+user-password.py
+pywikibot.lwp
+
+# python files
+__pycache__/
+
+# my files
+env/
+core_stable/
+example_movies/
+outputs/
+pages-list.txt
+test-films.txt
+notes.txt
+play.py
+
+
+# other
+.DS_Store

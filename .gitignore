@@ -13,6 +13,7 @@ __pycache__/
 env/
 core_stable/
 example_movies/
+xmldumps/
 outputs/
 pages-list.txt
 test-films.txt

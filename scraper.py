@@ -8,7 +8,7 @@ from datetime import date
 def url_contents(url):
     with urllib.request.urlopen(url) as f:
         contents = f.read().decode()
-        return contents
+    return contents
 
 def find_substring(s, indicator, terminator):
     """
@@ -49,7 +49,7 @@ def get_rt_rating(url):
             'average' : sd['averageRating'],
             'count' : sd['reviewCount'],
             'count2' : sd['ratingCount'],
-            'accessDate' : date.today().strftime("%B %d, %y")
+            'accessDate' : date.today().strftime("%B %d, %y") # e.g. May 24, 2021
         }
 
 

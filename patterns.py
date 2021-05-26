@@ -3,7 +3,7 @@
 def make_opt(s):
 	return "(?:{})?".format(s)
 
-def construct_redirects_re(l):
+def construct_redirects(l):
 	"""
 	Constructs the part of a regular expression which
 	allows different options corresponding to the redirects listed in l.
@@ -27,20 +27,20 @@ url_re = r"rottentomatoes.com/m/(?P<movieid>[-a-z0-9_]+)"
 # Rotten Tomatoes URL for the movie.
 
 # for the {{cite-web}} template
-t_citeweb = r"<ref>{{(?P<citeweb>[cC]ite web.+?" + url_re + "/?[ |].+?)}}</ref>"
+citeweb_redirects = ["Cite web", "Cite-web", "Citeweb", "Cite Web"]
+t_citeweb = r"<ref>{{(?P<citeweb>" + construct_redirects(citeweb_redirects) +
+	".+?" + url_re + "/?[ |].+?)}}</ref>"
 
 
 # for the {{Cite Rotten Tomatoes}} template
-t_citert = r"<ref>{{(?P<citert>" + construct_redirects_re([
-	"Cite Rotten Tomatoes", "Cite rotten tomatoes", "Cite rt", "Cite RT"
-	]) +  ".+?)}}</ref>"
+citert_redirects = ["Cite Rotten Tomatoes", "Cite rotten tomatoes", "Cite rt", "Cite RT"]
+t_citert = r"<ref>{{(?P<citert>" + construct_redirects(citert_redirects) +  ".+?)}}</ref>"
 
 
 # for the {{Rotten Tomatoes}} template
-t_rt = "<ref>{{(?P<rt>" + construct_redirects_re([
-		"Rotten Tomatoes", "Rotten-tomatoes", "Rottentomatoes",
-		"Rotten tomatoes", "Rotten", "Rottentomatoes.com"
-	]) + ".+?)}}</ref>"
+rt_redirects = [ "Rotten Tomatoes", "Rotten-tomatoes", "Rottentomatoes",
+				"Rotten tomatoes", "Rotten", "Rottentomatoes.com"]
+t_rt = "<ref>{{(?P<rt>" + construct_redirects(rt_redirects) + ".+?)}}</ref>"
 
 t_ldref = r"<ref name=(.+?)/>"
 

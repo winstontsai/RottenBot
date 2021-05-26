@@ -50,11 +50,23 @@ def get_rt_rating(url):
     else:
         sd = sd['tomatometerScoreAll']
 
+    # get critics consensus, if it exists.
+    indicator = '<span data-qa="critics-consensus">'
+    terminator = '</span>'
+    # will be None if there is no critic's consensus
+    consensus = find_substring(contents, indicator, terminator)
+    # replace <em> and </em> with '', which makes italics for Wikipedia
+    if consensus:
+        consensus = consensus.replace('<em>', "''")
+        consensus = consensus.replace('</em>', "''")
+
+
     return {'score' : sd['score'],
             'average' : sd['averageRating'],
             'count' : sd['reviewCount'],
             'count2' : sd['ratingCount'],
-            'accessDate' : date.today().strftime("%B %d, %y") # e.g. May 24, 2021
+            'accessDate' : date.today().strftime("%B %d, %y"), # e.g. May 24, 2021
+            'consensus' : consensus
         }
 
 

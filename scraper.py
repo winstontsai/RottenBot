@@ -40,11 +40,11 @@ def get_rt_rating(url):
     The keys are: 'score', 'average', 'count', and 'accessDate'
     """
     contents = url_contents(url)
+
     indicator = '<script id="score-details-json" type="application/json">'
     terminator = '</script>'
     score_data = find_substring(contents, indicator, terminator)
     sd = json.loads(score_data)['modal']
-
     if sd['hasTomatometerScoreAll'] == False:
         return None
     else:

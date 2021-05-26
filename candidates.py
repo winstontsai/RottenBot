@@ -8,7 +8,8 @@ import re
 from patterns import *
 
 
-candidate_re = rt_re + r"[^.\n%]+?" + score_re + r".*?" + s_citeweb
+candidate_re = rt_re + r"[^.\n%]+?" + score_re + r".*?" + t_citeweb
+candidate_re2= r"[.\n][^.\n]*?" + rt_re + r"[^.\n%]+?" + score_re + r".*?" + t_citeweb
 
 def rt_url(movieid):
 	return "https://www.rottentomatoes.com/m/iron_man" + movieid

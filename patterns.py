@@ -16,8 +16,9 @@ def construct_redirects(l):
 rt_re = r"[rR]otten [tT]omatoes"
 score_re = r"(?P<score>[0-9]|[1-9][0-9]|100)(?:%| percent)"
 count_re = r"(?P<count>\d{1,3})"
-count2_re = r"(?P<count>[5-9]|[1-9][0-9]|[1-9][0-9][0-9])"
+count_re2 = r"(?P<count>[5-9]|[1-9][0-9]|[1-9][0-9][0-9])"
 average_re = r"(?P<average>\d{1,2}(?:\.\d{1,2})?)(?:/| out of )10"
+average_re2 = r"(?P<average>(?:[0-9]|10)(?:\.\d{1,2})?)(?:/| out of )10"
 fill = r"[^\d.\n]+?"
 
 
@@ -28,8 +29,7 @@ url_re = r"rottentomatoes.com/m/(?P<movieid>[-a-z0-9_]+)"
 
 # for the {{cite-web}} template
 citeweb_redirects = ["Cite web", "Cite-web", "Citeweb", "Cite Web"]
-t_citeweb = r"<ref>{{(?P<citeweb>" + construct_redirects(citeweb_redirects) +
-	".+?" + url_re + "/?[ |].+?)}}</ref>"
+t_citeweb = r"<ref>{{(?P<citeweb>" + construct_redirects(citeweb_redirects) + ".+?" + url_re + ".*?)}}</ref>"
 
 
 # for the {{Cite Rotten Tomatoes}} template

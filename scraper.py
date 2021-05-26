@@ -2,7 +2,9 @@ import urllib.request
 import json
 import re
 
+
 from datetime import date
+from bs4 import BeautifulSoup
 
 
 def url_contents(url):
@@ -41,9 +43,12 @@ def get_rt_rating(url):
     indicator = '<script id="score-details-json" type="application/json">'
     terminator = '</script>'
     score_data = find_substring(contents, indicator, terminator)
-    sd = json.loads(score_data)['modal']['tomatometerScoreAll']
-    if not sd:
+    sd = json.loads(score_data)['modal']
+
+    if sd['hasTomatometerScoreAll'] == False:
         return None
+    else:
+        sd = sd['tomatometerScoreAll']
 
     return {'score' : sd['score'],
             'average' : sd['averageRating'],
@@ -56,7 +61,7 @@ def get_rt_rating(url):
 
 
 if __name__ == "__main__":
-    pass
+    print(BeautifulSoup(url_contents("https://www.rottentomatoes.com/m/us_2019"), 'html.parser').prettify())
 
 
 

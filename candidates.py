@@ -20,40 +20,42 @@ class Candidate:
 		self.id = xmlentry.id
 		self.text = xmlentry.text
 		self.score = match.group('score')
-		self.start = find_start(xmlentry.text, match.start())
+		self.start = self._find_start(xmlentry.text, match.start())
 		self.end = match.end()
 		self.rtid = extract_rtid(xmlentry, match)
 
+	def _find_start(self, text, j):
+		"""
+		This function is supposed to find the index of the beginning of
+		the sentence containing the Rotten Tomatoes rating info.
 
-def find_start(text, j):
-	st = {'\n', '.', '>'}
-	italics = False
-	i = j-1
-	while i >= 0:
-		c = text[i]
-		if c in ('\n', '>'):
-			ind = i + 1
-			break
-		elif c == "'":
-			if text[i - 1] == "'":
-				italics = not italics
-				i -= 1
-		elif c == '.':
-			if not italics:
+		Args:
+			text: the text of the page
+			j: the start index of the re.Match object
+		"""
+		st = {'\n', '.', '>'}
+		italics = False
+		i = j-1
+		while i >= 0:
+			c = text[i]
+			if c in ('\n', '>'):
 				ind = i + 1
 				break
-		i -= 1
+			elif c == "'":
+				if text[i - 1] == "'":
+					italics = not italics
+					i -= 1
+			elif c == '.':
+				if not italics:
+					ind = i + 1
+					break
+			i -= 1
 
-	return ind + (text[ind] == ' ')
+		return ind + (text[ind] == ' ')
 
 
-	ind = next((i for i in range(j-1, -1, -1) if text[i] in st), None) + 1
-	ind += (text[ind] == ' ')
-	# if text[ind] == '\n':
-	# 	return ind + 1
-	# else:
-	# 	return ind + 2
-	return ind
+
+
 
 def extract_rtid(xmlentry, match):
 	"""

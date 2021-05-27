@@ -9,16 +9,6 @@ import scraper
 from patterns import *
 
 
-def find_start(text, j):
-	st = {'\n', '.', '>'}
-	ind = next((i for i in range(j-1, -1, -1) if text[i] in st), None) + 1
-	ind += (text[ind] == ' ')
-	# if text[ind] == '\n':
-	# 	return ind + 1
-	# else:
-	# 	return ind + 2
-	return ind
-
 
 
 def check_for_update(text):

@@ -10,12 +10,34 @@ from pywikibot import Site, Page, ItemPage
 from patterns import *
 
 
+class Candidate:
+	"""Holds the info we'll need if a page is to be edited."""
+
+	def __init__(self, xmlentry, match):
+		self.title = xmlentry.title
+		self.id = xmlentry.id
+		self.text = xmlentry.text
+		self.score = match.group('score')
+		self.start = find_start(xmlentry.text, match.start())
+		self.end = match.end()
+		self.rtid = extract_rtid(xmlentry, match)
+
 
 candidate_re = rt_re + r"[^.\n%]*?" + score_re + r".*?" + t_citeweb
 # candidate_re2= r"[.\n>][^.\n]*?" + rt_re + r"[^.\n%]+?" + score_re + r".*?" + t_citeweb
 
 def rt_url(movieid):
 	return "https://www.rottentomatoes.com/" + movieid
+
+def find_start(text, j):
+	st = {'\n', '.', '>'}
+	ind = next((i for i in range(j-1, -1, -1) if text[i] in st), None) + 1
+	ind += (text[ind] == ' ')
+	# if text[ind] == '\n':
+	# 	return ind + 1
+	# else:
+	# 	return ind + 2
+	return ind
 
 def extract_rtid(xmlentry, match):
 	"""
@@ -46,10 +68,6 @@ def extract_rtid(xmlentry, match):
 	raise ValueError("Could not extract the Rotten Tomatoes ID from the page {}.".format(xmlentry.title))
 
 
-
-
-	return
-
 def find_candidates(xmldump, pattern = candidate_re):
 	"""
 	Given an XmlDump, find all pages in the dump which contain Rotten Tomatoes
@@ -64,6 +82,6 @@ def find_candidates(xmldump, pattern = candidate_re):
 	for entry in gen:
 		m = re.search(pattern, entry.text)
 		if m:
-			yield (entry, m)
+			yield Candidate(entry, m)
 
 

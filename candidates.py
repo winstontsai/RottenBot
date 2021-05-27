@@ -33,28 +33,18 @@ class Candidate:
 			text: the text of the page
 			j: the start index of the re.Match object
 		"""
-		st = {'\n', '.', '>'}
 		italics = False
-		i = j-1
-		while i >= 0:
+		for i in range(j - 1, -1, -1):
 			c = text[i]
-			if c in ('\n', '>'):
+			if c in "\n>":
 				ind = i + 1
 				break
-			elif c == "'":
-				if text[i - 1] == "'":
-					italics = not italics
-					i -= 1
-			elif c == '.':
-				if not italics:
-					ind = i + 1
-					break
-			i -= 1
-
+			elif c == "'" == text[i + 1]:
+				italics = not italics
+			elif c == "." and not italics:
+				ind = i + 1
+				break
 		return ind + (text[ind] == ' ')
-
-
-
 
 
 def extract_rtid(xmlentry, match):

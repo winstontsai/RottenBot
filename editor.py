@@ -12,8 +12,8 @@ from patterns import *
 
 
 def check_for_update(text):
-	t = scraper.get_rt_rating()
+	pass
 
 
 if __name__ == "__main__":
-	print(find_start("df. dfasdfasdf", 5))
+	pass

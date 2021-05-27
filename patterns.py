@@ -1,4 +1,5 @@
-# Defines the regexes/patterns that will be used.
+# Defines the regexes/patterns that will be used, along with some
+# related helper functions
 
 def make_opt(s):
 	return "(?:{})?".format(s)
@@ -34,6 +35,12 @@ def parse_template(template):
 			value = piece[j + 1:].lstrip()
 			d[key] = value
 	return (template_name, d)
+
+def construct template(name, d):
+	s = name
+	for key,value in d:
+		s += " |{}={}".format(key, value)
+	return s
 
 rt_re = r"[rR]otten [tT]omatoes"
 score_re = r"(?P<score>[0-9]|[1-9][0-9]|100)(?:%| percent)"

@@ -11,7 +11,9 @@ from patterns import *
 
 
 class Candidate:
-	"""Holds the info we'll need if a page is to be edited."""
+	"""
+	Holds the info we'll need for a candidate page to be edited.
+	"""
 
 	def __init__(self, xmlentry, match):
 		self.title = xmlentry.title
@@ -44,12 +46,14 @@ def extract_rtid(xmlentry, match):
 	Given the re.Match object which has identified a candidate, extracts the movieid.
 	"""
 
-	# Cite web case
+	# Cite web template case
 	if match.group('rtid'):
 		return match.group('rtid')
+	# Cite Rotten Tomatoes template case
 	elif match.group('citert'):
 		d = parse_template(match.group('citert'))
 		return "m/" + d['id']
+	# Rotten Tomatoes template case 
 	elif match.group('rt'):
 		d = parse_template(match.group('rt'))
 
@@ -70,13 +74,11 @@ def extract_rtid(xmlentry, match):
 
 def find_candidates(xmldump, pattern = candidate_re):
 	"""
-	Given an XmlDump, find all pages in the dump which contain Rotten Tomatoes
+	Given an XmlDump, use pattern to
+	find all pages in the dump which contain Rotten Tomatoes
 	score info which might need editing.
 
-	This is a generator function. It yields pairs of the form
-	(entry, m) where entry is the XmlEntry representing a Wikipedia page
-	and m is the Match object that
-	identified the page as a candidate for editing.
+	This is a generator function.
 	"""
 	gen = xmldump.parse()
 	for entry in gen:

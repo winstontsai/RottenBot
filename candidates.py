@@ -25,12 +25,6 @@ class Candidate:
 		self.rtid = extract_rtid(xmlentry, match)
 
 
-candidate_re = rt_re + r"[^.\n%]*?" + score_re + r".*?" + citation_re
-# candidate_re2= r"[.\n>][^.\n]*?" + rt_re + r"[^.\n%]+?" + score_re + r".*?" + t_citeweb
-
-def rt_url(movieid):
-	return "https://www.rottentomatoes.com/" + movieid
-
 def find_start(text, j):
 	st = {'\n', '.', '>'}
 	ind = next((i for i in range(j-1, -1, -1) if text[i] in st), None) + 1
@@ -49,18 +43,19 @@ def extract_rtid(xmlentry, match):
 	# Cite web template case
 	if match.group('citeweb'):
 		return match.group('rtid')
+
 	# Cite Rotten Tomatoes template case
-	elif match.group('citert'):
+	if match.group('citert'):
 		d = parse_template(match.group('citert'))[1]
 		return "m/" + d['id']
-	# Rotten Tomatoes template case 
-	elif match.group('rt'):
-		d = parse_template(match.group('rt'))[1]
 
+	# Rotten Tomatoes template case 
+	if match.group('rt'):
+		d = parse_template(match.group('rt'))[1]
 		if 'id' in d.keys():
-			return d['id']
+			return ("" if d['id'].startswith('m/') else "m/") + d['id'] 
 		if 1 in d.keys():
-			return d[1]
+			return ("" if d[1].startswith('m/') else "m/") + d[1]
 
 		# Check for Wikidata property P1258
 		page = Page(Site('en','wikipedia'), xmlentry.title)
@@ -72,19 +67,24 @@ def extract_rtid(xmlentry, match):
 	raise ValueError("Could not extract the Rotten Tomatoes ID from the page {}.".format(xmlentry.title))
 
 
-def find_candidates(xmldump, pattern = candidate_re):
+def find_candidates(xmldump):
 	"""
-	Given an XmlDump, use pattern to
-	find all pages in the dump which contain Rotten Tomatoes
+	Given an XmlDump, find all pages in the dump which contain Rotten Tomatoes
 	score info which might need editing.
 
 	This is a generator function.
 	"""
+	candidate_re1 = rt_re + r"[^.\n]*?" + score_re + r"[^\n]*?" + citation_re
+	candidate_re2 = score_re + r"[^.\n]*?" + rt_re + r"[^\n]*?" + citation_re
+	
 	gen = xmldump.parse()
 	for entry in gen:
-		m = re.search(pattern, entry.text)
+		m = re.search(candidate_re1, entry.text)
+		if not m:
+			m = re.search(candidate_re2, entry.text)
+
 		if m:
-			#print(m.groupdict())
 			yield Candidate(entry, m)
+
 
 

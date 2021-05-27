@@ -56,7 +56,7 @@ def get_rt_rating(url):
     # will be None if there is no critic's consensus
     consensus = find_substring(contents, indicator, terminator)
     # replace <em> and </em> with '', which makes italics for Wikipedia
-    if consensus:
+    if consensus: # make sure consensus is not None
         consensus = consensus.replace('<em>', "''")
         consensus = consensus.replace('</em>', "''")
 
@@ -73,7 +73,7 @@ def get_rt_rating(url):
 
 
 if __name__ == "__main__":
-    print(BeautifulSoup(url_contents("https://www.rottentomatoes.com/m/us_2019"), 'html.parser').prettify())
+    pass
 
 
 

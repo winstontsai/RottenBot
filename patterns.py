@@ -13,6 +13,28 @@ def construct_redirects(l):
 	redirects = ["[{}]{}".format(x[0] + x[0].lower(),x[1:]) for x in l]
 	return "(?:{})".format("|".join(redirects))
 
+
+def parse_template(template):
+	"""
+	Takes the text of a template (the stuff between "{{"" and ""}}"") and
+	returns a dict of the key-value pairs.
+	Unnamed parameters are given the keys 1, 2, 3, etc, in order.
+	"""
+	d = dict()
+	counter = 1
+	pieces = [x.strip() for x in template.split('|')]
+	template_name = pieces[0]
+	for piece in pieces[1:]:
+		j = piece.find('=')
+		if j == -1:
+			d[counter] = piece
+			counter += 1
+		else:
+			key = piece[:j].rstrip()
+			value = piece[j + 1:].lstrip()
+			d[key] = value
+	return (template_name, d)
+
 rt_re = r"[rR]otten [tT]omatoes"
 score_re = r"(?P<score>[0-9]|[1-9][0-9]|100)(?:%| percent)"
 count_re = r"(?P<count>\d{1,3})"
@@ -22,7 +44,7 @@ average_re2 = r"(?P<average>(?:[0-9]|10)(?:\.\d{1,2})?)(?:/| out of )10"
 fill = r"[^\d.\n]+?"
 
 
-url_re = r"rottentomatoes.com/m/(?P<movieid>[-a-z0-9_]+)"
+url_re = r"rottentomatoes.com/(?P<rtid>m/[-a-z0-9_]+)"
 
 # Regular expressions for the source/citation, where we will find the
 # Rotten Tomatoes URL for the movie.
@@ -57,4 +79,8 @@ res = [ rt_re + fill + score_re + fill + count_re + make_opt(fill+average_re),
 	]
 
 res_with_source = [x + ".+?" + citation_re for x in res]
+
+
+if __name__ == "__main__":
+	print(parse_template("cite web | title= Meadowland Reviews | url= https://www.metacritic.com/movie/meadowland | website= [[Metacritic]] |publisher= [[CBS Interactive]] | access-date= February 22, 2020 "))
 

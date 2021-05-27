@@ -27,6 +27,26 @@ class Candidate:
 
 def find_start(text, j):
 	st = {'\n', '.', '>'}
+	italics = False
+	i = j-1
+	while i >= 0:
+		c = text[i]
+		if c in ('\n', '>'):
+			ind = i + 1
+			break
+		elif c == "'":
+			if text[i - 1] == "'":
+				italics = not italics
+				i -= 1
+		elif c == '.':
+			if not italics:
+				ind = i + 1
+				break
+		i -= 1
+
+	return ind + (text[ind] == ' ')
+
+
 	ind = next((i for i in range(j-1, -1, -1) if text[i] in st), None) + 1
 	ind += (text[ind] == ' ')
 	# if text[ind] == '\n':

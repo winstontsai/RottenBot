@@ -4,6 +4,9 @@
 def make_opt(s):
 	return "(?:{})?".format(s)
 
+def alternates(l):
+	return "(?:{})".format("|".join(l))
+
 def construct_redirects(l):
 	"""
 	Constructs the part of a regular expression which
@@ -12,14 +15,14 @@ def construct_redirects(l):
 	use this function with l = ["Rotten Tomatoes", "RottenTomatoes"]
 	"""
 	redirects = ["[{}]{}".format(x[0] + x[0].lower(),x[1:]) for x in l]
-	return "(?:{})".format("|".join(redirects))
+	return alternates(redirects)
 
 
 def parse_template(template):
 	"""
 	Takes the text of a template (the stuff between "{{"" and ""}}"") and
-	returns a dict of the key-value pairs.
-	Unnamed parameters are given the keys 1, 2, 3, etc, in order.
+	returns the template's name and a dict of the key-value pairs.
+	Unnamed parameters are given the integer keys 1, 2, 3, etc, in order.
 	"""
 	d = dict()
 	counter = 1
@@ -36,7 +39,7 @@ def parse_template(template):
 			d[key] = value
 	return (template_name, d)
 
-def construct template(name, d):
+def construct_template(name, d):
 	s = name
 	for key,value in d:
 		s += " |{}={}".format(key, value)
@@ -73,19 +76,19 @@ t_rt = "<ref>{{(?P<rt>" + construct_redirects(rt_redirects) + ".+?)}}</ref>"
 
 t_ldref = r"<ref name=(.+?)/>"
 
-citation_re = "(?P<citation>{})".format("|".join([t_citeweb, t_citert, t_rt]))
+citation_re = "(?P<citation>{})".format(alternates([t_citeweb, t_citert, t_rt]))
 
-res = [ rt_re + fill + score_re + fill + count_re + make_opt(fill+average_re), 
-		rt_re + fill + score_re + fill + average_re + make_opt(fill+count_re),
-		rt_re + fill + count_re + fill + score_re + make_opt(fill+average_re),
-		score_re + fill + rt_re + fill + count_re + make_opt(fill+average_re),
-		score_re + fill + average_re + fill + rt_re + make_opt(fill+count_re),
-		score_re + fill + count_re + fill + rt_re + make_opt(fill+average_re),
-		rt_re + fill + score_re,
-		score_re + fill + rt_re
-	]
+# res = [ rt_re + fill + score_re + fill + count_re + make_opt(fill+average_re), 
+# 		rt_re + fill + score_re + fill + average_re + make_opt(fill+count_re),
+# 		rt_re + fill + count_re + fill + score_re + make_opt(fill+average_re),
+# 		score_re + fill + rt_re + fill + count_re + make_opt(fill+average_re),
+# 		score_re + fill + average_re + fill + rt_re + make_opt(fill+count_re),
+# 		score_re + fill + count_re + fill + rt_re + make_opt(fill+average_re),
+# 		rt_re + fill + score_re,
+# 		score_re + fill + rt_re
+# 	]
 
-res_with_source = [x + ".+?" + citation_re for x in res]
+# res_with_source = [x + ".+?" + citation_re for x in res]
 
 
 if __name__ == "__main__":

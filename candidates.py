@@ -1,13 +1,16 @@
-# This module basically does some preprocessing.
+# This module does some preprocessing.
 # It identifies "candidate" pages that contain Rotten Tomatoes rating info,
-# finds the corresponding Rotten Tomatoes url,
-# and also finds the start of the sentence in which the rating info is contained.
+# finds the corresponding Rotten Tomatoes data if possible,
+# and also finds (or at least tries to) the start of the sentence in which
+# the rating info is contained.
 
 import re
 import sys
 import urllib
+import shelve
 
 from pywikibot import Site, Page, ItemPage
+from pywikibot.xmlreader import XmlDump
 
 from patterns import *
 import scraper
@@ -96,7 +99,6 @@ class Candidate:
 		raise ValueError("Could not extract the Rotten Tomatoes ID from the page {}.".format(self.title))
 
 	def _rt_data(self, match):
-		# First, we need to get the right Rotten Tomatoes id/url.
 		d = None
 		try:
 			url = rt_url(self.rt_id)
@@ -147,5 +149,27 @@ def find_candidates(xmldump):
 			count += 1
 			yield Candidate(entry, m)
 	print("MATCHED / TOTAL = {} / {}".format(count, total), file=sys.stderr)
+
+
+
+if __name__ == "__main__":
+	# for cand in find_candidates(XmlDump('xmldumps/santabarbara.xml')):
+	# 	print(type(cand.id))
+	xmlfile = sys.argv[1]
+	dump = XmlDump(xmlfile)
+	with shelve.open("storage/candidates-list") as db:
+		for cand in find_candidates(dump):
+			db[cand.id] = cand
+
+
+
+
+
+
+
+
+
+
+
 
 

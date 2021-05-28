@@ -15,6 +15,7 @@ core_stable/
 example_movies/
 xmldumps/
 outputs/
+storage/
 pages-list.txt
 test-films.txt
 notes.txt

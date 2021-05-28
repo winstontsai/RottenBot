@@ -1,7 +1,6 @@
-# This module is takes Candidates from the candidates.py module and
-# determines whether or not it should be edited.
-# If so, it produces an Edit object which
-# contains the relevant page, the old text to be replaced, and the replacement text.
+# This module is takes Candidates,
+# determines whether or not it should be edited,
+# and if so produces the new text.
 
 import re
 import sys

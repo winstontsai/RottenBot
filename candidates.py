@@ -4,10 +4,13 @@
 # and also finds the start of the sentence in which the rating info is contained.
 
 import re
+import sys
+import urllib
 
 from pywikibot import Site, Page, ItemPage
 
 from patterns import *
+import scraper
 
 
 class Candidate:
@@ -22,12 +25,20 @@ class Candidate:
 		self.score = match.group('score')
 		self.start = self._find_start(xmlentry.text, match.start())
 		self.end = match.end()
-		self.rtid = extract_rtid(xmlentry, match)
+		# citation start and end index
+		self.cstart = 0
+		self.cend = 0
+		self.rt_id = self._extract_rt_id(match)
+		self.rt_data = self._rt_data(match)
 
 	def _find_start(self, text, j):
 		"""
 		This function is supposed to find the index of the beginning of
 		the sentence containing the Rotten Tomatoes rating info.
+
+		NOTE: There are edge cases where the index returned by this function
+		is in fact NOT the start of the desired sentence (see suspicious_start).
+		In these cases the bot operator will be asked for input.
 
 		Args:
 			text: the text of the page
@@ -44,39 +55,75 @@ class Candidate:
 				break
 			elif c == "'" == text[i + 1]:
 				italics = not italics
-		return ind + (text[ind] == ' ')
+
+		ind += (text[ind] == ' ')
+
+		return ind
 
 
-def extract_rtid(xmlentry, match):
-	"""
-	Given the re.Match object which has identified a candidate, extracts the movieid.
-	"""
+	def suspicious_start(self):
+		return self.text[self.start] not in "[{'ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
-	# Cite web template case
-	if match.group('citeweb'):
-		return match.group('rtid')
+	def _extract_rt_id(self, match):
+		"""
+		Given the re.Match object which has identified a candidate, extracts the movieid.
+		"""
 
-	# Cite Rotten Tomatoes template case
-	if match.group('citert'):
-		d = parse_template(match.group('citert'))[1]
-		return "m/" + d['id']
+		# Cite web template case
+		if match.group('citeweb'):
+			return match.group('rt_id')
 
-	# Rotten Tomatoes template case 
-	if match.group('rt'):
-		d = parse_template(match.group('rt'))[1]
-		if 'id' in d.keys():
-			return ("" if d['id'].startswith('m/') else "m/") + d['id'] 
-		if 1 in d.keys():
-			return ("" if d[1].startswith('m/') else "m/") + d[1]
+		# Cite Rotten Tomatoes template case
+		if match.group('citert'):
+			d = parse_template(match.group('citert'))[1]
+			return "m/" + d['id']
 
-		# Check for Wikidata property P1258
-		page = Page(Site('en','wikipedia'), xmlentry.title)
-		item = ItemPage.fromPage(page)
-		item.get()
-		if 'P1258' in item.claims:
-			return item.claims['P1258'][0].getTarget()
+		# Rotten Tomatoes template case 
+		if match.group('rt'):
+			d = parse_template(match.group('rt'))[1]
+			if 'id' in d.keys():
+				return ("" if d['id'].startswith('m/') else "m/") + d['id'] 
+			if 1 in d.keys():
+				return ("" if d[1].startswith('m/') else "m/") + d[1]
 
-	raise ValueError("Could not extract the Rotten Tomatoes ID from the page {}.".format(xmlentry.title))
+			# Check for Wikidata property P1258
+			page = Page(Site('en','wikipedia'), self.title)
+			item = ItemPage.fromPage(page)
+			item.get()
+			if 'P1258' in item.claims:
+				return item.claims['P1258'][0].getTarget()
+
+		raise ValueError("Could not extract the Rotten Tomatoes ID from the page {}.".format(self.title))
+
+	def _rt_data(self, match):
+		# First, we need to get the right Rotten Tomatoes id/url.
+		d = None
+		try:
+			url = rt_url(self.rt_id)
+			d = scraper.get_rt_rating(url)
+		except urllib.error.HTTPError:
+			print("""Problem getting Rotten Tomatoes data from article {}.
+				Now checking for Wikidata property P1258.""".format(self.title),
+				file = sys.stderr)
+			page = Page(Site('en','wikipedia'), self.title)
+			item = ItemPage.fromPage(page)
+			item.get()
+			if 'P1258' in item.claims:
+				print("Found Wikidata property P1258.", file=sys.stderr)
+				self.rt_id = item.claims['P1258'][0].getTarget()
+				d = scraper.get_rt_rating(rt_url(cand.rt_id))
+			else:
+				print("Could not find Wikidata property P1258.", file=sys.stderr)
+			# else: # worst case, still need to test if this is really needed
+			# 	try:
+			# 		url = googlesearch.lucky(entry.title + " site:rottentomatoes.com")
+			# 		rt_id = url.split('rottentomatoes.com/')[1]
+			# 		d = scraper.get_rt_rating(rt_url(rt_id))
+			# 	except Exception:
+			# 		print("There was a problem retrieving data from Rotten Tomatoes for the page {}.".format{cand.title},
+			# 			file = sys.stderr)
+			# 		return False
+		return d
 
 
 def find_candidates(xmldump):
@@ -90,13 +137,15 @@ def find_candidates(xmldump):
 	candidate_re2 = score_re + r"[^.\n]*?" + rt_re + r"[^\n]*?" + citation_re
 	
 	gen = xmldump.parse()
+	total, count = 0, 0
 	for entry in gen:
+		total += 1
 		m = re.search(candidate_re1, entry.text)
 		if not m:
 			m = re.search(candidate_re2, entry.text)
-
 		if m:
+			count += 1
 			yield Candidate(entry, m)
-
+	print("MATCHED / TOTAL = {} / {}".format(count, total), file=sys.stderr)
 
 

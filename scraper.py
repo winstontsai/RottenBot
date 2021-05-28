@@ -50,6 +50,11 @@ def get_rt_rating(url):
     else:
         sd = sd['tomatometerScoreAll']
 
+    # get title
+    indicator = "<title>"
+    terminator = " - Rotten Tomatoes"
+    title = find_substring(contents, indicator, terminator)
+
     # get critics consensus, if it exists.
     indicator = '<span data-qa="critics-consensus">'
     terminator = '</span>'
@@ -63,10 +68,11 @@ def get_rt_rating(url):
 
     return {'score' : sd['score'],
             'average' : sd['averageRating'],
-            'count' : sd['reviewCount'],
-            'count2' : sd['ratingCount'],
-            'accessDate' : date.today().strftime("%B %d, %y"), # e.g. May 24, 2021
-            'consensus' : consensus
+            'count' : str(sd['reviewCount']),
+            'count2' : str(sd['ratingCount']),
+            'accessDate' : date.today().strftime("%B %d, %Y"), # e.g. May 24, 2021
+            'consensus' : consensus,
+            'title' : title
         }
 
 

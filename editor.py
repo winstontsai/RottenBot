@@ -6,56 +6,88 @@
 import re
 import sys
 import urllib
+import webbrowser
 
-from pywikibot import Site, Page, ItemPage
+from pywikibot import Site, Page
 
 import scraper
 from patterns import *
 
 
-def rt_url(movieid):
-	return "https://www.rottentomatoes.com/" + movieid
+def full_replacement(cand, d):
+	s = "On review aggregator [[Rotten Tomatoes]], the film holds an approval rating \
+of {}% based on {} reviews, with an average rating of {}/10.".format(d['score'], d['count'], d['average'])
+	if d['consensus']:
+		s += " The website's critical consensus reads, \"{}\"".format(d['consensus'])
+
+	# add citation
+	s += "<ref>{{{{Cite Rotten Tomatoes |id={} |type=movie |title={} |access-date={}}}}}</ref>".format(cand.rt_id[2:], d['title'], d['accessDate'])
+
+	return s
 
 
 def try_to_update(cand):
-	try:
-		url = rt_url(cand.rtid)
-		d = scraper.get_rt_rating(url)
-	except urllib.error.HTTPError:
-		print("""Problem getting Rotten Tomatoes data from article {}.
-			Now checking for Wikidata property P1258.""".format(url),
-			file = sys.stderr)
-		page = Page(Site('en','wikipedia'), xmlentry.title)
-		item = ItemPage.fromPage(page)
-		item.get()
-		if 'P1258' in item.claims:
-			print("Found Wikidata property P1258.", file=sys.stderr)
-			cand.rtid = item.claims['P1258'][0].getTarget()
-			d = scraper.get_rt_rating(rt_url(cand.rtid))
-		else:
-			print("Could not find Wikidata property P1258.", file=sys.stderr)
-			return False
-		# else: # worst case, still need to test if this is really needed
-		# 	try:
-		# 		url = googlesearch.lucky(entry.title + " site:rottentomatoes.com")
-		# 		rtid = url.split('rottentomatoes.com/')[1]
-		# 		d = scraper.get_rt_rating(rt_url(rtid))
-		# 	except Exception:
-		# 		print("There was a problem retrieving data from Rotten Tomatoes for the page {}.".format{cand.title},
-		# 			file = sys.stderr)
-		# 		return False
-	if d is None:
+	d = cand.rt_data
+	if not d:
 		return False
 
+	old_text = cand.text[cand.start : cand.end]
+	new_text = old_text # we build up the replacement
 
 
-	rating_text = cand.text[cand.start: cand.end]
+	# handle average rating		
+	new_text, k = re.subn(average_re, d['average']+'/10', new_text)
+	if k == 0:
+		return full_replacement(cand, d)
 
 
-def construct_replacement():
-	pass
+	# handle review count
+	m = re.search(count_re, old_text)
+	if not m:
+		return full_replacement(cand, d)
+	if m.group().endswith("reviews"):
+		repl = d['count'] + " reviews"
+	else:
+		repl = d['count'] + " critics"
+	new_text, k = re.subn(count_re, repl, new_text)
+	if k == 0:
+		return full_replacement(cand, d)
+
+	# handle score
+	new_text = new_text.replace(cand.score, d['score'] + '%')
+
+	# check for edge cases
+	if cand.suspicious_start():
+		print("Suspicious start index for {} detected. First character is '{}'.".format(cand.title, cand.text[cand.start]))
+		user_input = input("Please either [s]kip this article or open it in [b]rowser for manual editing. Any other input will exit the program.")
+		if user_input == 's':
+			print("Skipping article {}.".format(cand.title))
+			pass
+		elif user_input == 'b':
+			webbrowser.open(Page(Site('en', 'wikipedia'), cand.title).full_url())
+		else:
+			print("Exiting program.")
+			quit()
+
+		return False
+
+	if new_text != old_text:
+		return new_text
+
+	return False
+
+
+
 
 
 
 if __name__ == "__main__":
 	pass
+
+
+
+
+
+
+
+

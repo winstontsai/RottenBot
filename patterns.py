@@ -1,6 +1,9 @@
 # Defines the regexes/patterns that will be used, along with some
 # related helper functions
 
+def rt_url(movieid):
+	return "https://www.rottentomatoes.com/" + movieid
+
 def alternates(l):
 	return "(?:{})".format("|".join(l))
 
@@ -46,15 +49,15 @@ def construct_template(name, d):
 	return s
 
 rt_re = r"[rR]otten [tT]omatoes"
-score_re = r"(?P<score>[0-9]|[1-9][0-9]|100)(?:%| percent)"
-count_re = r"(?P<count>\d{1,3})"
+score_re = r"(?P<score>([0-9]|[1-9][0-9]|100)(?:%| percent))"
+count_re = r"(?P<count>\d{1,3} ((critical )?reviews|(surveyed )?critics))"
 count_re2 = r"(?P<count>[5-9]|[1-9][0-9]|[1-9][0-9][0-9])"
-average_re = r"(?P<average>\d{1,2}(?:\.\d{1,2})?)(?:/| out of )(?:10|ten)"
-average_re2 = r"(?P<average>(?:[0-9]|10)(?:\.\d{1,2})?)(?:/| out of )(?:10|ten)"
+average_re =  r"(?P<average>\d{1,2}(\.\d{1,2})?(/| out of )(10|ten))"
+average_re2 = r"(?P<average>(?:[0-9]|10)(?:\.\d{1,2})?(?:/| out of )(?:10|ten))"
 fill = r"[^\d.\n]+?"
 
 
-url_re = r"rottentomatoes.com/(?P<rtid>m/[-a-z0-9_]+)"
+url_re = r"rottentomatoes.com/(?P<rt_id>m/[-a-z0-9_]+)"
 
 # Regular expressions for the source/citation, where we will find the
 # Rotten Tomatoes URL for the movie.

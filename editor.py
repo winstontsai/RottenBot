@@ -22,18 +22,20 @@ def try_to_update(cand):
 		url = rt_url(cand.rtid)
 		d = scraper.get_rt_rating(url)
 	except urllib.error.HTTPError:
-		print("Problem getting Rotten Tomatoes data from {}. Now checking for Wikidata property P1258.".format(url),
+		print("""Problem getting Rotten Tomatoes data from article {}.
+			Now checking for Wikidata property P1258.""".format(url),
 			file = sys.stderr)
 		page = Page(Site('en','wikipedia'), xmlentry.title)
 		item = ItemPage.fromPage(page)
 		item.get()
 		if 'P1258' in item.claims:
+			print("Found Wikidata property P1258.", file=sys.stderr)
 			cand.rtid = item.claims['P1258'][0].getTarget()
 			d = scraper.get_rt_rating(rt_url(cand.rtid))
 		else:
 			print("Could not find Wikidata property P1258.", file=sys.stderr)
 			return False
-		# else:
+		# else: # worst case, still need to test if this is really needed
 		# 	try:
 		# 		url = googlesearch.lucky(entry.title + " site:rottentomatoes.com")
 		# 		rtid = url.split('rottentomatoes.com/')[1]

@@ -1,9 +1,6 @@
 # Defines the regexes/patterns that will be used, along with some
 # related helper functions
 
-def make_opt(s):
-	return "(?:{})?".format(s)
-
 def alternates(l):
 	return "(?:{})".format("|".join(l))
 
@@ -42,15 +39,18 @@ def parse_template(template):
 def construct_template(name, d):
 	s = name
 	for key,value in d:
-		s += " |{}={}".format(key, value)
+		if type(key) == int:
+			s += " |{}".format(value)
+		else:
+			s += " |{}={}".format(key, value)
 	return s
 
 rt_re = r"[rR]otten [tT]omatoes"
 score_re = r"(?P<score>[0-9]|[1-9][0-9]|100)(?:%| percent)"
 count_re = r"(?P<count>\d{1,3})"
 count_re2 = r"(?P<count>[5-9]|[1-9][0-9]|[1-9][0-9][0-9])"
-average_re = r"(?P<average>\d{1,2}(?:\.\d{1,2})?)(?:/| out of )10"
-average_re2 = r"(?P<average>(?:[0-9]|10)(?:\.\d{1,2})?)(?:/| out of )10"
+average_re = r"(?P<average>\d{1,2}(?:\.\d{1,2})?)(?:/| out of )(?:10|ten)"
+average_re2 = r"(?P<average>(?:[0-9]|10)(?:\.\d{1,2})?)(?:/| out of )(?:10|ten)"
 fill = r"[^\d.\n]+?"
 
 
@@ -78,17 +78,6 @@ t_ldref = r"<ref name=(.+?)/>"
 
 citation_re = "(?P<citation>{})".format(alternates([t_citeweb, t_citert, t_rt]))
 
-# res = [ rt_re + fill + score_re + fill + count_re + make_opt(fill+average_re), 
-# 		rt_re + fill + score_re + fill + average_re + make_opt(fill+count_re),
-# 		rt_re + fill + count_re + fill + score_re + make_opt(fill+average_re),
-# 		score_re + fill + rt_re + fill + count_re + make_opt(fill+average_re),
-# 		score_re + fill + average_re + fill + rt_re + make_opt(fill+count_re),
-# 		score_re + fill + count_re + fill + rt_re + make_opt(fill+average_re),
-# 		rt_re + fill + score_re,
-# 		score_re + fill + rt_re
-# 	]
-
-# res_with_source = [x + ".+?" + citation_re for x in res]
 
 
 if __name__ == "__main__":

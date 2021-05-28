@@ -39,11 +39,11 @@ class Candidate:
 			if c in "\n>":
 				ind = i + 1
 				break
-			elif c == "'" == text[i + 1]:
-				italics = not italics
 			elif c == "." and not italics:
 				ind = i + 1
 				break
+			elif c == "'" == text[i + 1]:
+				italics = not italics
 		return ind + (text[ind] == ' ')
 
 

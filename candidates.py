@@ -28,9 +28,10 @@ class Candidate:
 		self.score = match.group('score')
 		self.start = self._find_start(xmlentry.text, match.start())
 		self.end = match.end()
-		# citation start and end index
-		self.cstart = 0
-		self.cend = 0
+		# citation text
+		self.citation = match.group('citation')
+		# prose text
+		self.prose = xmlentry.text[self.start : match.start('citation')] 
 		self.rt_id = self._extract_rt_id(match)
 		self.rt_data = self._rt_data(match)
 
@@ -127,6 +128,9 @@ class Candidate:
 			# 		return False
 		return d
 
+	def _find_citation(self):
+		pass
+
 
 def find_candidates(xmldump):
 	"""
@@ -153,13 +157,8 @@ def find_candidates(xmldump):
 
 
 if __name__ == "__main__":
-	# for cand in find_candidates(XmlDump('xmldumps/santabarbara.xml')):
-	# 	print(type(cand.id))
-	xmlfile = sys.argv[1]
-	dump = XmlDump(xmlfile)
-	with shelve.open("storage/candidates-list") as db:
-		for cand in find_candidates(dump):
-			db[cand.id] = cand
+	pass
+
 
 
 

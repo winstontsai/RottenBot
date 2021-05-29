@@ -9,8 +9,7 @@ import sys
 import urllib
 import shelve
 
-from pywikibot import Site, Page, ItemPage
-from pywikibot.xmlreader import XmlDump
+import pywikibot as pwb
 
 from patterns import *
 import scraper
@@ -68,6 +67,17 @@ class Candidate:
 	def suspicious_start(self):
 		return self.text[self.start] not in "[{'ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
+	def p1258(self):
+		"""
+		Returns Wikidata property P1258 if it exists, otherwise returns None.
+		"""
+		page = pwb.Page(pwb.Site('en','wikipedia'), self.title)
+		item = pwb.ItemPage.fromPage(page)
+		item.get()
+		if 'P1258' in item.claims:
+			return item.claims['P1258'][0].getTarget()
+		return None
+
 	def _extract_rt_id(self, match):
 		"""
 		Given the re.Match object which has identified a candidate, extracts the movieid.
@@ -91,13 +101,10 @@ class Candidate:
 				return ("" if d[1].startswith('m/') else "m/") + d[1]
 
 			# Check for Wikidata property P1258
-			page = Page(Site('en','wikipedia'), self.title)
-			item = ItemPage.fromPage(page)
-			item.get()
-			if 'P1258' in item.claims:
-				return item.claims['P1258'][0].getTarget()
+			if p := self.p1258():
+				return p
 
-		raise ValueError("Could not extract the Rotten Tomatoes ID from the page {}.".format(self.title))
+		raise ValueError("Could not find the Rotten Tomatoes ID for [[{}]].".format(self.title))
 
 	def _rt_data(self, match):
 		d = None
@@ -105,18 +112,15 @@ class Candidate:
 			url = rt_url(self.rt_id)
 			d = scraper.get_rt_rating(url)
 		except urllib.error.HTTPError:
-			print("""Problem getting Rotten Tomatoes data from article {}.
-				Now checking for Wikidata property P1258.""".format(self.title),
+			print("Problem getting Rotten Tomatoes data for [[{}]].\nNow looking for Wikidata property P1258.".format(self.title),
 				file = sys.stderr)
-			page = Page(Site('en','wikipedia'), self.title)
-			item = ItemPage.fromPage(page)
-			item.get()
-			if 'P1258' in item.claims:
-				print("Found Wikidata property P1258.", file=sys.stderr)
-				self.rt_id = item.claims['P1258'][0].getTarget()
-				d = scraper.get_rt_rating(rt_url(cand.rt_id))
+			if p := self.p1258():
+				self.rt_id = p
+				print("Found Wikidata property P1258: {}.".format(self.rt_id), file=sys.stderr)
+				d = scraper.get_rt_rating(rt_url(self.rt_id))
 			else:
-				print("Could not find Wikidata property P1258.", file=sys.stderr)
+				print("Wikidata property P1258 does not exist for [[{}]].".format(self.title), file=sys.stderr)
+			
 			# else: # worst case, still need to test if this is really needed
 			# 	try:
 			# 		url = googlesearch.lucky(entry.title + " site:rottentomatoes.com")
@@ -132,32 +136,34 @@ class Candidate:
 		pass
 
 
-def find_candidates(xmldump):
-	"""
-	Given an XmlDump, find all pages in the dump which contain Rotten Tomatoes
-	score info which might need editing.
+class Recruiter:
+	def __init__(self, xmlfile, patterns):
+		self.filename = xmlfile
+		self.patterns = patterns
 
-	This is a generator function.
-	"""
-	candidate_re1 = rt_re + r"[^.\n]*?" + score_re + r"[^\n]*?" + citation_re
-	candidate_re2 = score_re + r"[^.\n]*?" + rt_re + r"[^\n]*?" + citation_re
-	
-	gen = xmldump.parse()
-	total, count = 0, 0
-	for entry in gen:
-		total += 1
-		m = re.search(candidate_re1, entry.text)
-		if not m:
-			m = re.search(candidate_re2, entry.text)
-		if m:
-			count += 1
-			yield Candidate(entry, m)
-	print("MATCHED / TOTAL = {} / {}".format(count, total), file=sys.stderr)
+	def find_candidates(self):
+		"""
+		Given an XmlDump, yields all pages (as a Candidate) in the dump
+		which match at least one pattern in patterns.
+		"""
+		total, count = 0, 0
+		for entry in pwb.xmlreader.XmlDump(self.filename).parse():
+			total += 1
+			for p in self.patterns:
+				if m := re.search(p, entry.text):
+					count += 1
+					yield Candidate(entry, m)
+		print("CANDIDATES / TOTAL = {} / {}".format(count, total), file=sys.stderr)
+
+
+
 
 
 
 if __name__ == "__main__":
-	pass
+	r = Recruiter("xmldumps/soundofnoise.xml", cand_res)
+	for x in r.find_candidates:
+		print(x)
 
 
 

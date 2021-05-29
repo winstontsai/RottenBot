@@ -17,24 +17,25 @@ from patterns import *
 
 class Edit:
 
-	def __init__(self, title, old_prose, new_prose, old_citation, new_citation):
+	def __init__(self, title, old_prose, new_prose, old_citation, new_citation, complete_rewrite = False):
 		self.title = title
 		self.old_prose = old_prose
 		self.new_prose = new_prose
 		self.old_citation = old_citation
 		self.new_citation = new_citation
+		self.complete_rewrite = True
 
 class Editor:
 
-	def __init__(self, xmlfile):
-		self.filename = xmlfile
+	def __init__(self, recruiter):
+		self.recruiter = recruiter
 
-		# Suspect list of suspicoius edits. Each suspect is a pair (Candidate, reason),
+		# Suspect list of suspicious edits. Each suspect is a pair (Candidate, reason),
 		# where reason is the reason this suspect was added to the list
 		self.suspects = list()
 
 	def compute_edits(self, user_input = True):
-		for cand in candidates.find_candidates(xmlreader.XmlDump(self.filename)):
+		for cand in self.recruiter.find_candidates():
 			e = self._compute_edit(cand)
 			if e:
 				yield e
@@ -52,7 +53,7 @@ class Editor:
 		# handle average rating		
 		new_prose, k = re.subn(average_re, d['average']+'/10', new_prose)
 		if k == 0:
-			return Edit(cand.title, old_prose, full_replacement(cand, d), '', '')
+			return Edit(cand.title, old_prose, full_replacement(cand, d), '', '', True)
 		elif k > 1:
 			self.suspects.append((cand, "multiple average replacement"))
 
@@ -60,7 +61,7 @@ class Editor:
 		# handle review count
 		m = re.search(count_re, old_prose)
 		if not m:
-			return Edit(cand.title, old_prose, full_replacement(cand, d), '', '')
+			return Edit(cand.title, old_prose, full_replacement(cand, d), '', '', True)
 		if m.group().endswith("reviews"):
 			repl = d['count'] + " reviews"
 		else:
@@ -75,7 +76,7 @@ class Editor:
 		# check for edge cases
 		if cand.suspicious_start():
 			self.suspects.append((cand, "start index"))
-			print("Suspicious start index for {} detected. First character is '{}'.".format(cand.title, cand.text[cand.start]))
+			print("Suspicious start index for [[{}]] detected.\nProse begins with '{}'.".format(cand.title, cand.prose[:20]))
 			# user_input = input("Either [s]kip this article or open in [b]rowser for manual editing.\nAny other input will [e]xit the program.")
 			# if user_input == 's':
 			# 	print("Skipping article {}.".format(cand.title))
@@ -112,7 +113,8 @@ of {}% based on {} reviews, with an average rating of {}/10.".format(d['score'],
 if __name__ == "__main__":
 	t0 = time.perf_counter()
 	filename = sys.argv[1]
-	ed = Editor(filename)
+	rec = candidates.Recruiter(filename, cand_res)
+	ed = Editor(rec)
 	with shelve.open("storage/{}-edits-list".format(Path(filename).stem), flag = 'n') as db:
 		for e in ed.compute_edits():
 			db[e.title] = e

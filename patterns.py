@@ -54,7 +54,6 @@ count_re = r"(?P<count>\d{1,3} ((critical )?reviews|(surveyed )?critics))"
 count_re2 = r"(?P<count>[5-9]|[1-9][0-9]|[1-9][0-9][0-9])"
 average_re =  r"(?P<average>\d{1,2}(\.\d{1,2})?(/| out of )(10|ten))"
 average_re2 = r"(?P<average>(?:[0-9]|10)(?:\.\d{1,2})?(?:/| out of )(?:10|ten))"
-fill = r"[^\d.\n]+?"
 
 
 url_re = r"rottentomatoes.com/(?P<rt_id>m/[-a-z0-9_]+)"
@@ -80,6 +79,10 @@ t_rt = "<ref>{{(?P<rt>" + construct_redirects(rt_redirects) + ".+?)}}</ref>"
 t_ldref = r"<ref name=(.+?)/>"
 
 citation_re = "(?P<citation>{})".format(alternates([t_citeweb, t_citert, t_rt]))
+
+cand_re1 = rt_re + r"[^.\n]*?" + score_re + r"[^\n]*?" + citation_re
+cand_re2 = score_re + r"[^.\n]*?" + rt_re + r"[^\n]*?" + citation_re
+cand_res = [cand_re1, cand_re2]
 
 
 

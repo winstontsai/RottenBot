@@ -64,6 +64,7 @@ def get_rt_rating(url):
     if consensus: # make sure consensus is not None
         consensus = consensus.replace('<em>', "''")
         consensus = consensus.replace('</em>', "''")
+        consensus = consensus.replace("'''", r"''{{'}}") # apostrophe case
 
 
     return {'score' : sd['score'],

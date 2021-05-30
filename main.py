@@ -1,8 +1,9 @@
 import time
 import sys
 import shelve
+import argparse
 
-import pywikibot
+import pywikibot as pwb
 
 import scraper
 import candidates
@@ -17,7 +18,6 @@ filename = sys.argv[1]
 rec = candidates.Recruiter(filename, cand_res)
 ed = editor.Editor(rec)
 
-with shelve.open(filename, flag = 'r') as db:
-	for key, value in db.items():
-		print(key, value)
+for edit in ed.compute_edits():
+	edit.handler(edit)
 

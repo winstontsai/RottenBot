@@ -24,7 +24,7 @@ class Edit:
 		self.new_citation = new_citation
 		self.complete_rewrite = complete_rewrite
 
-		# Handler method for the edit.
+		# Handler function for the edit.
 		self.handler = handler
 
 class Editor:
@@ -99,7 +99,7 @@ class Editor:
 		if k > 1:
 			handler = Editor._multiple_count_handler
 
-			
+
 		# handle score
 		new_prose = new_prose.replace(cand.score, d['score'] + '%')
 
@@ -112,43 +112,74 @@ class Editor:
 		return None
 
 	@staticmethod
-	def _replacement_handler(edit):
+	def _replacement_handler(edit, interactive = True):
+		if interactive:
+			print(">>> {} <<<\n".format(edit.title))
+			print("Old prose:")
+			print(edit.old_prose + '\n')
+			print("New prose:")
+			print(edit.new_prose + '\n')
+			prompt = """Select an option:
+	1) yes
+	2) no (skip this edit)
+	3) open [[{}]] in browser for manual editing
+	4) quit program
+	Your selection: """.format(edit.title)
+			while (user_input := input(prompt)) not in "123":
+				pass
+
+			if user_input == '1':
+				Editor._replacement_handler(edit)
+			elif user_input == '3':
+				webbrowser.open(pwb.Page(pwb.Site('en', 'wikipedia'), edit.title).full_url())
+				input("Press Enter when finished in browser.")
+			elif user_input == '2':
+				print("Skipping edit for [[{}]].".format(edit.title))
+				return
+			elif user_input == '4':
+				print("Quitting program.")
+				quit()
 		page = pwb.Page(pwb.Site('en', 'wikipedia'), edit.title)
 		page.text = page.text.replace(edit.old_prose, edit.new_prose)
 		page.text = page.text.replace(edit.old_citation, edit.new_citation)
 		page.save()
 
 	@staticmethod
-	def _suspicious_start_handler(edit):
+	def _suspicious_start_handler(edit, interactive = True):
+		if not interactive:
+			return
 		print("Suspicious start index for [[{}]] detected.".format(edit.title))
 		print("Here is the old prose:")
-		print(edit.old_prose)
-		print()
+		print(edit.old_prose + '\n')
 		print("Here is the new prose:")
-		print(edit.new_prose)
-		print()
+		print(edit.new_prose + '\n')
+		prompt = """Select an option:
+1) replace old prose with new prose
+2) open browser for manual editing
+3) skip this edit
+4) quit the program.
+Your selection: """
+		while (user_input := input(prompt)) not in "1234":
+			pass
 
-		user_input = input("Select an option: [r]eplace old prose with new prose, open [b]rowser for manual editing, [s]kip, or [q]uit.")
-		while user_input not in "rbsq":
-			user_input = input("Please select an option: [r]eplace, open [b]rowser for manual editing, [s]kip, or [q]uit.")
-
-		if user_input == 'r':
+		if user_input == '1':
 			Editor._replacement_handler(edit)
-		elif user_input == 'b':
+		elif user_input == '2':
 			webbrowser.open(pwb.Page(pwb.Site('en', 'wikipedia'), edit.title).full_url())
 			input("Press Enter when finished in browser.")
-		elif user_input == 's':
+		elif user_input == '3':
 			print("Skipping edit for [[{}]].".format(edit.title))
-		elif user_input == 'q':
+			return
+		elif user_input == '4':
 			print("Quitting program.")
 			quit()
 
 	@staticmethod
-	def _multiple_average_handler(edit):
+	def _multiple_average_handler(edit, interactive = True):
 		print("multiple_average_handler")
 
 	@staticmethod
-	def _multiple_count_handler(edit):
+	def _multiple_count_handler(edit, interactive = True):
 		print("multiple_count_handler")
 
 
@@ -171,9 +202,13 @@ if __name__ == "__main__":
 	filename = sys.argv[1]
 	rec = candidates.Recruiter(filename, cand_res)
 	ed = Editor(rec)
-	with shelve.open("storage/{}-edits-list".format(Path(filename).stem), flag = 'n') as db:
-		for e in ed.compute_edits():
-			db[e.title] = e
+	for edit in ed.compute_edits():
+		# print("<<< " + edit.title + " >>>")
+		# print("OLD TEXT:", edit.old_prose)
+		# print()
+		# print("NEW TEXT:", edit.new_prose)
+		# print()
+		pass
 	t1 = time.perf_counter()
 	print("TIME ELAPSED =", t1-t0, file = sys.stderr)
 

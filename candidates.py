@@ -10,6 +10,7 @@ import urllib
 import shelve
 
 import pywikibot as pwb
+from pywikibot.xmlreader import XmlDump
 
 from patterns import *
 import scraper
@@ -25,6 +26,7 @@ class Candidate:
 		self.id = xmlentry.id
 		self.text = xmlentry.text
 		self.score = match.group('score')
+		self.p1258 = self._p1258()
 		self.start = self._find_start(xmlentry.text, match.start())
 		self.end = match.end()
 		# citation text
@@ -64,10 +66,7 @@ class Candidate:
 		return ind
 
 
-	def suspicious_start(self):
-		return self.text[self.start] not in "[{'ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-
-	def p1258(self):
+	def _p1258(self):
 		"""
 		Returns Wikidata property P1258 if it exists, otherwise returns None.
 		"""
@@ -147,7 +146,7 @@ class Recruiter:
 		which match at least one pattern in patterns.
 		"""
 		total, count = 0, 0
-		for entry in pwb.xmlreader.XmlDump(self.filename).parse():
+		for entry in XmlDump(self.filename).parse():
 			total += 1
 			for p in self.patterns:
 				if m := re.search(p, entry.text):

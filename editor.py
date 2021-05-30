@@ -10,38 +10,63 @@ import shelve
 import time
 from pathlib import Path
 
-from pywikibot import Site, Page, xmlreader
-
+import pywikibot as pwb
 import candidates
 from patterns import *
 
 class Edit:
 
-	def __init__(self, title, old_prose, new_prose, old_citation, new_citation, complete_rewrite = False):
+	def __init__(self, title, old_prose, new_prose, old_citation, new_citation, handler, complete_rewrite = False):
 		self.title = title
 		self.old_prose = old_prose
 		self.new_prose = new_prose
 		self.old_citation = old_citation
 		self.new_citation = new_citation
-		self.complete_rewrite = True
+		self.complete_rewrite = complete_rewrite
+
+		# Handler method for the edit.
+		self.handler = handler
 
 class Editor:
 
 	def __init__(self, recruiter):
 		self.recruiter = recruiter
 
-		# Suspect list of suspicious edits. Each suspect is a pair (Candidate, reason),
-		# where reason is the reason this suspect was added to the list
-		self.suspects = list()
 
 	def compute_edits(self, user_input = True):
+		"""
+		Takes the candidates that the recruiter provides and computes
+		the edits needed for each candidate.
+		Yields these as Edit objects.
+		Suspicious edits may either be yielded, or they may be manually
+		implemented, depending on the user's input.
+
+		Args:
+			user_input: if True, suspicious edits will require user input
+			to be handled. Otherwise suspicious edits will be ignored.
+		"""
+
+		# Suspect list of suspicious edits. Each suspect is a pair (Candidate, handler),
+		# where handler is the appropriate method to deal with each suspect.
+		# These user will handle these suspicious edits after all other
+		# edits are yielded. 
+		suspects = []
+
 		for cand in self.recruiter.find_candidates():
-			e = self._compute_edit(cand)
+			e = self._compute_edit(cand, suspects)
 			if e:
+				yield e
+		for suspect, handler in suspects:
+			if e := handler(suspect):
 				yield e
 
 
-	def _compute_edit(self, cand):
+	def _compute_edit(self, cand, suspect_list):
+		if cand.prose[0] not in "[{'ABCDEFGHIJKLMNOPQRSTUVWXYZ":
+			handler = Editor._suspicious_start_handler
+		else:
+			handler = Editor._replacement_handler
+
 		d = cand.rt_data
 		if not d:
 			return None
@@ -53,47 +78,78 @@ class Editor:
 		# handle average rating		
 		new_prose, k = re.subn(average_re, d['average']+'/10', new_prose)
 		if k == 0:
-			return Edit(cand.title, old_prose, full_replacement(cand, d), '', '', True)
+			return Edit(cand.title, old_prose=old_prose, new_prose=full_replacement(cand, d),
+				old_citation='', new_citation='',
+				handler=handler, complete_rewrite=True)
 		elif k > 1:
-			self.suspects.append((cand, "multiple average replacement"))
+			handler = Editor._multiple_average_handler
 
 
 		# handle review count
-		m = re.search(count_re, old_prose)
-		if not m:
-			return Edit(cand.title, old_prose, full_replacement(cand, d), '', '', True)
-		if m.group().endswith("reviews"):
+		if not (m := re.search(count_re, old_prose)):
+			return Edit(cand.title, old_prose=old_prose, new_prose=full_replacement(cand, d),
+				old_citation='', new_citation='',
+				handler=handler, complete_rewrite=True)
+		elif m.group().endswith("reviews"):
 			repl = d['count'] + " reviews"
 		else:
 			repl = d['count'] + " critics"
 
 		new_prose, k = re.subn(count_re, repl, new_prose)
 		if k > 1:
-			self.suspects.append((cand, "multiple count replacement"))
+			handler = Editor._multiple_count_handler
+
+			
 		# handle score
 		new_prose = new_prose.replace(cand.score, d['score'] + '%')
 
-		# check for edge cases
-		if cand.suspicious_start():
-			self.suspects.append((cand, "start index"))
-			print("Suspicious start index for [[{}]] detected.\nProse begins with '{}'.".format(cand.title, cand.prose[:20]))
-			# user_input = input("Either [s]kip this article or open in [b]rowser for manual editing.\nAny other input will [e]xit the program.")
-			# if user_input == 's':
-			# 	print("Skipping article {}.".format(cand.title))
-			# 	pass
-			# elif user_input == 'b':
-			# 	webbrowser.open(Page(Site('en', 'wikipedia'), cand.title).full_url())
-			# else:
-			# 	print("Exiting program.")
-			# 	quit()
-
-			# return False
 
 		if new_prose != old_prose:
-			return Edit(cand.title, old_prose, new_prose, '', '')
+			return Edit(cand.title, old_prose=old_prose, new_prose=new_prose,
+				old_citation='', new_citation='',
+				handler=handler, complete_rewrite=False)
 
 		return None
 
+	@staticmethod
+	def _replacement_handler(edit):
+		page = pwb.Page(pwb.Site('en', 'wikipedia'), edit.title)
+		page.text = page.text.replace(edit.old_prose, edit.new_prose)
+		page.text = page.text.replace(edit.old_citation, edit.new_citation)
+		page.save()
+
+	@staticmethod
+	def _suspicious_start_handler(edit):
+		print("Suspicious start index for [[{}]] detected.".format(edit.title))
+		print("Here is the old prose:")
+		print(edit.old_prose)
+		print()
+		print("Here is the new prose:")
+		print(edit.new_prose)
+		print()
+
+		user_input = input("Select an option: [r]eplace old prose with new prose, open [b]rowser for manual editing, [s]kip, or [q]uit.")
+		while user_input not in "rbsq":
+			user_input = input("Please select an option: [r]eplace, open [b]rowser for manual editing, [s]kip, or [q]uit.")
+
+		if user_input == 'r':
+			Editor._replacement_handler(edit)
+		elif user_input == 'b':
+			webbrowser.open(pwb.Page(pwb.Site('en', 'wikipedia'), edit.title).full_url())
+			input("Press Enter when finished in browser.")
+		elif user_input == 's':
+			print("Skipping edit for [[{}]].".format(edit.title))
+		elif user_input == 'q':
+			print("Quitting program.")
+			quit()
+
+	@staticmethod
+	def _multiple_average_handler(edit):
+		print("multiple_average_handler")
+
+	@staticmethod
+	def _multiple_count_handler(edit):
+		print("multiple_count_handler")
 
 
 def full_replacement(cand, d):

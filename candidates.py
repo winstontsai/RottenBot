@@ -34,6 +34,7 @@ class Candidate:
 		self.prose = xmlentry.text[self.start : match.start('citation')] 
 		self.rt_id = self._extract_rt_id(match)
 		self.rt_data = self._rt_data(match)
+		self._p1258 = -1
 
 	def _find_start(self, text, j):
 		"""
@@ -65,21 +66,18 @@ class Candidate:
 		return ind
 
 
-	def _p1258(self):
-		"""
-		Returns Wikidata property P1258 if it exists, otherwise returns None.
-		"""
-		try:
-			return self.p1258
-		except AttributeError:
+	@property
+	def p1258(self):
+		if self._p1258 == -1:
 			page = pwb.Page(pwb.Site('en','wikipedia'), self.title)
 			item = pwb.ItemPage.fromPage(page)
 			item.get()
 			if 'P1258' in item.claims:
-				self.p1258 = item.claims['P1258'][0].getTarget()
+				self._p1258 = item.claims['P1258'][0].getTarget()
 			else:
-				self.p1258 = None
-			return self.p1258
+				self._p1258 = None
+		return self._p1258
+	
 
 	def _extract_rt_id(self, match):
 		"""
@@ -118,7 +116,7 @@ class Candidate:
 			print("Problem retrieving Rotten Tomatoes data for [[{}]] with rt_id {}.\n".format(self.title, self.rt_id),
 				file = sys.stderr)
 			print("Now trying Wikidata property P1258.")
-			if self._p1258():
+			if self.p1258:
 				print("Wikidata property P1258 exists: {}.".format(self.p1258))
 				try:
 					d = scraper.get_rt_rating(rt_url(self.rt_id))
@@ -129,13 +127,14 @@ class Candidate:
 				print("Wikidata property P1258 does not exist for [[{}]].".format(self.title))
 				url = googlesearch.lucky(entry.title + " site:rottentomatoes.com")
 				movieid = url.split('rottentomatoes.com/')[1]
-				print("Suggested Rotten Tomatoes id:", movieid)
 
 				prompt = """Please select an option:
-1) use suggested id {}
-2) open {} and [[{}]] in browser
-3) skip this article
-4) quit the program.""".format(movieid, movieid, self.title)
+	1) use suggested id {}
+	2) open the Rotten Tomatoes page for {} and [[{}]] in the browser
+	3) skip this article
+	4) quit the program
+	5) enter id manually
+Your selecton: """.format(movieid, movieid, self.title)
 				while (user_input := input(prompt)) not in "134":
 					if user_input == '2':
 						webbrowser.open(rt_url(movieid))
@@ -146,12 +145,18 @@ class Candidate:
 					try:
 						d = scraper.get_rt_rating(rt_url(movieid))
 					except urllib.error.HTTPError:
-						print("Problem retrieving data from Rotten Tomatoes for the page {}.".format(cand.title))
+						print("Problem retrieving data from Rotten Tomatoes for [[{}]].".format(cand.title))
 				elif user_input == '3':
 					print("Skipping edit for [[{}]].".format(edit.title))
 				elif user_input == '4':
 					print("Quitting program.")
 					quit()
+				elif user_input == '5':
+					newid = input("Enter id here: ")
+					try:
+						d = scraper.get_rt_rating(rt_url(newid))
+					except urllib.error.HTTPError:
+						print("Problem retrieving data from Rotten Tomatoes for [[{}]].".format(cand.title))
 
 		return d
 
@@ -184,9 +189,7 @@ class Recruiter:
 
 
 if __name__ == "__main__":
-	r = Recruiter("xmldumps/2010s-films.xml", cand_res)
-	for x in r.find_candidates():
-		print(x)
+	pass
 
 
 

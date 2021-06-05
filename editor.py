@@ -112,7 +112,7 @@ class Editor:
 		return None
 
 	@staticmethod
-	def _replacement_handler(edit, interactive = True):
+	def _replacement_handler(edit, interactive = True, dryrun = True):
 		if interactive:
 			print(">>> {} <<<\n".format(edit.title))
 			print("Old prose:")
@@ -124,12 +124,12 @@ class Editor:
 	2) no (skip this edit)
 	3) open [[{}]] in browser for manual editing
 	4) quit program
-	Your selection: """.format(edit.title)
-			while (user_input := input(prompt)) not in "123":
+Your selection: """.format(edit.title)
+			while (user_input := input(prompt)) not in "1234":
 				pass
 
 			if user_input == '1':
-				Editor._replacement_handler(edit)
+				pass
 			elif user_input == '3':
 				webbrowser.open(pwb.Page(pwb.Site('en', 'wikipedia'), edit.title).full_url())
 				input("Press Enter when finished in browser.")
@@ -139,13 +139,16 @@ class Editor:
 			elif user_input == '4':
 				print("Quitting program.")
 				quit()
+
+		if dryrun:
+			return
 		page = pwb.Page(pwb.Site('en', 'wikipedia'), edit.title)
 		page.text = page.text.replace(edit.old_prose, edit.new_prose)
 		page.text = page.text.replace(edit.old_citation, edit.new_citation)
 		page.save()
 
 	@staticmethod
-	def _suspicious_start_handler(edit, interactive = True):
+	def _suspicious_start_handler(edit, interactive = True, dryrun = True):
 		if not interactive:
 			return
 		print("Suspicious start index for [[{}]] detected.".format(edit.title))
@@ -154,16 +157,21 @@ class Editor:
 		print("Here is the new prose:")
 		print(edit.new_prose + '\n')
 		prompt = """Select an option:
-1) replace old prose with new prose
-2) open browser for manual editing
-3) skip this edit
-4) quit the program.
+	1) replace old prose with new prose
+	2) open browser for manual editing
+	3) skip this edit
+	4) quit the program.
 Your selection: """
 		while (user_input := input(prompt)) not in "1234":
 			pass
 
 		if user_input == '1':
-			Editor._replacement_handler(edit)
+			if dryrun:
+				return
+			page = pwb.Page(pwb.Site('en', 'wikipedia'), edit.title)
+			page.text = page.text.replace(edit.old_prose, edit.new_prose)
+			page.text = page.text.replace(edit.old_citation, edit.new_citation)
+			page.save()
 		elif user_input == '2':
 			webbrowser.open(pwb.Page(pwb.Site('en', 'wikipedia'), edit.title).full_url())
 			input("Press Enter when finished in browser.")
@@ -198,19 +206,7 @@ of {}% based on {} reviews, with an average rating of {}/10.".format(d['score'],
 
 
 if __name__ == "__main__":
-	t0 = time.perf_counter()
-	filename = sys.argv[1]
-	rec = candidates.Recruiter(filename, cand_res)
-	ed = Editor(rec)
-	for edit in ed.compute_edits():
-		# print("<<< " + edit.title + " >>>")
-		# print("OLD TEXT:", edit.old_prose)
-		# print()
-		# print("NEW TEXT:", edit.new_prose)
-		# print()
-		pass
-	t1 = time.perf_counter()
-	print("TIME ELAPSED =", t1-t0, file = sys.stderr)
+	pass
 
 
 

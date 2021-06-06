@@ -62,8 +62,11 @@ class Editor:
 
 
 	def _compute_edit(self, cand, suspect_list):
+		# check for some suspicious first and last characters
 		if cand.prose[0] not in "[{'ABCDEFGHIJKLMNOPQRSTUVWXYZ":
 			handler = Editor._suspicious_start_handler
+		elif cand.prose[-1] not in '."':
+			handler = Editor._suspicious_end_handler
 		else:
 			handler = Editor._replacement_handler
 
@@ -101,7 +104,9 @@ class Editor:
 
 
 		# handle score
-		new_prose = new_prose.replace(cand.score, d['score'] + '%')
+		new_prose, k = re.subn(cand.score, d['score'] + '%', new_prose)
+		if k > 1:
+			handler = Editor._multiple_score_handler
 
 
 		if new_prose != old_prose:
@@ -151,7 +156,44 @@ Your selection: """.format(edit.title)
 	def _suspicious_start_handler(edit, interactive = True, dryrun = True):
 		if not interactive:
 			return
-		print("Suspicious start index for [[{}]] detected.".format(edit.title))
+		print("Suspicious first character '{}' for [[{}]] detected.".format(edit.old_prose[0],
+			edit.title))
+		print("Here is the old prose:")
+		print(edit.old_prose + '\n')
+		print("Here is the new prose:")
+		print(edit.new_prose + '\n')
+		prompt = """Select an option:
+	1) replace old prose with new prose
+	2) open browser for manual editing
+	3) skip this edit
+	4) quit the program.
+Your selection: """
+		while (user_input := input(prompt)) not in "1234":
+			pass
+
+		if user_input == '1':
+			if dryrun:
+				return
+			page = pwb.Page(pwb.Site('en', 'wikipedia'), edit.title)
+			page.text = page.text.replace(edit.old_prose, edit.new_prose)
+			page.text = page.text.replace(edit.old_citation, edit.new_citation)
+			page.save()
+		elif user_input == '2':
+			webbrowser.open(pwb.Page(pwb.Site('en', 'wikipedia'), edit.title).full_url())
+			input("Press Enter when finished in browser.")
+		elif user_input == '3':
+			print("Skipping edit for [[{}]].".format(edit.title))
+			return
+		elif user_input == '4':
+			print("Quitting program.")
+			quit()
+
+	@staticmethod
+	def _suspicious_end_handler(edit, interactive = True, dryrun = True):
+		if not interactive:
+			return
+		print("Suspicious last character '{}' for [[{}]] detected.".format(edit.old_prose[-1],
+			edit.title))
 		print("Here is the old prose:")
 		print(edit.old_prose + '\n')
 		print("Here is the new prose:")
@@ -189,6 +231,10 @@ Your selection: """
 	@staticmethod
 	def _multiple_count_handler(edit, interactive = True):
 		print("multiple_count_handler")
+
+	@staticmethod
+	def _multiple_score_handler(edit, interactive = True):
+		print("multiple_score_handler")
 
 
 def full_replacement(cand, d):

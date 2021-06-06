@@ -1,10 +1,8 @@
 import urllib.request
 import json
-import re
-
+import sys
 
 from datetime import date
-from bs4 import BeautifulSoup
 
 
 def url_contents(url):
@@ -66,17 +64,15 @@ def get_rt_rating(url):
         consensus = consensus.replace('</em>', "''")
         consensus = consensus.replace("'''", r"''{{'}}") # apostrophe case
 
-
-    return {'score' : sd['score'],
+    print(sd, file=sys.stderr, flush=True)
+    return {'title' : title,
+            'score' : sd['score'],
             'average' : sd['averageRating'],
             'count' : str(sd['reviewCount']),
             'count2' : str(sd['ratingCount']),
-            'accessDate' : date.today().strftime("%B %d, %Y"), # e.g. May 24, 2021
             'consensus' : consensus,
-            'title' : title
+            'accessDate' : date.today().strftime("%B %d, %Y"), # e.g. May 24, 2021
         }
-
-
 
 
 if __name__ == "__main__":

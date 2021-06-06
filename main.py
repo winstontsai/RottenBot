@@ -12,7 +12,7 @@ import patterns
 
 
 # function for shelve command
-def shelve_edits(args):
+def store_edits(args):
 	#print("shelve_edits({})".format(args))
 	r = candidates.Recruiter(args.xmlfile, patterns.cand_res)
 	e = editor.Editor(r)
@@ -20,11 +20,19 @@ def shelve_edits(args):
 		for edit in e.compute_edits():
 			db[edit.title] = edit
 
+def store_candidates(args):
+	r = candidates.Recruiter(args.xmlfile, patterns.cand_res)
+	with open(args.file, 'w') as f:
+		for c in r.find_candidates():
+			f.write(c.title + '\n' +c.prose + '\n')
+
 # function for upload command
 def upload_edits(args):
 	print("upload_edits({})".format(args))
 
-
+	with shelve.open(args.file, 'r') as db:
+		for k, v in db.items():
+			pass
 
 
 
@@ -43,22 +51,38 @@ See 'https://github.com/winstontsai/RottenBot' for more info about this bot.""",
 		help='available commands',)
 
 	# parser for shelving
-	parser_s = subparsers.add_parser('shelve', aliases=['store'],
+	parser_s = subparsers.add_parser('store', aliases=['shelve'],
 		help='store edits in a file')
+	parser_s.set_defaults(func=store_edits)
+	parser_s.add_argument('-c', '--candidates',
+		dest='func', action='store_const', const=store_candidates,
+		help='instead of edits, store the titles and Rotten Tomatoes ids')
 	parser_s.add_argument('xmlfile', help="file containing the XML dump of Wikipedia pages to work on")
 	parser_s.add_argument('file', help='file in which to store edits')
 	
-	parser_s.set_defaults(func=shelve_edits)
 
 	# parser for uploading
 	parser_u = subparsers.add_parser('upload', aliases=['up'],
 		help='upload edits to the live wiki')
+	parser_u.set_defaults(func=upload_edits)
 	parser_u.add_argument('file', help='name of the file from which edits will be uploaded')
 	parser_u.add_argument('-d', '--dryrun', action='store_true',
 		help='no edits will actually be made to the live wiki')
-	parser_u.set_defaults(func=upload_edits)
 
 	args = parser.parse_args()
 
-
+	t0=time.perf_counter()
 	args.func(args)
+	t1=time.perf_counter()
+	print("TIME ELAPSED =", t1-t0, file = sys.stderr)
+
+
+
+
+
+
+
+
+
+
+

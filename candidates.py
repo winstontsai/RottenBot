@@ -108,6 +108,7 @@ class Candidate:
 		raise ValueError("Could not find the Rotten Tomatoes ID for [[{}]].".format(self.title))
 
 	def _rt_data(self, match):
+		print(self.title, flush=True)
 		d = None
 		try:
 			url = rt_url(self.rt_id)
@@ -115,7 +116,7 @@ class Candidate:
 		except urllib.error.HTTPError:
 			print("Problem retrieving Rotten Tomatoes data for [[{}]] with rt_id {}.\n".format(self.title, self.rt_id),
 				file = sys.stderr)
-			print("Now trying Wikidata property P1258.")
+			print("Checking for Wikidata property P1258...")
 			if self.p1258:
 				print("Wikidata property P1258 exists: {}.".format(self.p1258))
 				try:
@@ -124,17 +125,16 @@ class Candidate:
 					print("Problem getting Rotten Tomatoes data for [[{}]] with Wikidata Property P1258: {}.\n".format(self.title, self.p1258),
 						file = sys.stderr)
 			else:
-				print("Wikidata property P1258 does not exist for [[{}]].".format(self.title))
+				print("Wikidata property P1258 does not exist.")
 				url = googlesearch.lucky(entry.title + " site:rottentomatoes.com")
 				movieid = url.split('rottentomatoes.com/')[1]
-
 				prompt = """Please select an option:
 	1) use suggested id {}
-	2) open the Rotten Tomatoes page for {} and [[{}]] in the browser
+	2) open the suggested RT page and [[{}]] in the browser
 	3) skip this article
 	4) quit the program
 	5) enter id manually
-Your selecton: """.format(movieid, movieid, self.title)
+Your selecton: """.format(movieid, self.title)
 				while (user_input := input(prompt)) not in "134":
 					if user_input == '2':
 						webbrowser.open(rt_url(movieid))
@@ -181,6 +181,7 @@ class Recruiter:
 				if m := re.search(p, entry.text):
 					count += 1
 					yield Candidate(entry, m)
+					#break
 		print("CANDIDATES / TOTAL = {} / {}".format(count, total))
 
 

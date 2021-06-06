@@ -1,2 +1,2 @@
 # RottenBot
-Bot to help edit Rotten Tomatoes scores and citations on Wikipedia film articles.
+Bot to help edit Rotten Toatoes film ratings on the English Wikipedia.

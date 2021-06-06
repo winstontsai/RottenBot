@@ -37,7 +37,7 @@ def upload_edits(args):
 
 
 if __name__ == '__main__':
-	parser = argparse.ArgumentParser(description = 'Bot to edit Rotten Toatoes film ratings on the English Wikipedia.',
+	parser = argparse.ArgumentParser(description = 'Bot to help edit Rotten Toatoes film ratings on the English Wikipedia.',
 		epilog="""Use '-h' after a subcommand to read about a specific subcommand.
 See 'https://github.com/winstontsai/RottenBot' for more info about this bot.""",
 		formatter_class=argparse.RawDescriptionHelpFormatter,)

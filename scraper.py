@@ -1,3 +1,5 @@
+# This module scrapes rottentomatoes.com for the desired data.
+
 import urllib.request
 import json
 import sys

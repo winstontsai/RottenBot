@@ -1,5 +1,5 @@
-# Defines the regexes/patterns that will be used, along with some
-# related helper functions
+# This module defines some regexes/patterns that will be used, along with some
+# related helper functions.
 
 def rt_url(movieid):
 	return "https://www.rottentomatoes.com/" + movieid

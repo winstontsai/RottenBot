@@ -1,14 +1,9 @@
-# This module is takes Candidates,
-# determines whether or not it should be edited,
-# and if so produces the new text.
+# This module takes Candidates and computes produces the new text to be used.
 
 import re
 import sys
 import urllib
 import webbrowser
-import shelve
-import time
-from pathlib import Path
 
 import pywikibot as pwb
 import candidates

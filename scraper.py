@@ -34,9 +34,8 @@ def get_rt_rating(url):
     returns a dictionary containing the score, average rating, review count,
     and also the current date.
     All the values will be in string form.
-
-    The keys are: 'score', 'average', 'count', and 'accessDate'
     """
+    # print("URL =", url, flush=True, file=sys.stderr)
     contents = url_contents(url)
 
     indicator = '<script id="score-details-json" type="application/json">'
@@ -47,6 +46,10 @@ def get_rt_rating(url):
         return None
     else:
         sd = sd['tomatometerScoreAll']
+    if not sd:
+        print("There was a problem getting the Rotten Tomatoes rating from {}. Try again later.".format(url),
+            file = sys.stderr)
+        return sd
 
     # get title
     indicator = "<title>"
@@ -64,12 +67,12 @@ def get_rt_rating(url):
         consensus = consensus.replace('</em>', "''")
         consensus = consensus.replace("'''", r"''{{'}}") # apostrophe case
 
-    print(sd, file=sys.stderr, flush=True)
+    #print(sd, file=sys.stderr, flush=True)
     return {'title' : title,
             'score' : sd['score'],
             'average' : sd['averageRating'],
-            'count' : str(sd['reviewCount']),
-            'count2' : str(sd['ratingCount']),
+            'reviewCount' : str(sd['reviewCount']),
+            'ratingCount' : str(sd['ratingCount']),
             'consensus' : consensus,
             'accessDate' : date.today().strftime("%B %d, %Y"), # e.g. May 24, 2021
         }

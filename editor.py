@@ -88,15 +88,15 @@ class Editor:
 			handler = Editor._multiple_average_handler
 
 
-		# handle review count
+		# handle review reviewCount
 		if not (m := re.search(count_re, old_prose)):
 			return Edit(cand.title, old_prose=old_prose, new_prose=full_replacement(cand, d),
 				old_citation='', new_citation='',
 				handler=handler, complete_rewrite=True)
 		elif m.group().endswith("reviews"):
-			repl = d['count'] + " reviews"
+			repl = d['reviewCount'] + " reviews"
 		else:
-			repl = d['count'] + " critics"
+			repl = d['reviewCount'] + " critics"
 
 		new_prose, k = re.subn(count_re, repl, new_prose)
 		if k > 1:
@@ -239,7 +239,7 @@ Your selection: """
 
 def full_replacement(cand, d):
 	s = "On review aggregator [[Rotten Tomatoes]], the film holds an approval rating \
-of {}% based on {} reviews, with an average rating of {}/10.".format(d['score'], d['count'], d['average'])
+of {}% based on {} reviews, with an average rating of {}/10.".format(d['score'], d['reviewCount'], d['average'])
 	if d['consensus']:
 		s += " The website's critical consensus reads, \"{}\"".format(d['consensus'])
 

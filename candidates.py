@@ -7,13 +7,17 @@
 import re
 import sys
 import urllib
-import shelve
+import webbrowser
+
+import googlesearch
 
 import pywikibot as pwb
 from pywikibot.xmlreader import XmlDump
 
 from patterns import *
 import scraper
+
+
 
 
 class Candidate:
@@ -24,6 +28,7 @@ class Candidate:
 	def __init__(self, xmlentry, match):
 		self.title = xmlentry.title
 		self.id = xmlentry.id
+		self._p1258 = -1
 		self.text = xmlentry.text
 		self.score = match.group('score')
 		self.start = self._find_start(xmlentry.text, match.start())
@@ -34,7 +39,19 @@ class Candidate:
 		self.prose = xmlentry.text[self.start : match.start('citation')] 
 		self.rt_id = self._extract_rt_id(match)
 		self.rt_data = self._rt_data(match)
-		self._p1258 = -1
+
+
+	@property
+	def p1258(self):
+		if self._p1258 == -1:
+			page = pwb.Page(pwb.Site('en','wikipedia'), self.title)
+			item = pwb.ItemPage.fromPage(page)
+			item.get()
+			if 'P1258' in item.claims:
+				self._p1258 = item.claims['P1258'][0].getTarget()
+			else:
+				self._p1258 = None
+		return self._p1258
 
 	def _find_start(self, text, j):
 		"""
@@ -64,19 +81,6 @@ class Candidate:
 		ind += (text[ind] == ' ')
 
 		return ind
-
-
-	@property
-	def p1258(self):
-		if self._p1258 == -1:
-			page = pwb.Page(pwb.Site('en','wikipedia'), self.title)
-			item = pwb.ItemPage.fromPage(page)
-			item.get()
-			if 'P1258' in item.claims:
-				self._p1258 = item.claims['P1258'][0].getTarget()
-			else:
-				self._p1258 = None
-		return self._p1258
 	
 
 	def _extract_rt_id(self, match):
@@ -107,58 +111,66 @@ class Candidate:
 
 		raise ValueError("Could not find the Rotten Tomatoes ID for [[{}]].".format(self.title))
 
-	def _rt_data(self, match):
-		print(self.title, flush=True)
-		d = None
+	def _rt_data_try(self, movieid, func, *args):
+		"""
+		Tries to return the RT data from rt_url(movieid),
+		and executes func on a urllib.errorr.HTTPError.
+		"""
 		try:
-			url = rt_url(self.rt_id)
-			d = scraper.get_rt_rating(url)
+			return scraper.get_rt_rating(rt_url(movieid))
 		except urllib.error.HTTPError:
-			print("Problem retrieving Rotten Tomatoes data for [[{}]] with rt_id {}.\n".format(self.title, self.rt_id),
+			return func(*args)
+
+	def _rt_data_bad_first_try(self):
+		print("Problem retrieving Rotten Tomatoes data for [[{}]] with id {}.".format(self.title, self.rt_id),
+			file = sys.stderr)
+		print("Checking for Wikidata property P1258...", file=sys.stderr)
+		if self.p1258:
+			print("Wikidata property P1258 exists: {}.".format(self.p1258),
 				file = sys.stderr)
-			print("Checking for Wikidata property P1258...")
-			if self.p1258:
-				print("Wikidata property P1258 exists: {}.".format(self.p1258))
-				try:
-					d = scraper.get_rt_rating(rt_url(self.rt_id))
-				except urllib.error.HTTPError:
-					print("Problem getting Rotten Tomatoes data for [[{}]] with Wikidata Property P1258: {}.\n".format(self.title, self.p1258),
-						file = sys.stderr)
-			else:
-				print("Wikidata property P1258 does not exist.")
-				url = googlesearch.lucky(entry.title + " site:rottentomatoes.com")
-				movieid = url.split('rottentomatoes.com/')[1]
-				prompt = """Please select an option:
+			return self._rt_data_try(self.p1258, self._rt_data_bad_p1258_try)
+		else:
+			print("Wikidata property P1258 does not exist.", file=sys.stderr)
+			return self._ask_for_option()
+
+	def _rt_data_bad_p1258_try(self):
+		print("Problem getting Rotten Tomatoes data for [[{}]].".format(self.title),
+			file=sys.stderr)
+		return self._ask_for_option()
+
+	def _ask_for_option(self):
+		url = googlesearch.lucky(self.title + " site:rottentomatoes.com")
+		print("_ask_for_option", file=sys.stderr)
+		movieid = url.split('rottentomatoes.com/')[1]
+		prompt = """Please select an option:
 	1) use suggested id {}
 	2) open the suggested RT page and [[{}]] in the browser
-	3) skip this article
-	4) quit the program
-	5) enter id manually
+	3) enter id manually
+	4) skip this article
+	5) quit the program
 Your selecton: """.format(movieid, self.title)
-				while (user_input := input(prompt)) not in "134":
-					if user_input == '2':
-						webbrowser.open(rt_url(movieid))
-						webbrowser.open(pwb.Page(pwb.Site('en', 'wikipedia'), self.title).full_url())
-						input("Press Enter when finished in browser.")
+		while (user_input := input(prompt)) not in "134":
+			if user_input == '2':
+				webbrowser.open(rt_url(movieid))
+				webbrowser.open(pwb.Page(pwb.Site('en', 'wikipedia'), self.title).full_url())
+				input("Press Enter when finished in browser.")
 
-				if user_input == '1':
-					try:
-						d = scraper.get_rt_rating(rt_url(movieid))
-					except urllib.error.HTTPError:
-						print("Problem retrieving data from Rotten Tomatoes for [[{}]].".format(cand.title))
-				elif user_input == '3':
-					print("Skipping edit for [[{}]].".format(edit.title))
-				elif user_input == '4':
-					print("Quitting program.")
-					quit()
-				elif user_input == '5':
-					newid = input("Enter id here: ")
-					try:
-						d = scraper.get_rt_rating(rt_url(newid))
-					except urllib.error.HTTPError:
-						print("Problem retrieving data from Rotten Tomatoes for [[{}]].".format(cand.title))
+			x = lambda: print("Problem retrieving data from Rotten Tomatoes for [[{}]].".format(self.title))
+			if user_input == '1':
+				return self._rt_data_try(movieid, x)
+			elif user_input == '4':
+				return print("Skipping article [[{}]].".format(self.title))
+			elif user_input == '5':
+				print("Quitting program.")
+				quit()
+			elif user_input == '3':
+				newid = input("Enter id here: ")
+				return self._rt_data_try(newid, x)
 
-		return d
+	def _rt_data(self, match):
+		print(self.title, flush=True)
+		return self._rt_data_try(self.rt_id, self._rt_data_bad_first_try)
+
 
 	def _find_citation(self):
 		pass

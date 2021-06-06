@@ -64,18 +64,18 @@ url_re = r"rottentomatoes.com/(?P<rt_id>m/[-a-z0-9_]+)"
 
 # for the {{cite-web}} template
 citeweb_redirects = ["Cite web", "Cite-web", "Citeweb", "Cite Web"]
-t_citeweb = r"<ref>{{(?P<citeweb>" + construct_redirects(citeweb_redirects) + ".+?" + url_re + ".*?)}}</ref>"
+t_citeweb = r"<ref>{{(?P<citeweb>" + construct_redirects(citeweb_redirects) + ".+?" + url_re + ".*?)}}"
 
 
 # for the {{Cite Rotten Tomatoes}} template
 citert_redirects = ["Cite Rotten Tomatoes", "Cite rotten tomatoes", "Cite rt", "Cite RT"]
-t_citert = r"<ref>{{(?P<citert>" + construct_redirects(citert_redirects) +  ".+?)}}</ref>"
+t_citert = r"<ref>{{(?P<citert>" + construct_redirects(citert_redirects) +  ".+?)}}"
 
 
 # for the {{Rotten Tomatoes}} template
 rt_redirects = [ "Rotten Tomatoes", "Rotten-tomatoes", "Rottentomatoes",
 				"Rotten tomatoes", "Rotten", "Rottentomatoes.com"]
-t_rt = "<ref>{{(?P<rt>" + construct_redirects(rt_redirects) + ".+?)}}</ref>"
+t_rt = "<ref>{{(?P<rt>" + construct_redirects(rt_redirects) + ".+?)}}"
 
 t_ldref = r"<ref name=(.+?)/>"
 

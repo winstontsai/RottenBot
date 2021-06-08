@@ -1,6 +1,7 @@
 # This module scrapes rottentomatoes.com for the desired data.
 
 import urllib.request
+import requests
 import json
 import sys
 
@@ -8,9 +9,10 @@ from datetime import date
 
 
 def url_contents(url):
-    with urllib.request.urlopen(url) as f:
-        contents = f.read().decode()
-    return contents
+    r = requests.get(url)
+    if r.status_code != 200:
+        r.raise_for_status()
+    return r.text
 
 def find_substring(s, indicator, terminator):
     """
@@ -49,7 +51,7 @@ def get_rt_rating(url):
     else:
         sd = sd['tomatometerScoreAll']
     if not sd:
-        print("There was a problem getting the Rotten Tomatoes rating from {}. Try again later.".format(url),
+        print("Rotten Tomatoes is not currently loading the rating for {}. Try again later.".format(url),
             file = sys.stderr)
         return sd
 

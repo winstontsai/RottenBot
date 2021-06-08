@@ -1,6 +1,7 @@
 import time
 import sys
 import shelve
+import json
 import argparse
 
 import pywikibot as pwb
@@ -16,15 +17,25 @@ def store_edits(args):
 	#print("shelve_edits({})".format(args))
 	r = candidates.Recruiter(args.xmlfile, patterns.cand_res)
 	e = editor.Editor(r)
-	with shelve.open(args.file) as db:
-		for edit in e.compute_edits():
-			db[edit.title] = edit
+	# with shelve.open(args.file) as db:
+	# 	for edit in e.compute_edits():
+	# 		db[edit.title] = edit
+
+	with open(args.file, 'w') as f:
+		json.dump([x.to_dict() for x in e.compute_edits()], f, indent=4)
+			
+
+	# with open(args.file, 'w') as f:
+	# 	for edit in e.compute_edits():
+	# 		f.write('{} ||| {}\n'.format(edit.title, edit.rt_id))
+	# 		f.write('    OLD PROSE: {}\n'.format(edit.old_prose))
+	# 		f.write('    NEW PROSE: {}\n'.format(edit.new_prose))
 
 def store_candidates(args):
 	r = candidates.Recruiter(args.xmlfile, patterns.cand_res)
+
 	with open(args.file, 'w') as f:
-		for c in r.find_candidates():
-			f.write(c.title + '\n' +c.prose + '\n')
+		f.write('\n'.join(c.title + '\n' +c.prose for c in r.find_candidates()))
 
 # function for upload command
 def upload_edits(args):

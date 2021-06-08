@@ -50,10 +50,10 @@ def construct_template(name, d):
 
 rt_re = r"[rR]otten [tT]omatoes"
 score_re = r"(?P<score>([0-9]|[1-9][0-9]|100)(?:%| percent))"
-count_re = r"(?P<count>\d{1,3} ((critical )?reviews|(surveyed )?critics))"
-count_re2 = r"(?P<count>[5-9]|[1-9][0-9]|[1-9][0-9][0-9])"
-average_re =  r"(?P<average>\d{1,2}(\.\d{1,2})?(/| out of )(10|ten))"
-average_re2 = r"(?P<average>(?:[0-9]|10)(?:\.\d{1,2})?(?:/| out of )(?:10|ten))"
+count_re2 = r"(?P<count>\d{1,3} ((critical )?reviews|(surveyed )?critics))"
+count_re = r"(?P<count>([5-9]|[1-9][0-9]|[1-9][0-9][0-9]) ((critical )?reviews|(surveyed )?critics))"
+average_re2 =  r"(?P<average>\d{1,2}(\.\d{1,2})?(/| out of )(10|ten))"
+average_re = r"(?P<average>(?:[0-9]|10)(?:\.\d{1,2})?(?:/| out of )(?:10|ten))"
 fill_re = r"[^.\n>]*?"
 
 

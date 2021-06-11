@@ -1,9 +1,9 @@
 import time
 import sys
-import shelve
 import pickle
 import json
 import argparse
+import logging
 
 import pywikibot as pwb
 
@@ -13,14 +13,9 @@ import patterns
 
 
 
-# function for shelve command
 def store_edits(args):
 	r = candidates.Recruiter(args.xmlfile, patterns.cand_res)
 	e = editor.Editor(r)
-
-	# with shelve.open(args.file) as db:
-	# 	for edit in e.compute_edits():
-	# 		db[edit.title] = edit
 
 	with open(args.file, 'wb') as f:
 		for edit in e.compute_edits():
@@ -30,9 +25,6 @@ def store_edits(args):
 def store_candidates(args):
 	r = candidates.Recruiter(args.xmlfile,  patterns.cand_res)
 
-	# with shelve.open(args.file) as db:
-	# 	for cand in r.find_candidates(patterns.cand_res):
-	# 		db[cand.title] = cand
 
 	with open(args.file, 'wb') as f:
 		for cand in r.find_candidates():
@@ -72,19 +64,19 @@ See 'https://github.com/winstontsai/RottenBot' for more info about this bot.""",
 		help='available commands',)
 
 	# parser for shelving
-	parser_s = subparsers.add_parser('store', aliases=['shelve'],
+	parser_s = subparsers.add_parser('store',
 		help='store edits in a file')
 	parser_s.set_defaults(func=store_edits)
 	parser_s.add_argument('-c', '--candidates',
 		dest='func', action='store_const', const=store_candidates,
-		help='instead of edits, store the titles and Rotten Tomatoes ids')
+		help='store candidates instead of edits')
 	parser_s.add_argument('xmlfile', help="file containing the XML dump of Wikipedia pages to work on")
 	parser_s.add_argument('file', help='file in which to store edits')
 	
 
 	# parser for uploading
-	parser_u = subparsers.add_parser('upload', aliases=['up'],
-		help='upload edits to the live wiki')
+	parser_u = subparsers.add_parser('upload',
+		help='upload edits from a file to the live wiki')
 	parser_u.set_defaults(func=upload_edits)
 	parser_u.add_argument('file', help='name of the file from which edits will be uploaded')
 	parser_u.add_argument('-d', '--dryrun', action='store_true',
@@ -92,8 +84,8 @@ See 'https://github.com/winstontsai/RottenBot' for more info about this bot.""",
 
 
 	# parser for printing stored data
-	parser_r = subparsers.add_parser('print', aliases=['review'],
-		help='print/review stored data')
+	parser_r = subparsers.add_parser('print',
+		help='print the edits stored in a file')
 	parser_r.set_defaults(func=print_data)
 	parser_r.add_argument('file', help = 'file in which the data is stored')
 
@@ -102,10 +94,15 @@ See 'https://github.com/winstontsai/RottenBot' for more info about this bot.""",
 
 	args = parser.parse_args()
 
-	t0=time.perf_counter()
+	logging.basicConfig(filename='rottenbot.log',
+	    format='%(asctime)s %(levelname)s:%(message)s',
+	    datefmt='%Y-%m-%d %H:%M:%S',
+	    level=logging.DEBUG)
+
+	t0 = time.perf_counter()
 	args.func(args)
-	t1=time.perf_counter()
-	print("TIME ELAPSED =", t1-t0, file = sys.stderr)
+	t1 = time.perf_counter()
+	logging.info("TIME ELAPSED = {}".format(t1 - t0))
 
 
 

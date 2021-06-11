@@ -4,6 +4,7 @@ import urllib.request
 import requests
 import json
 import sys
+import logging
 
 from datetime import date
 
@@ -39,7 +40,6 @@ def get_rt_rating(url):
     and also the current date.
     All the values will be in string form.
     """
-    # print("URL =", url, flush=True, file=sys.stderr)
     contents = url_contents(url)
 
     indicator = '<script id="score-details-json" type="application/json">'
@@ -55,7 +55,7 @@ def get_rt_rating(url):
     # it means that Rotten Tomatoes isn't loading the rating for whatever reason.
     # Not sure why this happens. Usually it loads if you try again later.
     if not sd:
-        #print("Rotten Tomatoes is not currently loading the rating for {}. Try again later.".format(url), file = sys.stderr)
+        logging.info("Rotten Tomatoes is not currently loading the rating for {}. Try again later.".format(url))
         return {}
 
     # get title
@@ -74,8 +74,8 @@ def get_rt_rating(url):
         consensus = consensus.replace('</em>', "''")
         consensus = consensus.replace("'''", r"''{{'}}") # apostrophe case
 
-    #print(sd, file=sys.stderr, flush=True)
     return {'title' : title,
+            'url' : url,
             'score' : sd['score'],
             'average' : sd['averageRating'],
             'reviewCount' : str(sd['reviewCount']),

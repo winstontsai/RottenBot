@@ -13,13 +13,13 @@ __pycache__/
 env/
 core_stable/
 example_movies/
-xmldumps/
 outputs/
-storage/
+logs/
 pages-list.txt
 test-films.txt
 notes.txt
 play.py
+
 
 
 # other

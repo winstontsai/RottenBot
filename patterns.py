@@ -76,9 +76,9 @@ rt_redirects = [ "Rotten Tomatoes", "Rotten-tomatoes", "Rottentomatoes",
 				"Rotten tomatoes", "Rotten", "Rottentomatoes.com"]
 t_rt = r"{{(?P<rt>" + construct_redirects(rt_redirects) + r".+?)}}"
 
-t_ldref = r"<ref( name ?= ?(?P<ldrefname>.+?))? */>"
+t_ldref = r'<ref name ?= ?(?P<ldrefname>[^>"]+?) ?/ ?>'
 
-citation_re = "(?P<citation>{}|<ref( name ?= ?(?P<refname>.+?))? *>{})".format(t_ldref, alternates([t_citeweb, t_citert, t_rt]))
+citation_re = '(?P<citation>{}|<ref( name ?= ?(?P<refname>[^>"]+?))? *>{})'.format(t_ldref, alternates([t_citeweb, t_citert, t_rt]))
 
 cand_re1 = rt_re + r"[^.\n>]*?" + score_re + r"[^\n>]*?" + citation_re
 cand_re2 = score_re + r"[^.\n>]*?" + rt_re + r"[^\n>]*?" + citation_re

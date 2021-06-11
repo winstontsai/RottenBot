@@ -47,17 +47,16 @@ class Recruiter:
             total += 1
             for p in self.patterns:
                 if m := re.search(p, entry.text):
-                    rt_id = self._extract_rt_id(entry.title, m)
+                    citation, rt_id = self._extract_citation_and_id(entry.title, m, entry.text)
                     if rt_data := self._rt_data(entry.title, rt_id):
                         count += 1
-
-                        # set up attributes
-                        title = entry.title
-                        text = m.group()
-                        prose = self._find_prose(entry.text, m)
-                        citation = self._find_citation(entry.text, m)
-                        yield Candidate(title, text, prose, citation,
-                            rt_id, rt_data)
+                        yield Candidate(
+                            title=entry.title,
+                            text=m.group(),
+                            prose=self._find_prose(entry.text, m),
+                            citation=citation,
+                            rt_id=rt_id,
+                            rt_data=rt_data)
 
                     break
 
@@ -73,33 +72,48 @@ class Recruiter:
         return None
 
 
-    def _extract_rt_id(self, title, match):
+    def _extract_citation_and_id(self, title, match, text, citation = None):
         """
         Given the re.Match object which has identified a candidate, extracts the movieid.
         """
+        if citation is None:
+            citation = text[match.start('citation') : match.end()]
 
         # Cite web template case
-        if match.group('citeweb'):
-            return match.group('rt_id')
+        if s := match.group('citeweb'):
+            return (citation, match.group('rt_id'))
 
         # Cite Rotten Tomatoes template case
-        if match.group('citert'):
-            d = parse_template(match.group('citert'))[1]
-            return "m/" + d['id']
+        if s := match.group('citert'):
+            d = parse_template(s)[1]
+            return (citation, "m/" + d['id'])
 
         # Rotten Tomatoes template case 
-        if match.group('rt'):
-            d = parse_template(match.group('rt'))[1]
-            if 'id' in d.keys():
-                return ("" if d['id'].startswith('m/') else "m/") + d['id'] 
-            if 1 in d.keys():
-                return ("" if d[1].startswith('m/') else "m/") + d[1]
+        if s:= match.group('rt'):
+            d = parse_template(s)[1]
+            if 1 in d.keys() or 'id' in d.keys():
+                key = 1 if 1 in d.keys() else 'id'
+                return (citation, ["m/",""][d[key].startswith('m/')] + d[key])
 
             # Check for Wikidata property P1258
             if p := self._p1258(title):
-                return p
+                return (citation, p)
 
-        raise ValueError("Could not find the Rotten Tomatoes ID for [[{}]].".format(self.title))
+        if refname := match.group('ldrefname'):
+            print("WTF", match.groupdict())
+            p = "<ref name ?= ?" + refname + " ?>" + alternates([t_citeweb, t_citert, t_rt])
+            m = re.search(p, text)
+            citation = m.group()
+            print("LDREF CITATION:", citation)
+            # Technically it's possible that we didn't find the definition of the
+            # reference with the above pattern, either because it doesn't exist
+            # or we have an abnormal situation like one uses quotes while the other does not.
+            # But I think that's unlikely.
+            # If it happens, then the above will throw an exception.
+            return (citation, self._extract_citation_and_id(title, m, text, citation)[1])
+
+
+        raise ValueError("Could not find the Rotten Tomatoes ID for [[{}]].".format(title))
 
 
     def _rt_data(self, title, movieid):
@@ -107,7 +121,7 @@ class Recruiter:
         data = self._get_data(movieid, title, self._bad_first_try)
         if data:
             return data
-        elif rt_data == {}:
+        elif data == {}:
             print("Rotten Tomatoes is not currently loading the rating for [[{}]] with id {}. Try again later.".format(entry.title, rt_id), file = sys.stderr)
         return None
 
@@ -132,7 +146,7 @@ class Recruiter:
             print("Problem getting Rotten Tomatoes data for [[{}]] from id {}.".format(title, movieid))
 
 
-        newid = self._ask_for_id(movieid, title)
+        newid = self._ask_for_id(title)
         return self._get_data(newid, title, self._bad_try) if newid else None
 
     def _bad_first_try(self, movieid, title):
@@ -148,7 +162,7 @@ class Recruiter:
             return self._bad_try(movieid, title, msg)
 
 
-    def _ask_for_id(self, movieid, title, msg = None):
+    def _ask_for_id(self, title, msg = None):
         """
         Asks for a user decisions regarding the Rotten Tomatoes id for a film
         whose title is the title argument.
@@ -174,7 +188,7 @@ Your selection: """.format(suggested_id, title)
 
         while (user_input := input(prompt)) not in "1345":
             if user_input == '2':
-                webbrowser.open(rt_url(movieid))
+                webbrowser.open(rt_url(suggested_id))
                 webbrowser.open(pwb.Page(pwb.Site('en', 'wikipedia'), title).full_url())
             input("Press Enter when finished in browser.")
 
@@ -230,8 +244,15 @@ Your selection: """.format(suggested_id, title)
     def _find_citation(text, match):
         if match.group('citeweb') or match.group('citert') or match.group('rt'):
             return text[match.start('citation') : match.end()]
-        else:
-            pass
+        else: # list-defined reference case
+            refname = match.group('ldrefname')
+            p = "<ref name ?= ?{} ?>{}".format(refname, alternates([t_citeweb, t_citert, t_rt]))
+            m = re.search(p, text)
+            # Technically it's possible that we didn't find the definition of the
+            # reference with name refname and hence m == None,
+            # but I think that's unlikely.
+            # If it happens an exception will occur and we'll know.
+            return m.group()
 
 
 if __name__ == "__main__":

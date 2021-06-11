@@ -21,9 +21,6 @@ from patterns import *
 import scraper
 
 
-
-
-
 @dataclass
 class Candidate:
     title: str
@@ -33,8 +30,6 @@ class Candidate:
 
     rt_id: str
     rt_data: dict
-
-
 
 
 class Recruiter:
@@ -55,7 +50,7 @@ class Recruiter:
                     rt_id = self._extract_rt_id(entry.title, m)
                     if rt_data := self._rt_data(entry.title, rt_id):
                         count += 1
-                        
+
                         # set up attributes
                         title = entry.title
                         text = m.group()

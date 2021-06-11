@@ -36,31 +36,6 @@ class _Edit:
     flags: list
 
 
-class Edit:
-    def __init__(self, cand, new_prose, new_citation, handler, flags):
-        self.title = cand.title
-        self.rt_id = cand.rt_id
-        self.old_prose = cand.prose
-        self.new_prose = new_prose
-        self.old_citation = cand.citation
-        self.new_citation = new_citation
-
-        # Anticipated flags, some probably won't be used:
-        # fully_replaced
-        # suspicious_start
-        # suspicious_end
-        # multiple_average
-        # multiple_count
-        # multiple_score
-        self.flags = flags
-        # Handler function for the edit.
-        self.handler = handler
-
-    def to_dict(self):
-        d = dir(self)
-        return {k: getattr(self, k) for k in ["title", "rt_id", "old_prose",
-            "new_prose", "old_citation", "new_citation", "flags"]}
-
 class Editor:
 
     def __init__(self, recruiter):
@@ -92,42 +67,54 @@ class Editor:
 
 
     def _compute_edit(self, cand, suspect_list):
+        old_prose, old_citation = cand.prose, cand.citation
+        d = cand.rt_data
         flags = []
+
+        handler = Editor._replacement_handler
         # check for some suspicious first and last characters
         if cand.prose[0] not in "[{'ABCDEFGHIJKLMNOPQRSTUVWXYZ":
             flags.append("suspicious_start")
             handler = Editor._suspicious_start_handler
-        elif "consensus" in cand.prose and cand.prose[-2:] not in ('."', '".'):
+        if "consensus" in cand.prose and cand.prose[-2:] not in ('."', '".'):
             flags.append("suspicious_end")
             handler = Editor._suspicious_end_handler
         elif "consensus" not in cand.prose and cand.prose[-1] != '.':
             flags.append("suspicious_end")
             handler = Editor._suspicious_end_handler
-        else:
-            handler = Editor._replacement_handler
 
-        d = cand.rt_data
-        if not d:
-            return None
 
-        old_prose = cand.prose
-        new_prose = cand.prose # used to build up the new prose
 
+        new_prose = cand.prose # will be transformed into new prose
 
         # handle average rating     
         new_prose, k = re.subn(average_re, d['average']+'/10', new_prose)
         if k == 0:
-            return Edit(cand, new_prose=full_replacement(cand, d), new_citation='',
-                handler=handler, flags=flags)
+            return _Edit(
+                    title=cand.title,
+                    rt_id=cand.rt_id,
+                    old_prose=cand.prose,
+                    new_prose=full_replacement(cand, d),
+                    old_citation=cand.citation,
+                    new_citation=None,
+                    flags=flags
+                )
         elif k > 1:
             flags.append("multiple_average_handler")
             handler = Editor._multiple_average_handler
 
 
         # handle review reviewCount
-        if not (m := re.search(count_re, old_prose)):
-            return Edit(cand, new_prose=full_replacement(cand, d), new_citation='',
-                handler=handler, flags=flags)
+        if not (m := re.search(count_re, cand.prose)):
+            return _Edit(
+                    title=cand.title,
+                    rt_id=cand.rt_id,
+                    old_prose=cand.prose,
+                    new_prose=full_replacement(cand, d),
+                    old_citation=cand.citation,
+                    new_citation=None,
+                    flags=flags
+                )
         elif m.group().endswith("reviews"):
             repl = d['reviewCount'] + " reviews"
         else:
@@ -140,21 +127,29 @@ class Editor:
 
 
         # handle score
-        old_score = re.search(score_re, cand.text).group()
+        old_score = re.search(score_re, cand.prose).group()
         new_prose, k = re.subn(old_score, d['score'] + '%', new_prose)
         if k > 1 and not (old_score.startswith("0") or old_score.startswith("100")):
             handler = Editor._multiple_score_handler
 
         # period should be inside the consensus quote.
         if new_prose.endswith('".'):
+            flags.append("period after quotation mark")
             new_prose = new_prose[-2:] + '."'
 
         # maybe has extra space at end?
         new_prose = new_prose.rstrip()
 
-        if new_prose != old_prose:
-            return Edit(cand, new_prose=new_prose, new_citation='',
-                handler=handler, flags = flags)
+        if new_prose != cand.prose:
+            return _Edit(
+                    title=cand.title,
+                    rt_id=cand.rt_id,
+                    old_prose=cand.prose,
+                    new_prose=new_prose,
+                    old_citation=cand.citation,
+                    new_citation=None,
+                    flags=flags
+                )
 
         return None
 

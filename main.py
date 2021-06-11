@@ -35,7 +35,7 @@ def store_candidates(args):
 	# 		db[cand.title] = cand
 
 	with open(args.file, 'wb') as f:
-		for cand in r.find_candidates(patterns.cand_res):
+		for cand in r.find_candidates():
 			pickle.dump(cand, f)
 
 
@@ -45,7 +45,16 @@ def upload_edits(args):
 
 
 
-
+def print_data(args):
+	s = []
+	with open(args.file, 'rb') as f:
+		while True:
+			try:
+				d = vars(pickle.load(f))
+				s.append(json.dumps(d, indent = 4))
+			except EOFError:
+				break
+	print("\n".join(s))
 
 
 if __name__ == '__main__':
@@ -80,6 +89,16 @@ See 'https://github.com/winstontsai/RottenBot' for more info about this bot.""",
 	parser_u.add_argument('file', help='name of the file from which edits will be uploaded')
 	parser_u.add_argument('-d', '--dryrun', action='store_true',
 		help='no edits will actually be made to the live wiki')
+
+
+	# parser for printing stored data
+	parser_r = subparsers.add_parser('print', aliases=['review'],
+		help='print/review stored data')
+	parser_r.set_defaults(func=print_data)
+	parser_r.add_argument('file', help = 'file in which the data is stored')
+
+
+
 
 	args = parser.parse_args()
 

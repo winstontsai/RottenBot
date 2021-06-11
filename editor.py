@@ -73,19 +73,19 @@ class Editor:
 
         handler = Editor._replacement_handler
         # check for some suspicious first and last characters
-        if cand.prose[0] not in "[{'ABCDEFGHIJKLMNOPQRSTUVWXYZ":
+        if old_prose[0] not in "[{'ABCDEFGHIJKLMNOPQRSTUVWXYZ":
             flags.append("suspicious_start")
             handler = Editor._suspicious_start_handler
-        if "consensus" in cand.prose and cand.prose[-2:] not in ('."', '".'):
+        if "consensus" in old_prose and old_prose[-2:] not in ('."', '".'):
             flags.append("suspicious_end")
             handler = Editor._suspicious_end_handler
-        elif "consensus" not in cand.prose and cand.prose[-1] != '.':
+        elif "consensus" not in old_prose and old_prose[-1] != '.':
             flags.append("suspicious_end")
             handler = Editor._suspicious_end_handler
 
 
 
-        new_prose = cand.prose # will be transformed into new prose
+        new_prose = old_prose # will be transformed into new prose
 
         # handle average rating     
         new_prose, k = re.subn(average_re, d['average']+'/10', new_prose)
@@ -93,7 +93,7 @@ class Editor:
             return _Edit(
                     title=cand.title,
                     rt_id=cand.rt_id,
-                    old_prose=cand.prose,
+                    old_prose=old_prose,
                     new_prose=full_replacement(cand, d),
                     old_citation=cand.citation,
                     new_citation=None,
@@ -105,11 +105,11 @@ class Editor:
 
 
         # handle review reviewCount
-        if not (m := re.search(count_re, cand.prose)):
+        if not (m := re.search(count_re, old_prose)):
             return _Edit(
                     title=cand.title,
                     rt_id=cand.rt_id,
-                    old_prose=cand.prose,
+                    old_prose=old_prose,
                     new_prose=full_replacement(cand, d),
                     old_citation=cand.citation,
                     new_citation=None,
@@ -127,7 +127,7 @@ class Editor:
 
 
         # handle score
-        old_score = re.search(score_re, cand.prose).group()
+        old_score = re.search(score_re, old_prose).group()
         new_prose, k = re.subn(old_score, d['score'] + '%', new_prose)
         if k > 1 and not (old_score.startswith("0") or old_score.startswith("100")):
             handler = Editor._multiple_score_handler
@@ -140,11 +140,11 @@ class Editor:
         # maybe has extra space at end?
         new_prose = new_prose.rstrip()
 
-        if new_prose != cand.prose:
+        if new_prose != old_prose:
             return _Edit(
                     title=cand.title,
                     rt_id=cand.rt_id,
-                    old_prose=cand.prose,
+                    old_prose=old_prose,
                     new_prose=new_prose,
                     old_citation=cand.citation,
                     new_citation=None,

@@ -9,6 +9,8 @@ import re
 import sys
 import webbrowser
 
+from dataclasses import dataclass
+
 import googlesearch
 import requests
 
@@ -21,65 +23,24 @@ import scraper
 
 
 
+
+@dataclass
 class Candidate:
-    """
-    Holds the info we'll need for a candidate page to be edited.
-    """
+    title: str
+    text: str
+    prose: str
+    citation: str
 
-    def __init__(self, entry, match, rt_id, rt_data):
-        self.title = entry.title
-        # self.id = entry.id # Wikipedia id number
-        self.match = match
-        # citation text
-        self.citation = self._find_citation(entry.text, match)
-        # prose text
-        self.prose = self._find_prose(entry.text, match)
-        self.rt_id = rt_id
-        self.rt_data = rt_data
+    rt_id: str
+    rt_data: dict
 
 
-    def _find_start(self, text, j):
-        """
-        This function is supposed to find the index of the beginning of
-        the sentence containing the Rotten Tomatoes rating info.
-
-        NOTE: There are edge cases where the index returned by this function
-        is in fact NOT the start of the desired sentence (see suspicious_start).
-        In these cases the bot operator will be asked for input.
-
-        Args:
-            text: the text of the page
-            j: the start index of the re.Match object
-        """
-        italics = False
-        for i in range(j - 1, -1, -1):
-            c = text[i]
-            if c in "\n>":
-                ind = i + 1
-                break
-            elif c == "." and not italics:
-                ind = i + 1
-                break
-            elif c == "'" == text[i + 1]:
-                italics = not italics
-
-        ind += (text[ind] == ' ')
-
-        return ind
-
-
-    def _find_citation(self, text, match):
-        pass
-
-    def _find_prose(self, text, match):
-        i = self._find_start(text,match.start())
-        return text[i : match.start('citation')]
 
 
 class Recruiter:
     def __init__(self, xmlfile, patterns):
-        self.filename = xmlfile
         self.patterns = patterns
+        self.filename = xmlfile
 
     def find_candidates(self):
         """
@@ -91,12 +52,17 @@ class Recruiter:
             total += 1
             for p in self.patterns:
                 if m := re.search(p, entry.text):
-                    count += 1
                     rt_id = self._extract_rt_id(entry.title, m)
-                    rt_data = self._rt_data(entry.title, rt_id)
-
-                    if rt_data:
-                        yield Candidate(entry, m, rt_id, rt_data)
+                    if rt_data := self._rt_data(entry.title, rt_id):
+                        count += 1
+                        
+                        # set up attributes
+                        title = entry.title
+                        text = m.group()
+                        prose = self._find_prose(entry.text, m)
+                        citation = self._find_citation(entry.text, m)
+                        yield Candidate(title, text, prose, citation,
+                            rt_id, rt_data)
 
                     break
 
@@ -229,8 +195,48 @@ Your selection: """.format(suggested_id, title)
             elif user_input == '5':
                 print("Quitting program."); quit()
 
+    @staticmethod
+    def _find_start(text, j):
+        """
+        This function is supposed to find the index of the beginning of
+        the sentence containing the Rotten Tomatoes rating info.
 
+        NOTE: There are edge cases where the index returned by this function
+        is in fact NOT the start of the desired sentence (see suspicious_start).
+        In these cases the bot operator will be asked for input.
 
+        Args:
+            text: the text of the page
+            j: the start index of the re.Match object
+        """
+        italics = False
+        for i in range(j - 1, -1, -1):
+            c = text[i]
+            if c in "\n>":
+                ind = i + 1
+                break
+            elif c == "." and not italics:
+                ind = i + 1
+                break
+            elif c == "'" == text[i + 1]:
+                italics = not italics
+
+        while text[ind] == ' ':
+            ind += 1
+
+        return ind
+
+    @staticmethod
+    def _find_prose(text, match):
+        i = Recruiter._find_start(text, match.start())
+        return text[i : match.start('citation')]
+
+    @staticmethod
+    def _find_citation(text, match):
+        if match.group('citeweb') or match.group('citert') or match.group('rt'):
+            return text[match.start('citation') : match.end()]
+        else:
+            pass
 
 
 if __name__ == "__main__":

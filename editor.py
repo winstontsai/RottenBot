@@ -4,6 +4,8 @@ import re
 import sys
 import webbrowser
 
+from dataclasses import dataclass
+
 import pywikibot as pwb
 import candidates
 from patterns import *
@@ -11,8 +13,30 @@ from patterns import *
 
 
 
-class Edit:
+def full_replacement(cand, d):
+    s = "On review aggregator [[Rotten Tomatoes]], the film holds an approval rating \
+of {}% based on {} reviews, with an average rating of {}/10.".format(d['score'], d['reviewCount'], d['average'])
+    if d['consensus']:
+        s += " The website's critical consensus reads, \"{}\"".format(d['consensus'])
 
+    # add citation
+    # s += "<ref>{{{{Cite Rotten Tomatoes |id={} |type=movie |title={} |access-date={}}}}}</ref>".format(cand.rt_id[2:], d['title'], d['accessDate'])
+
+    return s
+
+@dataclass
+class _Edit:
+    title: str
+    rt_id: str
+    old_prose: str
+    new_prose: str
+    old_citation: str
+    new_citation: str
+
+    flags: list
+
+
+class Edit:
     def __init__(self, cand, new_prose, new_citation, handler, flags):
         self.title = cand.title
         self.rt_id = cand.rt_id
@@ -20,6 +44,7 @@ class Edit:
         self.new_prose = new_prose
         self.old_citation = cand.citation
         self.new_citation = new_citation
+
         # Anticipated flags, some probably won't be used:
         # fully_replaced
         # suspicious_start
@@ -72,7 +97,7 @@ class Editor:
         if cand.prose[0] not in "[{'ABCDEFGHIJKLMNOPQRSTUVWXYZ":
             flags.append("suspicious_start")
             handler = Editor._suspicious_start_handler
-        elif "consensus" in cand.prose and cand.prose[-1] != '"':
+        elif "consensus" in cand.prose and cand.prose[-2:] not in ('."', '".'):
             flags.append("suspicious_end")
             handler = Editor._suspicious_end_handler
         elif "consensus" not in cand.prose and cand.prose[-1] != '.':
@@ -115,11 +140,17 @@ class Editor:
 
 
         # handle score
-        old_score = cand.match.group('score')
+        old_score = re.search(score_re, cand.text).group()
         new_prose, k = re.subn(old_score, d['score'] + '%', new_prose)
         if k > 1 and not (old_score.startswith("0") or old_score.startswith("100")):
             handler = Editor._multiple_score_handler
 
+        # period should be inside the consensus quote.
+        if new_prose.endswith('".'):
+            new_prose = new_prose[-2:] + '."'
+
+        # maybe has extra space at end?
+        new_prose = new_prose.rstrip()
 
         if new_prose != old_prose:
             return Edit(cand, new_prose=new_prose, new_citation='',
@@ -247,18 +278,6 @@ Your selection: """
     @staticmethod
     def _multiple_score_handler(edit, interactive = True):
         print("multiple_score_handler")
-
-
-def full_replacement(cand, d):
-    s = "On review aggregator [[Rotten Tomatoes]], the film holds an approval rating \
-of {}% based on {} reviews, with an average rating of {}/10.".format(d['score'], d['reviewCount'], d['average'])
-    if d['consensus']:
-        s += " The website's critical consensus reads, \"{}\"".format(d['consensus'])
-
-    # add citation
-    # s += "<ref>{{{{Cite Rotten Tomatoes |id={} |type=movie |title={} |access-date={}}}}}</ref>".format(cand.rt_id[2:], d['title'], d['accessDate'])
-
-    return s
 
 
 

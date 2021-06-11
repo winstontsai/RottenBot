@@ -1,6 +1,7 @@
 import time
 import sys
 import shelve
+import pickle
 import json
 import argparse
 
@@ -14,36 +15,36 @@ import patterns
 
 # function for shelve command
 def store_edits(args):
-	#print("shelve_edits({})".format(args))
 	r = candidates.Recruiter(args.xmlfile, patterns.cand_res)
 	e = editor.Editor(r)
+
 	# with shelve.open(args.file) as db:
 	# 	for edit in e.compute_edits():
 	# 		db[edit.title] = edit
 
-	with open(args.file, 'w') as f:
-		json.dump([x.to_dict() for x in e.compute_edits()], f, indent=4)
+	with open(args.file, 'wb') as f:
+		for edit in e.compute_edits():
+			pickle.dump(edit, f)
 			
 
-	# with open(args.file, 'w') as f:
-	# 	for edit in e.compute_edits():
-	# 		f.write('{} ||| {}\n'.format(edit.title, edit.rt_id))
-	# 		f.write('    OLD PROSE: {}\n'.format(edit.old_prose))
-	# 		f.write('    NEW PROSE: {}\n'.format(edit.new_prose))
-
 def store_candidates(args):
-	r = candidates.Recruiter(args.xmlfile, patterns.cand_res)
+	r = candidates.Recruiter(args.xmlfile,  patterns.cand_res)
 
-	with open(args.file, 'w') as f:
-		f.write('\n'.join(c.title + '\n' +c.prose for c in r.find_candidates()))
+	# with shelve.open(args.file) as db:
+	# 	for cand in r.find_candidates(patterns.cand_res):
+	# 		db[cand.title] = cand
+
+	with open(args.file, 'wb') as f:
+		for cand in r.find_candidates(patterns.cand_res):
+			pickle.dump(cand, f)
+
 
 # function for upload command
 def upload_edits(args):
 	print("upload_edits({})".format(args))
 
-	with shelve.open(args.file, 'r') as db:
-		for k, v in db.items():
-			pass
+
+
 
 
 
@@ -86,14 +87,6 @@ See 'https://github.com/winstontsai/RottenBot' for more info about this bot.""",
 	args.func(args)
 	t1=time.perf_counter()
 	print("TIME ELAPSED =", t1-t0, file = sys.stderr)
-
-
-
-
-
-
-
-
 
 
 

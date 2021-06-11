@@ -47,7 +47,9 @@ class Recruiter:
             total += 1
             for p in self.patterns:
                 if m := re.search(p, entry.text):
-                    citation, rt_id = self._extract_citation_and_id(entry.title, m, entry.text)
+                    if (citation := Recruiter._find_citation(entry.text, m)) is None:
+                        continue
+                    rt_id = Recruiter._find_id(citation)
                     if rt_data := self._rt_data(entry.title, rt_id):
                         count += 1
                         yield Candidate(
@@ -57,13 +59,13 @@ class Recruiter:
                             citation=citation,
                             rt_id=rt_id,
                             rt_data=rt_data)
-
-                    break
+                        break
 
         print("CANDIDATES / TOTAL = {} / {}".format(count, total))
 
 
-    def _p1258(self, title):
+    @staticmethod
+    def _p1258(title):
         page = pwb.Page(pwb.Site('en','wikipedia'), title)
         item = pwb.ItemPage.fromPage(page)
         item.get()
@@ -72,48 +74,47 @@ class Recruiter:
         return None
 
 
-    def _extract_citation_and_id(self, title, match, text, citation = None):
-        """
-        Given the re.Match object which has identified a candidate, extracts the movieid.
-        """
-        if citation is None:
-            citation = text[match.start('citation') : match.end()]
+    @staticmethod
+    def _find_citation(text, match):
+        if match.group('citeweb') or match.group('citert') or match.group('rt'):
+            return text[match.start('citation') : match.end()]
+        else: # list-defined reference case
+            refname = match.group('ldrefname')
+            p = "<ref name ?= ?{} ?>{}".format(refname, alternates([t_citeweb, t_citert, t_rt]))
+            if m := re.search(p, text):
+                return m.group()
+            else:
+                # Technically it's possible that we didn't find the definition of the
+                # reference with name refname, e.g. no proper citation.
+                return None
+
+    @staticmethod
+    def _find_id(citation):
+        answer = None
 
         # Cite web template case
-        if s := match.group('citeweb'):
-            return (citation, match.group('rt_id'))
+        if m := re.search(t_citeweb, citation):
+            answer = m.group('rt_id')
 
         # Cite Rotten Tomatoes template case
-        if s := match.group('citert'):
-            d = parse_template(s)[1]
-            return (citation, "m/" + d['id'])
+        elif m := re.search(t_citert, citation):
+            d = parse_template(m.group('citert'))[1]
+            answer = "m/" + d['id']
 
         # Rotten Tomatoes template case 
-        if s:= match.group('rt'):
-            d = parse_template(s)[1]
+        elif m := re.search(t_rt, citation):
+            d = parse_template(m.group('rt'))[1]
             if 1 in d.keys() or 'id' in d.keys():
-                key = 1 if 1 in d.keys() else 'id'
-                return (citation, ["m/",""][d[key].startswith('m/')] + d[key])
+                key = ['id', 1][1 in d.keys()]
+                answer = ["m/",""][d[key].startswith('m/')] + d[key]
 
             # Check for Wikidata property P1258
-            if p := self._p1258(title):
-                return (citation, p)
-
-        if refname := match.group('ldrefname'):
-            print("WTF", match.groupdict())
-            p = "<ref name ?= ?" + refname + " ?>" + alternates([t_citeweb, t_citert, t_rt])
-            m = re.search(p, text)
-            citation = m.group()
-            print("LDREF CITATION:", citation)
-            # Technically it's possible that we didn't find the definition of the
-            # reference with the above pattern, either because it doesn't exist
-            # or we have an abnormal situation like one uses quotes while the other does not.
-            # But I think that's unlikely.
-            # If it happens, then the above will throw an exception.
-            return (citation, self._extract_citation_and_id(title, m, text, citation)[1])
-
-
-        raise ValueError("Could not find the Rotten Tomatoes ID for [[{}]].".format(title))
+            elif p := Recruiter._p1258(title):
+                answer = p
+        # print(answer)
+        if answer is None:
+            raise ValueError("Could not find a Rotten Tomatoes ID from the following citation: {}".format(citation))
+        return answer
 
 
     def _rt_data(self, title, movieid):
@@ -153,7 +154,7 @@ class Recruiter:
         print("Problem getting Rotten Tomatoes data for [[{}]] from id {}.".format(title, movieid),
             file = sys.stderr)
         print("Checking for Wikidata property P1258...", file=sys.stderr)
-        if p := self._p1258(title):
+        if p := Recruiter._p1258(title):
             print("Wikidata property P1258 exists with value {}.".format(p), file = sys.stderr)
             msg = 'Problem getting Rotten Tomatoes data for [[{}]] with P1258 value {}.'.format(title, p)
             return self._get_data(p, title, self._bad_try, msg)
@@ -240,19 +241,7 @@ Your selection: """.format(suggested_id, title)
         i = Recruiter._find_start(text, match.start())
         return text[i : match.start('citation')]
 
-    @staticmethod
-    def _find_citation(text, match):
-        if match.group('citeweb') or match.group('citert') or match.group('rt'):
-            return text[match.start('citation') : match.end()]
-        else: # list-defined reference case
-            refname = match.group('ldrefname')
-            p = "<ref name ?= ?{} ?>{}".format(refname, alternates([t_citeweb, t_citert, t_rt]))
-            m = re.search(p, text)
-            # Technically it's possible that we didn't find the definition of the
-            # reference with name refname and hence m == None,
-            # but I think that's unlikely.
-            # If it happens an exception will occur and we'll know.
-            return m.group()
+
 
 
 if __name__ == "__main__":

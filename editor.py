@@ -115,8 +115,9 @@ class Editor:
 
 
         # handle score
-        new_prose, k = re.subn(cand.score, d['score'] + '%', new_prose)
-        if k > 1 and not (cand.score.startswith("0") or cand.score.startswith("100")):
+        old_score = cand.match.group('score')
+        new_prose, k = re.subn(old_score, d['score'] + '%', new_prose)
+        if k > 1 and not (old_score.startswith("0") or old_score.startswith("100")):
             handler = Editor._multiple_score_handler
 
 

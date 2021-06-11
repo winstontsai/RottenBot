@@ -28,8 +28,8 @@ class Candidate:
 
     def __init__(self, entry, match, rt_id, rt_data):
         self.title = entry.title
-        self.id = entry.id
-        self.score = match.group('score')
+        # self.id = entry.id # Wikipedia id number
+        self.match = match
         # citation text
         self.citation = self._find_citation(entry.text, match)
         # prose text
@@ -94,14 +94,10 @@ class Recruiter:
                     count += 1
                     rt_id = self._extract_rt_id(entry.title, m)
                     rt_data = self._rt_data(entry.title, rt_id)
+
                     if rt_data:
                         yield Candidate(entry, m, rt_id, rt_data)
-                    elif rt_data is None:
-                        print("Tomatometer not yet available for id {}.".format(rt_id),
-                            file=sys.stderr)
-                        rt_data = self._ask_for_option(entry.title)
-                        if rt_data:
-                            yield Candidate(entry, m, rt_id, rt_data)
+
                     break
 
         print("CANDIDATES / TOTAL = {} / {}".format(count, total))
@@ -144,64 +140,96 @@ class Recruiter:
 
         raise ValueError("Could not find the Rotten Tomatoes ID for [[{}]].".format(self.title))
 
-    def _rt_data_try(self, title, movieid, func):
+
+    def _rt_data(self, title, movieid):
+        print(title, flush=True)
+        data = self._get_data(movieid, title, self._bad_first_try)
+        if data:
+            return data
+        elif rt_data == {}:
+            print("Rotten Tomatoes is not currently loading the rating for [[{}]] with id {}. Try again later.".format(entry.title, rt_id), file = sys.stderr)
+        return None
+
+
+
+    def _get_data(self, movieid, title, func, *args, **kwargs):
         """
-        Tries to return the RT data from rt_url(movieid),
-        and executes func on a requests.exceptions.HTTPError
+        Tries to return the Rotten Tomatoes data for a movie.
+        Executes func on a requests.exceptions.HTTPError.
+        Func is meant to be a function which returns the desired Rotten Tomatoes data.
         """
         try:
             return scraper.get_rt_rating(rt_url(movieid))
         except requests.exceptions.HTTPError as x:
             print("{}\n".format(x), file=sys.stderr)
-            return func(title, movieid)
+            return func(movieid, title, *args, **kwargs)
 
-    def _rt_data_bad_first_try(self, title, movieid):
-        print("Problem getting Rotten Tomatoes data for [[{}]] with id {}.".format(title, movieid),
+    def _bad_try(self, movieid, title, msg = None):
+        if msg:
+            print(msg)
+        else:
+            print("Problem getting Rotten Tomatoes data for [[{}]] from id {}.".format(title, movieid))
+
+
+        newid = self._ask_for_id(movieid, title)
+        return self._get_data(newid, title, self._bad_try) if newid else None
+
+    def _bad_first_try(self, movieid, title):
+        print("Problem getting Rotten Tomatoes data for [[{}]] from id {}.".format(title, movieid),
             file = sys.stderr)
         print("Checking for Wikidata property P1258...", file=sys.stderr)
-        if p := self._p1258():
-            print("Wikidata property P1258 exists: {}.".format(p),
-                file = sys.stderr)
-            return self._rt_data_try(title, p, self._rt_data_bad_p1258_try)
+        if p := self._p1258(title):
+            print("Wikidata property P1258 exists with value {}.".format(p), file = sys.stderr)
+            msg = 'Problem getting Rotten Tomatoes data for [[{}]] with P1258 value {}.'.format(title, p)
+            return self._get_data(p, title, self._bad_try, msg)
         else:
-            print("Wikidata property P1258 does not exist.", file=sys.stderr)
-            return self._ask_for_option(title)
+            msg = "Wikidata property P1258 does not exist."
+            return self._bad_try(movieid, title, msg)
 
-    def _rt_data_bad_p1258_try(self, title, movieid):
-        print("Problem getting Rotten Tomatoes data for [[{}]] with with P1258 {}.".format(title, movieid),
-            file=sys.stderr)
-        return self._ask_for_option(title)
 
-    def _ask_for_option(self, title):
+    def _ask_for_id(self, movieid, title, msg = None):
+        """
+        Asks for a user decisions regarding the Rotten Tomatoes id for a film
+        whose title is the title argument.
+        Optional msg argument to be printed at the start of this function.
+
+        Returns:
+            if user decides to skip, returns None
+            otherwise returns the suggested id or the manually entered id
+        """
+        if msg:
+            print(msg)
+
         url = googlesearch.lucky(title + " site:rottentomatoes.com/m/")
-        movieid = url.split('rottentomatoes.com/')[1]
+        suggested_id = url.split('rottentomatoes.com/')[1]
+
         prompt = """Please select an option:
     1) use suggested id {}
-    2) open the suggested RT page and [[{}]] in the browser
+    2) open the suggested id's Rotten Tomato page and [[{}]] in the browser
     3) enter id manually
     4) skip this article
     5) quit the program
-Your selection: """.format(movieid, title)
-        while (user_input := input(prompt)) not in "134":
+Your selection: """.format(suggested_id, title)
+
+        while (user_input := input(prompt)) not in "1345":
             if user_input == '2':
                 webbrowser.open(rt_url(movieid))
-            webbrowser.open(pwb.Page(pwb.Site('en', 'wikipedia'), title).full_url())
+                webbrowser.open(pwb.Page(pwb.Site('en', 'wikipedia'), title).full_url())
             input("Press Enter when finished in browser.")
 
             x = lambda t, m: print("Problem getting Rotten Tomatoes data for [[{}]] with id {}. Skipping article.".format(t,m)) or 0
             if user_input == '1':
-                return self._rt_data_try(title, movieid, x)
+                return suggested_id
             elif user_input == '3':
-                newid = input("Enter id here: ")
-                return self._rt_data_try(title, newid, x)
+                while not (newid := input("Enter id here: ")).startswith('m/'):
+                    print('Not a valid id. A valid id begins with "m/".')
+                return newid
             elif user_input == '4':
-                return print("Skipping article [[{}]].".format(title)) or 0
+                return print("Skipping article [[{}]].".format(title))
             elif user_input == '5':
                 print("Quitting program."); quit()
 
-    def _rt_data(self, title, movieid):
-        print(title, flush=True)
-        return self._rt_data_try(title, movieid, self._rt_data_bad_first_try)
+
 
 
 

@@ -16,11 +16,11 @@ def url_contents(url):
 
 def find_substring(s, indicator, terminator):
     """
-    Given a string, returns the substring of the string
-    strictly between the indicator and terminator strings, if it exists.
-    Otherwise returns None. It is possible that it
-    returns an empty string if the indicator and terminator
-    are adjacent.
+    Given a string, returns the substring
+    strictly between the indicator and terminator strings, if they exist.
+    Otherwise returns None.
+    It is possible that an empty string is returned
+    if the indicator and terminator are adjacent.
     """
     i = s.find(indicator)
     if i == -1:
@@ -48,12 +48,15 @@ def get_rt_rating(url):
     sd = json.loads(score_data)['modal']
     if sd['hasTomatometerScoreAll'] == False:
         return None
-    else:
-        sd = sd['tomatometerScoreAll']
+
+    sd = sd['tomatometerScoreAll']
+
+    # When this occurs even though sd['hasTomatometerScoreAll'] == True,
+    # it means that Rotten Tomatoes isn't loading the rating for whatever reason.
+    # Not sure why this happens. Usually it loads if you try again later.
     if not sd:
-        print("Rotten Tomatoes is not currently loading the rating for {}. Try again later.".format(url),
-            file = sys.stderr)
-        return sd
+        #print("Rotten Tomatoes is not currently loading the rating for {}. Try again later.".format(url), file = sys.stderr)
+        return {}
 
     # get title
     indicator = "<title>"

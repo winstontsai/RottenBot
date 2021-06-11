@@ -50,13 +50,12 @@ def construct_template(name, d):
 
 rt_re = r"[rR]otten [tT]omatoes"
 score_re = r"(?P<score>([0-9]|[1-9][0-9]|100)(?:%| percent))"
-count_re2 = r"(?P<count>\d{1,3} ((critical )?reviews|(surveyed )?critics))"
 count_re = r"(?P<count>([5-9]|[1-9][0-9]|[1-9][0-9][0-9]) ((critical )?reviews|(surveyed )?critics))"
-average_re2 =  r"(?P<average>\d{1,2}(\.\d{1,2})?(/| out of )(10|ten))"
 average_re = r"(?P<average>(?:[0-9]|10)(?:\.\d{1,2})?(?:/| out of )(?:10|ten))"
 fill_re = r"[^.\n>]*?"
 
 
+ref_name_re = r"<ref( name ?= ?(?P<refname>.+?))? *>"
 url_re = r"rottentomatoes.com/(?P<rt_id>m/[-a-z0-9_]+)"
 
 # Regular expressions for the source/citation, where we will find the
@@ -64,22 +63,22 @@ url_re = r"rottentomatoes.com/(?P<rt_id>m/[-a-z0-9_]+)"
 
 # for the {{cite-web}} template
 citeweb_redirects = ["Cite web", "Cite-web", "Citeweb", "Cite Web"]
-t_citeweb = r"<ref>{{(?P<citeweb>" + construct_redirects(citeweb_redirects) + ".+?" + url_re + ".*?)}}"
+t_citeweb = r"{{(?P<citeweb>" + construct_redirects(citeweb_redirects) + ".+?" + url_re + ".*?)}}"
 
 
 # for the {{Cite Rotten Tomatoes}} template
 citert_redirects = ["Cite Rotten Tomatoes", "Cite rotten tomatoes", "Cite rt", "Cite RT"]
-t_citert = r"<ref>{{(?P<citert>" + construct_redirects(citert_redirects) +  ".+?)}}"
+t_citert = r"{{(?P<citert>" + construct_redirects(citert_redirects) +  r".+?)}}"
 
 
 # for the {{Rotten Tomatoes}} template
 rt_redirects = [ "Rotten Tomatoes", "Rotten-tomatoes", "Rottentomatoes",
 				"Rotten tomatoes", "Rotten", "Rottentomatoes.com"]
-t_rt = "<ref>{{(?P<rt>" + construct_redirects(rt_redirects) + ".+?)}}"
+t_rt = r"{{(?P<rt>" + construct_redirects(rt_redirects) + r".+?)}}"
 
-t_ldref = r"<ref name=(.+?)/>"
+t_ldref = r"<ref( name ?= ?(?P<ldrefname>.+?))? */>"
 
-citation_re = "(?P<citation>{})".format(alternates([t_citeweb, t_citert, t_rt]))
+citation_re = "(?P<citation>{}|<ref( name ?= ?(?P<refname>.+?))? *>{})".format(t_ldref, alternates([t_citeweb, t_citert, t_rt]))
 
 cand_re1 = rt_re + r"[^.\n>]*?" + score_re + r"[^\n>]*?" + citation_re
 cand_re2 = score_re + r"[^.\n>]*?" + rt_re + r"[^\n>]*?" + citation_re

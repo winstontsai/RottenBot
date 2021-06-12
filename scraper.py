@@ -41,6 +41,7 @@ def get_rt_rating(url):
     and also the current date.
     All the values will be in string form.
     """
+    logger.info("Scraping data from {}".format(url))
     contents = url_contents(url)
 
     indicator = '<script id="score-details-json" type="application/json">'
@@ -48,6 +49,7 @@ def get_rt_rating(url):
     score_data = find_substring(contents, indicator, terminator)
     sd = json.loads(score_data)['modal']
     if sd['hasTomatometerScoreAll'] == False:
+        logger.info("Tomatometer not yet available".format(url))
         return None
 
     sd = sd['tomatometerScoreAll']
@@ -56,7 +58,7 @@ def get_rt_rating(url):
     # it means that Rotten Tomatoes isn't loading the rating for whatever reason.
     # Not sure why this happens. Usually it loads if you try again later.
     if not sd:
-        logger.info("Rotten Tomatoes is not currently loading the rating for {}. Try again later.".format(url))
+        logger.error("Rotten Tomatoes is not currently loading the rating for {}".format(url))
         return {}
 
     # get title

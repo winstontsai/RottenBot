@@ -63,7 +63,7 @@ class Recruiter:
                             rt_data=rt_data)
                         break
 
-        logger.info("Found {} candidates out of {} pages.".format(count, total))
+        logger.info("Found {} candidates out of {} pages".format(count, total))
 
     @staticmethod
     def _p1258(title):
@@ -113,9 +113,11 @@ class Recruiter:
             elif p := Recruiter._p1258(title):
                 answer = p
         
-        logger.debug('Found id {} from the citation "{}"'.format(answer, citation))
         if answer is None:
             logger.error("Could not find a Rotten Tomatoes ID from the following citation: {}".format(citation))
+        else:
+            logger.debug('Found id {} from the citation "{}"'.format(answer, citation))
+
         return answer
 
 
@@ -127,7 +129,7 @@ class Recruiter:
         3. Empty dict, which happens when the rating data exists but
         Rotten Tomatoes is having trouble loading the rating data for a movie.
         """
-        logger.info("Obtaining data for [[{}]]...".format(title))
+        logger.info("Obtaining data for [[{}]]".format(title))
         data = self._get_data(movieid, title, self._bad_first_try)
         return data
 
@@ -142,28 +144,29 @@ class Recruiter:
         try:
             return scraper.get_rt_rating(rt_url(movieid))
         except requests.exceptions.HTTPError as x:
-            logger.info("{}".format(x))
+            logger.exception("{}".format(x))
             return func(movieid, title, *args, **kwargs)
 
     def _bad_first_try(self, movieid, title):
-        logger.info("Problem getting Rotten Tomatoes data for [[{}]] from id {} on first try.".format(title, movieid))
-        logger.info("Checking for Wikidata property P1258...")
+        logger.info("Problem getting Rotten Tomatoes data for [[{}]] from id {} on first try".format(title, movieid))
+        logger.info("Checking for Wikidata property P1258")
         if p := Recruiter._p1258(title):
-            logger.info("Wikidata property P1258 exists with value {}.".format(p))
-            msg = 'Problem getting Rotten Tomatoes data for [[{}]] with P1258 value {}.'.format(title, p)
+            logger.info("Wikidata property P1258 exists: {}".format(p))
+            msg = 'Problem getting Rotten Tomatoes data for [[{}]] with P1258 value {}'.format(title, p)
             return self._get_data(p, title, self._bad_try, msg)
         else:
-            msg = "Wikidata property P1258 does not exist."
+            msg = "Wikidata property P1258 does not exist"
             return self._bad_try(movieid, title, msg)
 
     def _bad_try(self, movieid, title, msg = None):
         if msg:
             logger.info(msg)
         else:
-            logger.info("Problem getting Rotten Tomatoes data for [[{}]] from id {}.".format(title, movieid))
+            logger.info("Problem getting Rotten Tomatoes data for [[{}]] from id {}".format(title, movieid))
 
-        newid = self._ask_for_id(title)
-        return self._get_data(newid, title, self._bad_try) if newid else None
+        if newid := self._ask_for_id(title):
+            return newid
+        return None
 
 
     def _ask_for_id(self, title):

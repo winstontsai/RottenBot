@@ -49,10 +49,11 @@ def print_data(args):
 	print("\n".join(s))
 
 
-if __name__ == '__main__':
+
+def main():
 	parser = argparse.ArgumentParser(description = 'Bot to help edit Rotten Toatoes film ratings on the English Wikipedia.',
 		epilog="""Use '-h' after a subcommand to read about a specific subcommand.
-See 'https://github.com/winstontsai/RottenBot' for more info about this bot.""",
+See 'https://github.com/winstontsai/RottenBot' for source code and more info.""",
 		formatter_class=argparse.RawDescriptionHelpFormatter,)
 	parser.add_argument('-v', '--verbose', action='count', default=1,
 		help='increase verbosity level')	
@@ -89,25 +90,28 @@ See 'https://github.com/winstontsai/RottenBot' for more info about this bot.""",
 	parser_r.set_defaults(func=print_data)
 	parser_r.add_argument('file', help = 'file in which the data is stored')
 
-
-
-
 	args = parser.parse_args()
+	args.func(args)
 
-	logger = logging.getLogger(__name__)
+
+
+
+if __name__ == '__main__':
 	logging.basicConfig(
-		filename ='logs/rottenbot.log',
-		filemode = 'w',
-	    format='%(levelname)s %(levelno)s %(asctime)s %(name)s %(levelname)s %(message)s',
-	    datefmt='%Y-%m-%d %H:%M:%S',
-	    level=logging.INFO)
+		filename = 'logs/rottenbot.log',
+		filemode = 'a',
+		format = '%(asctime)s [%(levelname)s] %(name)s: %(message)s',
+		level = logging.INFO
+		)
 
-
+	logging.info("START COMMAND '{}'".format(' '.join(sys.argv)))
 
 	t0 = time.perf_counter()
-	args.func(args)
+	main()
 	t1 = time.perf_counter()
+
 	logging.info("TIME ELAPSED = {}".format(t1 - t0))
+
 
 
 

@@ -94,10 +94,15 @@ See 'https://github.com/winstontsai/RottenBot' for more info about this bot.""",
 
 	args = parser.parse_args()
 
-	logging.basicConfig(filename='rottenbot.log',
-	    format='%(asctime)s %(levelname)s:%(message)s',
+	logger = logging.getLogger(__name__)
+	logging.basicConfig(
+		filename ='logs/rottenbot.log',
+		filemode = 'w',
+	    format='%(levelname)s %(levelno)s %(asctime)s %(name)s %(levelname)s %(message)s',
 	    datefmt='%Y-%m-%d %H:%M:%S',
-	    level=logging.DEBUG)
+	    level=logging.INFO)
+
+
 
 	t0 = time.perf_counter()
 	args.func(args)

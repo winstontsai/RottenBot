@@ -3,6 +3,7 @@
 import re
 import sys
 import webbrowser
+import logging
 
 from dataclasses import dataclass
 
@@ -13,7 +14,7 @@ from patterns import *
 
 
 
-def full_replacement(cand, d):
+def prose_replacement(cand, d):
     s = "On review aggregator [[Rotten Tomatoes]], the film holds an approval rating \
 of {}% based on {} reviews, with an average rating of {}/10.".format(d['score'], d['reviewCount'], d['average'])
     if d['consensus']:
@@ -23,6 +24,10 @@ of {}% based on {} reviews, with an average rating of {}/10.".format(d['score'],
     # s += "<ref>{{{{Cite Rotten Tomatoes |id={} |type=movie |title={} |access-date={}}}}}</ref>".format(cand.rt_id[2:], d['title'], d['accessDate'])
 
     return s
+
+def citation_replacement(cand, rt_id, refname = None):
+    return ""
+
 
 @dataclass
 class _Edit:
@@ -94,7 +99,7 @@ class Editor:
                     title=cand.title,
                     rt_id=cand.rt_id,
                     old_prose=old_prose,
-                    new_prose=full_replacement(cand, d),
+                    new_prose=prose_replacement(cand, d),
                     old_citation=cand.citation,
                     new_citation=None,
                     flags=flags
@@ -110,7 +115,7 @@ class Editor:
                     title=cand.title,
                     rt_id=cand.rt_id,
                     old_prose=old_prose,
-                    new_prose=full_replacement(cand, d),
+                    new_prose=prose_replacement(cand, d),
                     old_citation=cand.citation,
                     new_citation=None,
                     flags=flags

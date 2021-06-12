@@ -5,6 +5,7 @@ import requests
 import json
 import sys
 import logging
+logger = logging.getLogger(__name__)
 
 from datetime import date
 
@@ -55,7 +56,7 @@ def get_rt_rating(url):
     # it means that Rotten Tomatoes isn't loading the rating for whatever reason.
     # Not sure why this happens. Usually it loads if you try again later.
     if not sd:
-        logging.info("Rotten Tomatoes is not currently loading the rating for {}. Try again later.".format(url))
+        logger.info("Rotten Tomatoes is not currently loading the rating for {}. Try again later.".format(url))
         return {}
 
     # get title

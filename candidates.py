@@ -9,6 +9,7 @@ import re
 import sys
 import webbrowser
 import logging
+logger = logging.getLogger(__name__)
 
 from dataclasses import dataclass
 
@@ -62,7 +63,7 @@ class Recruiter:
                             rt_data=rt_data)
                         break
 
-        logging.info("Found {} candidates out of {} pages.".format(count, total))
+        logger.info("Found {} candidates out of {} pages.".format(count, total))
 
     @staticmethod
     def _p1258(title):
@@ -112,9 +113,9 @@ class Recruiter:
             elif p := Recruiter._p1258(title):
                 answer = p
         
-        logging.debug("Found id {} from the citation ")
+        logger.debug('Found id {} from the citation "{}"'.format(answer, citation))
         if answer is None:
-            logging.error("Could not find a Rotten Tomatoes ID from the following citation: {}".format(citation))
+            logger.error("Could not find a Rotten Tomatoes ID from the following citation: {}".format(citation))
         return answer
 
 
@@ -126,7 +127,7 @@ class Recruiter:
         3. Empty dict, which happens when the rating data exists but
         Rotten Tomatoes is having trouble loading the rating data for a movie.
         """
-        logging.info("Obtaining data for {}...".format(title))
+        logger.info("Obtaining data for [[{}]]...".format(title))
         data = self._get_data(movieid, title, self._bad_first_try)
         return data
 
@@ -141,14 +142,14 @@ class Recruiter:
         try:
             return scraper.get_rt_rating(rt_url(movieid))
         except requests.exceptions.HTTPError as x:
-            logging.info("{}".format(x))
+            logger.info("{}".format(x))
             return func(movieid, title, *args, **kwargs)
 
     def _bad_first_try(self, movieid, title):
-        logging.info("Problem getting Rotten Tomatoes data for [[{}]] from id {} on first try.".format(title, movieid))
-        logging.info("Checking for Wikidata property P1258...")
+        logger.info("Problem getting Rotten Tomatoes data for [[{}]] from id {} on first try.".format(title, movieid))
+        logger.info("Checking for Wikidata property P1258...")
         if p := Recruiter._p1258(title):
-            logging.info("Wikidata property P1258 exists with value {}.".format(p))
+            logger.info("Wikidata property P1258 exists with value {}.".format(p))
             msg = 'Problem getting Rotten Tomatoes data for [[{}]] with P1258 value {}.'.format(title, p)
             return self._get_data(p, title, self._bad_try, msg)
         else:
@@ -157,9 +158,9 @@ class Recruiter:
 
     def _bad_try(self, movieid, title, msg = None):
         if msg:
-            logging.info(msg)
+            logger.info(msg)
         else:
-            logging.info("Problem getting Rotten Tomatoes data for [[{}]] from id {}.".format(title, movieid))
+            logger.info("Problem getting Rotten Tomatoes data for [[{}]] from id {}.".format(title, movieid))
 
         newid = self._ask_for_id(title)
         return self._get_data(newid, title, self._bad_try) if newid else None
@@ -178,7 +179,7 @@ class Recruiter:
         url = googlesearch.lucky(title + " site:rottentomatoes.com/m/")
         suggested_id = url.split('rottentomatoes.com/')[1]
 
-        prompt = """Please select an option for the film {}:
+        prompt = """Please select an option for [[{}]]:
     1) use suggested id {}
     2) open the suggested id's Rotten Tomato page and [[{}]] in the browser
     3) enter id manually

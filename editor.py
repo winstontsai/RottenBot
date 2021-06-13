@@ -179,7 +179,7 @@ class Editor:
     3) open [[{}]] in browser for manual editing
     4) quit program
 Your selection: """.format(edit.title)
-            while (user_input := input(prompt)) not in "1234":
+            while (user_input := input(prompt)) not in ['1', '2', '3', '4']:
                 pass
 
             if user_input == '1':

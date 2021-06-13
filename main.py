@@ -1,9 +1,11 @@
 import time
 import sys
+import os
 import pickle
 import json
 import argparse
 import logging
+import logging.handlers
 
 import pywikibot as pwb
 
@@ -24,7 +26,6 @@ def store_edits(args):
 
 def store_candidates(args):
 	r = candidates.Recruiter(args.xmlfile,  patterns.cand_res)
-
 
 	with open(args.file, 'wb') as f:
 		for cand in r.find_candidates():
@@ -50,7 +51,7 @@ def print_data(args):
 
 
 
-def main():
+def get_args():
 	parser = argparse.ArgumentParser(description = 'Bot to help edit Rotten Toatoes film ratings on the English Wikipedia.',
 		epilog="""Use '-h' after a subcommand to read about a specific subcommand.
 See 'https://github.com/winstontsai/RottenBot' for source code and more info.""",
@@ -90,24 +91,47 @@ See 'https://github.com/winstontsai/RottenBot' for source code and more info."""
 	parser_r.set_defaults(func=print_data)
 	parser_r.add_argument('file', help = 'file in which the data is stored')
 
-	args = parser.parse_args()
-	args.func(args)
+	return parser.parse_args()
 
 
 
 
 if __name__ == '__main__':
-	logging.basicConfig(
-		filename = 'logs/rottenbot.log',
-		filemode = 'a',
-		format = '%(asctime)s [%(levelname)s] %(name)s: %(message)s',
-		level = logging.INFO
-		)
+	# logging.basicConfig(
+	# 	filename = 'logs/rottenbot.log',
+	# 	filemode = 'a',
+	# 	format = '%(asctime)s [%(levelname)s] %(name)s: %(message)s',
+	# 	level = logging.INFO
+	# 	)
+	should_roll = os.path.isfile("logs/rottenbot.log")
 
-	logging.info("START COMMAND '{}'".format(' '.join(sys.argv)))
+	logger = logging.getLogger()
+	formatter = logging.Formatter('%(name)s %(asctime)s %(threadName)s %(funcName)s [%(levelname)s]: %(message)s')
+
+
+	should_roll = os.path.isfile("logs/rottenbot.log")
+	file_handler = logging.handlers.RotatingFileHandler(
+		filename = "logs/rottenbot.log",
+		backupCount = 20)
+	file_handler.setFormatter(formatter)
+	file_handler.setLevel(logging.DEBUG)
+	if should_roll:
+		file_handler.doRollover()
+
+	stream_handler = logging.StreamHandler(sys.stdout)
+	stream_handler.setLevel(logging.INFO)
+
+	logger.addHandler(file_handler)
+	logger.addHandler(stream_handler)
+	logger.setLevel(logging.DEBUG)
+
+
+	# START PROGRAM
+	logging.info("COMMAND '{}'".format(' '.join(sys.argv)))
 
 	t0 = time.perf_counter()
-	main()
+	args = get_args()
+	args.func(args)
 	t1 = time.perf_counter()
 
 	logging.info("TIME ELAPSED = {}".format(t1 - t0))

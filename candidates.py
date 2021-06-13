@@ -8,6 +8,10 @@
 import re
 import sys
 import webbrowser
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from queue import Queue
+
+
 import logging
 logger = logging.getLogger(__name__)
 
@@ -34,10 +38,37 @@ class Candidate:
     rt_data: dict
 
 
+class NeedsUserInputError(Exception):
+    pass
+
 class Recruiter:
     def __init__(self, xmlfile, patterns):
         self.patterns = patterns
         self.filename = xmlfile
+
+
+
+    def candidate_from_entry(self, entry, needs_input_queue):
+        for p in self.patterns:
+            if m := re.search(p, entry.text):
+                if not (citation := Recruiter._find_citation(entry.text, m)):
+                    continue
+                rt_id = Recruiter._find_id(citation)
+                try:
+                    rt_id, rt_data = self._rt_data(entry.title, rt_id)
+                except NeedsUserInputError:
+                    needs_input_queue.put((entry, m, citation, rt_id))
+                else:
+                    if rt_data:
+                        return Candidate(
+                            title=entry.title,
+                            text=m.group(),
+                            prose=self._find_prose(entry.text, m),
+                            citation=citation,
+                            rt_id=rt_id,
+                            rt_data=rt_data)
+
+        return None # not a candidate
 
     def find_candidates(self):
         """
@@ -45,35 +76,169 @@ class Recruiter:
         which match at least one pattern in patterns.
         """
         total, count = 0, 0
-        for entry in XmlDump(self.filename).parse():
-            total += 1
-            for p in self.patterns:
-                if m := re.search(p, entry.text):
-                    if (citation := Recruiter._find_citation(entry.text, m)) is None:
-                        continue
-                    rt_id = Recruiter._find_id(citation)
-                    if rt_data := self._rt_data(entry.title, rt_id):
+        xml_entries = XmlDump(self.filename).parse()
+        needs_input = Queue()
+
+        max_workers = 15
+        with ThreadPoolExecutor(max_workers=max_workers) as x:
+            futures = (x.submit(self.candidate_from_entry, entry, needs_input) for entry in xml_entries)
+            for future in as_completed(futures):
+                total += 1
+                try:
+                    cand = future.result()
+                except SystemExit:
+                    logger.error("Exiting program.")
+                    sys.exit()
+                except NeedsUserInputError:
+                    needs_input.append()
+                else:
+                    if cand:
                         count += 1
-                        yield Candidate(
-                            title=entry.title,
-                            text=m.group(),
-                            prose=self._find_prose(entry.text, m),
-                            citation=citation,
-                            rt_id=rt_id,
-                            rt_data=rt_data)
-                        break
+                        yield cand
+
+        while not needs_input.empty():
+            entry, m, citation, rt_id = needs_input.get()
+            rt_id, rt_data = self._bad_try(rt_id, entry.title, user_input_mode=True)
+            if rt_data:
+                yield Candidate(
+                    title=entry.title,
+                    text=m.group(),
+                    prose=self._find_prose(entry.text, m),
+                    citation=citation,
+                    rt_id=rt_id,
+                    rt_data=rt_data)
+
 
         logger.info("Found {} candidates out of {} pages".format(count, total))
 
-    @staticmethod
-    def _p1258(title):
-        page = pwb.Page(pwb.Site('en','wikipedia'), title)
-        item = pwb.ItemPage.fromPage(page)
-        item.get()
-        if 'P1258' in item.claims:
-            return item.claims['P1258'][0].getTarget()
-        return None
 
+    def _rt_data(self, title, movieid):
+        """
+        Three possible return values.
+        1. The rating data we want.
+        2. None. Which means there is no rating data, or the user opted to skip.
+        3. Empty dict, which happens when the rating data exists but
+        Rotten Tomatoes is having trouble loading the rating data for a movie.
+        """
+        logger.debug("Obtaining data for [[{}]]".format(title))
+        return self._get_data(movieid, title, self._bad_first_try)
+
+
+
+    def _get_data(self, movieid, title, func, *args, **kwargs):
+        """
+        Tries to return the Rotten Tomatoes data for a movie.
+        Executes func on a requests.exceptions.HTTPError.
+        Func is meant to be a function which returns the desired Rotten Tomatoes data.
+        """
+        try:
+            return movieid, scraper.get_rt_rating(rt_url(movieid))
+        except requests.exceptions.HTTPError as x:
+            if x.response.status_code == 403:
+                logger.error("{}. Probably blocked by rottentomatoes.com. Exiting thread".format(x))
+                sys.exit()
+            else:
+                logger.error("{}".format(x))
+            return func(movieid, title, *args, **kwargs)
+
+    def _bad_first_try(self, movieid, title):
+        logger.info("Problem getting Rotten Tomatoes data for [[{}]] from id {}. Checking for Wikidata property P1258...".format(title, movieid))
+        if p := Recruiter._p1258(title):
+            logger.debug("Found Wikidata property P1258 for [[{}]]".format(title, p))
+            msg = 'Problem getting Rotten Tomatoes data for [[{}]] with P1258 value {}'.format(title, p)
+            return self._get_data(p, title, self._bad_try, msg)
+        else:
+            msg = "Wikidata property P1258 does not exist for [[{}]]".format(title)
+            return self._bad_try(movieid, title, msg)
+
+    def _bad_try(self, movieid, title, msg = None, user_input_mode = False):
+        if user_input_mode:
+            if newid := self._ask_for_id(title):
+                return self._get_data(newid, title, self._bad_try, user_input_mode=True)
+            return None, None
+        else:
+            if msg:
+                logger.info(msg)
+            else:
+                logger.info("Problem getting Rotten Tomatoes data for [[{}]] from id {}".format(title, movieid))
+            logger.info("The article [[{}]] will need user's input".format(title))
+            raise NeedsUserInputError
+
+
+    def _ask_for_id(self, title):
+        """
+        Asks for a user decisions regarding the Rotten Tomatoes id for a film
+        whose title is the title argument.
+
+        Returns:
+            if user decides to skip, returns None
+            otherwise returns the suggested id or the manually entered id
+        """
+
+        url = googlesearch.lucky(title + " site:rottentomatoes.com/m/")
+        suggested_id = url.split('rottentomatoes.com/')[1]
+
+        prompt = """Please select an option for [[{}]]:
+    1) use suggested id {}
+    2) open the suggested id's Rotten Tomato page and [[{}]] in the browser
+    3) enter id manually
+    4) skip this article
+    5) quit the program
+Your selection: """.format(title, suggested_id, title)
+
+        while (user_input := input(prompt)) not in ['1', '3', '4', '5']:
+            if user_input == '2':
+                webbrowser.open(rt_url(suggested_id))
+                webbrowser.open(pwb.Page(pwb.Site('en', 'wikipedia'), title).full_url())
+                input("Press Enter when finished in browser.")
+
+        if user_input == '1':
+            return suggested_id
+        elif user_input == '3':
+            while not (newid := input("Enter id here: ")).startswith('m/'):
+                print('Not a valid id. A valid id begins with "m/".')
+            return newid
+        elif user_input == '4':
+            return None
+            # return print("Skipping article [[{}]].".format(title))
+        elif user_input == '5':
+            print("Quitting program."); sys.exit()
+
+    @staticmethod
+    def _find_start(text, j):
+        """
+        This function is supposed to find the index of the beginning of
+        the sentence containing the Rotten Tomatoes rating info.
+
+        NOTE: There are edge cases where the index returned by this function
+        is in fact NOT the start of the desired sentence (see suspicious_start).
+        In these cases the bot operator will be asked for input.
+
+        Args:
+            text: the text of the page
+            j: the start index of the re.Match object
+        """
+        italics = False
+        for i in range(j - 1, -1, -1):
+            c = text[i]
+            if c in "\n>":
+                ind = i + 1
+                break
+            elif c == "." and not italics:
+                ind = i + 1
+                break
+            elif c == "'" == text[i + 1]:
+                italics = not italics
+
+        while text[ind] == ' ':
+            ind += 1
+
+        return ind
+
+    @staticmethod
+    def _find_prose(text, match):
+        i = Recruiter._find_start(text, match.start())
+        return text[i : match.start('citation')]
 
     @staticmethod
     def _find_citation(text, match):
@@ -120,131 +285,14 @@ class Recruiter:
 
         return answer
 
-
-    def _rt_data(self, title, movieid):
-        """
-        Three possible return values.
-        1. The rating data we want.
-        2. None. Which means there is no rating data, or the user opted to skip.
-        3. Empty dict, which happens when the rating data exists but
-        Rotten Tomatoes is having trouble loading the rating data for a movie.
-        """
-        logger.info("Obtaining data for [[{}]]".format(title))
-        data = self._get_data(movieid, title, self._bad_first_try)
-        return data
-
-
-
-    def _get_data(self, movieid, title, func, *args, **kwargs):
-        """
-        Tries to return the Rotten Tomatoes data for a movie.
-        Executes func on a requests.exceptions.HTTPError.
-        Func is meant to be a function which returns the desired Rotten Tomatoes data.
-        """
-        try:
-            return scraper.get_rt_rating(rt_url(movieid))
-        except requests.exceptions.HTTPError as x:
-            logger.exception("{}".format(x))
-            return func(movieid, title, *args, **kwargs)
-
-    def _bad_first_try(self, movieid, title):
-        logger.info("Problem getting Rotten Tomatoes data for [[{}]] from id {} on first try".format(title, movieid))
-        logger.info("Checking for Wikidata property P1258")
-        if p := Recruiter._p1258(title):
-            logger.info("Wikidata property P1258 exists: {}".format(p))
-            msg = 'Problem getting Rotten Tomatoes data for [[{}]] with P1258 value {}'.format(title, p)
-            return self._get_data(p, title, self._bad_try, msg)
-        else:
-            msg = "Wikidata property P1258 does not exist"
-            return self._bad_try(movieid, title, msg)
-
-    def _bad_try(self, movieid, title, msg = None):
-        if msg:
-            logger.info(msg)
-        else:
-            logger.info("Problem getting Rotten Tomatoes data for [[{}]] from id {}".format(title, movieid))
-
-        if newid := self._ask_for_id(title):
-            return newid
+    @staticmethod
+    def _p1258(title):
+        page = pwb.Page(pwb.Site('en','wikipedia'), title)
+        item = pwb.ItemPage.fromPage(page)
+        item.get()
+        if 'P1258' in item.claims:
+            return item.claims['P1258'][0].getTarget()
         return None
-
-
-    def _ask_for_id(self, title):
-        """
-        Asks for a user decisions regarding the Rotten Tomatoes id for a film
-        whose title is the title argument.
-
-        Returns:
-            if user decides to skip, returns None
-            otherwise returns the suggested id or the manually entered id
-        """
-
-        url = googlesearch.lucky(title + " site:rottentomatoes.com/m/")
-        suggested_id = url.split('rottentomatoes.com/')[1]
-
-        prompt = """Please select an option for [[{}]]:
-    1) use suggested id {}
-    2) open the suggested id's Rotten Tomato page and [[{}]] in the browser
-    3) enter id manually
-    4) skip this article
-    5) quit the program
-Your selection: """.format(title, suggested_id, title)
-
-        while (user_input := input(prompt)) not in "1345":
-            if user_input == '2':
-                webbrowser.open(rt_url(suggested_id))
-                webbrowser.open(pwb.Page(pwb.Site('en', 'wikipedia'), title).full_url())
-            input("Press Enter when finished in browser.")
-
-            if user_input == '1':
-                return suggested_id
-            elif user_input == '3':
-                while not (newid := input("Enter id here: ")).startswith('m/'):
-                    print('Not a valid id. A valid id begins with "m/".')
-                return newid
-            elif user_input == '4':
-                return print("Skipping article [[{}]].".format(title))
-            elif user_input == '5':
-                print("Quitting program."); quit()
-
-    @staticmethod
-    def _find_start(text, j):
-        """
-        This function is supposed to find the index of the beginning of
-        the sentence containing the Rotten Tomatoes rating info.
-
-        NOTE: There are edge cases where the index returned by this function
-        is in fact NOT the start of the desired sentence (see suspicious_start).
-        In these cases the bot operator will be asked for input.
-
-        Args:
-            text: the text of the page
-            j: the start index of the re.Match object
-        """
-        italics = False
-        for i in range(j - 1, -1, -1):
-            c = text[i]
-            if c in "\n>":
-                ind = i + 1
-                break
-            elif c == "." and not italics:
-                ind = i + 1
-                break
-            elif c == "'" == text[i + 1]:
-                italics = not italics
-
-        while text[ind] == ' ':
-            ind += 1
-
-        return ind
-
-    @staticmethod
-    def _find_prose(text, match):
-        i = Recruiter._find_start(text, match.start())
-        return text[i : match.start('citation')]
-
-
-
 
 if __name__ == "__main__":
     pass

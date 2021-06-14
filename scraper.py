@@ -1,9 +1,7 @@
 # This module scrapes rottentomatoes.com for the desired data.
 
-import urllib.request
 import requests
 import json
-import sys
 import logging
 logger = logging.getLogger(__name__)
 

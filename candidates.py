@@ -53,12 +53,13 @@ class Recruiter:
         if not self.blocked.empty():
             sys.exit()
 
-        logging.debug("candidate_from_entry {}".format(entry.title))
+        logging.debug("candidate_from_entry %s", entry.title)
 
         for p in self.patterns:
             if m := re.search(p, entry.text):
+                #print(m.group())
                 if not (citation := Recruiter._find_citation(entry.text, m)):
-                    logging.info("No citation found for [[{}]]".format(entry.title))
+                    logging.info("No citation found for [[%s]]", entry.title)
                     continue
                 rt_id = Recruiter._find_id(citation)
                 try:
@@ -125,7 +126,7 @@ class Recruiter:
                     rt_data=rt_data)
 
 
-        logger.info("Found {} candidates out of {} pages".format(count, total))
+        logger.info("Found %s candidates out of %s pages", count, total)
 
 
     def _rt_data(self, title, movieid):
@@ -139,7 +140,7 @@ class Recruiter:
         if not self.blocked.empty():
             sys.exit()
 
-        logger.info("Processing potential candidate [[{}]]".format(title))
+        logger.info("Processing potential candidate [[%s]]", title)
         return self._get_data(movieid, title, self._bad_first_try)
 
 
@@ -166,23 +167,23 @@ class Recruiter:
             elif x.response.status_code == 500:
                 logger.exception("500 Server Error")
             else:
-                logger.exception("An unknown HTTPError occured for [[{}]] with id {}".format(title, movieid))
+                logger.exception("An unknown HTTPError occured for [[%s]] with id %s", title, movieid)
                 raise
             return func(movieid, title, *args, **kwargs)
         except requests.exceptions.TooManyRedirects as x:
-            logger.exception("Too many redirects for [[{}]] with id {}".format(title, movieid))
+            logger.exception("Too many redirects for [[%s]] with id %s", title, movieid)
             return func(movieid, title, *args, **kwargs)
 
     def _bad_first_try(self, movieid, title):
-        logger.info("Problem getting Rotten Tomatoes data for [[{}]] from id {}. Checking for Wikidata property P1258...".format(title, movieid))
+        logger.info("Problem getting Rotten Tomatoes data for [[%s]] from id %s. Checking for Wikidata property P1258...", title, movieid)
         if p := Recruiter._p1258(title):
-            logger.debug("Found Wikidata property P1258 for [[{}]]".format(title, p))
-            msg = 'Problem getting Rotten Tomatoes data for [[{}]] with P1258 value {}'.format(title, p)
+            logger.debug("Found Wikidata property P1258 for [[%s]]: %s", title, p)
+            msg = f'Problem getting Rotten Tomatoes data for [[{title}]] with P1258 value {p}'
             if p == movieid:
                 return self._bad_try(movieid, title, msg)
             return self._get_data(p, title, self._bad_try, msg)
         else:
-            msg = "Wikidata property P1258 does not exist for [[{}]]".format(title)
+            msg = f"Wikidata property P1258 does not exist for [[{title}]]"
             return self._bad_try(movieid, title, msg)
 
     def _bad_try(self, movieid, title, msg = None, user_input_mode = False):
@@ -194,8 +195,8 @@ class Recruiter:
             if msg:
                 logger.info(msg)
             else:
-                logger.info("Problem getting Rotten Tomatoes data for [[{}]] from id {}".format(title, movieid))
-            logger.debug("[[{}]] will need user's input".format(title))
+                logger.info("Problem getting Rotten Tomatoes data for [[%s]] from id %s", title, movieid)
+            logger.debug("[[%s]] will need user's input", title)
             raise NeedsUserInputError
 
 
@@ -213,13 +214,13 @@ class Recruiter:
         # in case it's like m/moviename/reviews
         suggested_id = 'm/' + suggested_id.split('/')[0]
 
-        prompt = """Please select an option for [[{}]]:
-    1) use suggested id {}
-    2) open the suggested id's Rotten Tomato page and [[{}]] in the browser
+        prompt = f"""Please select an option for [[{title}]]:
+    1) use suggested id {suggested_id}
+    2) open the suggested id's Rotten Tomato page and [[{title}]] in the browser
     3) enter id manually
     4) skip this article
     5) quit the program
-Your selection: """.format(title, suggested_id, title)
+Your selection: """
 
         while (user_input := input(prompt)) not in ['1', '3', '4', '5']:
             if user_input == '2':
@@ -237,7 +238,7 @@ Your selection: """.format(title, suggested_id, title)
             return newid
         elif user_input == '4':
             return None
-            # return print("Skipping article [[{}]].".format(title))
+            logger.info("Skipping article [[%s]]", title)
         elif user_input == '5':
             print("Quitting program."); sys.exit()
 
@@ -281,8 +282,10 @@ Your selection: """.format(title, suggested_id, title)
         if match.group('citeweb') or match.group('citert') or match.group('rt'):
             return text[match.start('citation') : match.end()]
         else: # list-defined reference case
-            refname = match.group('ldrefname')
-            p = "<ref name ?= ?{} ?>{}".format(refname, alternates([t_citeweb, t_citert, t_rt]))
+            refname = re.escape(match.group('ldrefname').strip('"'))
+            refname = fr'({refname}|"{refname}")'
+            # print(refname)
+            p = fr"<ref +name *= *{refname} *>{t_alternates}"
             if m := re.search(p, text):
                 return m.group()
             else:
@@ -315,9 +318,9 @@ Your selection: """.format(title, suggested_id, title)
                 answer = p
         
         if answer is None:
-            logger.error("Could not find a Rotten Tomatoes ID from the following citation: {}".format(citation))
+            logger.error("Could not find a Rotten Tomatoes ID from the following citation: %s", citation)
         else:
-            logger.debug('Found id {} from the citation "{}"'.format(answer, citation))
+            logger.debug('Found id %s from the citation "%s"', answer, citation)
 
         return answer
 

@@ -1,5 +1,4 @@
 # pywikibot files
-logs/
 apicache-py3
 throttle.ctrl
 user-config.py
@@ -10,13 +9,12 @@ pywikibot.lwp
 __pycache__/
 
 # my files
+logs/
 env/
 core_stable/
 example_movies/
 outputs/
 logs/
-pages-list.txt
-test-films.txt
 notes.txt
 play.py
 

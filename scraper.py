@@ -23,7 +23,7 @@ HEADERS = {
 }
 
 def url_contents(url):
-    logger.debug("Scraping {}".format(url))
+    logger.debug("Scraping %s", url)
     r = requests.get(url, headers=HEADERS)
     if r.status_code != 200:
         r.raise_for_status()
@@ -64,7 +64,7 @@ def get_rt_rating(url):
 
     sd = json.loads(score_data)['modal']
     if sd['hasTomatometerScoreAll'] == False:
-        logger.debug("Tomatometer not yet available for {}".format(url))
+        logger.debug("Tomatometer not yet available for %s", url)
         return None
 
     sd = sd['tomatometerScoreAll']
@@ -73,7 +73,7 @@ def get_rt_rating(url):
     # it means that Rotten Tomatoes isn't loading the rating for whatever reason.
     # Not sure why this happens. Usually it loads if you try again later.
     if not sd:
-        logger.error("Rotten Tomatoes is not currently loading the rating for {}".format(url))
+        logger.error("Rotten Tomatoes is not currently loading the rating for %s", url)
         return {}
 
     # get title

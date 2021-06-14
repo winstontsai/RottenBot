@@ -5,7 +5,7 @@ def rt_url(movieid):
 	return "https://www.rottentomatoes.com/" + movieid
 
 def alternates(l):
-	return "(?:{})".format("|".join(l))
+	return f'(?:{"|".join(l)})'
 
 def construct_redirects(l):
 	"""
@@ -14,7 +14,7 @@ def construct_redirects(l):
 	For example, if we want to match both "Rotten Tomatoes" and "RottenTomatoes",
 	use this function with l = ["Rotten Tomatoes", "RottenTomatoes"]
 	"""
-	redirects = ["[{}]{}".format(x[0] + x[0].lower(),x[1:]) for x in l]
+	redirects = [f"[{x[0] + x[0].lower()}]{x[1:]}" for x in l]
 	return alternates(redirects)
 
 
@@ -43,19 +43,16 @@ def construct_template(name, d):
 	s = name
 	for key,value in d:
 		if type(key) == int:
-			s += " |{}".format(value)
+			s += f" |{value}"
 		else:
-			s += " |{}={}".format(key, value)
+			s += f" |{key}={value}"
 	return s
 
 rt_re = r"[rR]otten [tT]omatoes"
-score_re = r"(?P<score>([0-9]|[1-9][0-9]|100)(?:%| percent))"
+score_re = r"(?P<score>([0-9]|[1-9][0-9]|100)(%| percent))"
 count_re = r"(?P<count>([5-9]|[1-9][0-9]|[1-9][0-9][0-9]) ((critical )?reviews|(surveyed )?critics))"
-average_re = r"(?P<average>(?:[0-9]|10)(?:\.\d{1,2})?(?:/| out of )(?:10|ten))"
-fill_re = r"[^.\n>]*?"
+average_re = r"(?P<average>([0-9]|10)(\.\d{1,2})?(/| out of )(10|ten))"
 
-
-ref_name_re = r"<ref( name ?= ?(?P<refname>.+?))? *>"
 url_re = r"rottentomatoes.com/(?P<rt_id>m/[-a-z0-9_]+)"
 
 # Regular expressions for the source/citation, where we will find the
@@ -63,25 +60,30 @@ url_re = r"rottentomatoes.com/(?P<rt_id>m/[-a-z0-9_]+)"
 
 # for the {{cite-web}} template
 citeweb_redirects = ["Cite web", "Cite-web", "Citeweb", "Cite Web"]
-t_citeweb = r"{{(?P<citeweb>" + construct_redirects(citeweb_redirects) + ".+?" + url_re + ".*?)}}"
+t_citeweb = fr"{{{{(?P<citeweb>{construct_redirects(citeweb_redirects)}.+?{url_re}.*?)}}}}"
 
 
 # for the {{Cite Rotten Tomatoes}} template
 citert_redirects = ["Cite Rotten Tomatoes", "Cite rotten tomatoes", "Cite rt", "Cite RT"]
-t_citert = r"{{(?P<citert>" + construct_redirects(citert_redirects) +  r".+?)}}"
+t_citert = fr"{{{{(?P<citert>{construct_redirects(citert_redirects)}.+?)}}}}"
 
 
 # for the {{Rotten Tomatoes}} template
 rt_redirects = [ "Rotten Tomatoes", "Rotten-tomatoes", "Rottentomatoes",
 				"Rotten tomatoes", "Rotten", "Rottentomatoes.com"]
-t_rt = r"{{(?P<rt>" + construct_redirects(rt_redirects) + r".+?)}}"
+t_rt = fr"{{{{(?P<rt>{construct_redirects(rt_redirects)}.+?)}}}}"
 
-t_ldref = r'<ref name ?= ?(?P<ldrefname>[^>"]+?) ?/ ?>'
+t_ldref = r'<ref +name *= *(?P<ldrefname>[^<>]+?) */ *>'
 
-citation_re = '(?P<citation><ref( name ?= ?(?P<refname>[^<>]+?))? *>{}|{})'.format(alternates([t_citeweb, t_citert, t_rt]), t_ldref)
+t_alternates = alternates([t_citeweb,t_citert,t_rt])
+
+citation_re = fr'(?P<citation>(<ref( +name *= *(?P<refname>[^<>]+?))? *>{t_alternates}.*?</ref *>|{t_ldref}))'
 
 cand_re1 = rt_re + r"[^.\n>]*?" + score_re + r"[^\n>]*?" + citation_re
 cand_re2 = score_re + r"[^.\n>]*?" + rt_re + r"[^\n>]*?" + citation_re
+
+# cand_re1 = fr"{rt_re}[^.\n>]*?{score_re}[^\n>]*?{citation_re}"
+# cand_re2 = fr"{score_re}[^.\n>]*?{rt_re}[^\n>]*?{citation_re}"
 cand_res = [cand_re1, cand_re2]
 
 

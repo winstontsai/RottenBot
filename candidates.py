@@ -8,13 +8,11 @@
 import re
 import sys
 import webbrowser
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from queue import Queue
-
-
 import logging
 logger = logging.getLogger(__name__)
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from queue import Queue
 from dataclasses import dataclass
 
 import googlesearch
@@ -23,8 +21,9 @@ import requests
 import pywikibot as pwb
 from pywikibot.xmlreader import XmlDump
 
-from patterns import *
 import scraper
+from patterns import *
+
 
 
 @dataclass

@@ -8,7 +8,7 @@ import logging
 from dataclasses import dataclass
 
 import pywikibot as pwb
-import candidates
+
 from patterns import *
 
 

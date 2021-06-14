@@ -25,7 +25,7 @@ def store_edits(args):
 			
 
 def store_candidates(args):
-	r = candidates.Recruiter(args.xmlfile,  patterns.cand_res)
+	r = candidates.Recruiter(args.xmlfile,  patterns.cand_res, False)
 
 	with open(args.file, 'wb') as f:
 		for cand in r.find_candidates():
@@ -106,7 +106,7 @@ if __name__ == '__main__':
 	should_roll = os.path.isfile("logs/rottenbot.log")
 
 	logger = logging.getLogger()
-	formatter = logging.Formatter('%(name)s %(asctime)s %(threadName)s %(funcName)s [%(levelname)s]: %(message)s')
+	formatter = logging.Formatter('%(asctime)s %(threadName)s %(name)s %(funcName)s [%(levelname)s]: %(message)s')
 
 
 	should_roll = os.path.isfile("logs/rottenbot.log")
@@ -114,7 +114,7 @@ if __name__ == '__main__':
 		filename = "logs/rottenbot.log",
 		backupCount = 20)
 	file_handler.setFormatter(formatter)
-	file_handler.setLevel(logging.DEBUG)
+	file_handler.setLevel(logging.INFO)
 	if should_roll:
 		file_handler.doRollover()
 

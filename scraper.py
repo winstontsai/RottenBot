@@ -25,7 +25,7 @@ HEADERS = {
 }
 
 def url_contents(url):
-    logger.info("Scraping {}".format(url))
+    logger.debug("Scraping {}".format(url))
     r = requests.get(url, headers=HEADERS)
     if r.status_code != 200:
         r.raise_for_status()
@@ -66,7 +66,7 @@ def get_rt_rating(url):
 
     sd = json.loads(score_data)['modal']
     if sd['hasTomatometerScoreAll'] == False:
-        logger.info("Tomatometer not yet available for {}".format(url))
+        logger.debug("Tomatometer not yet available for {}".format(url))
         return None
 
     sd = sd['tomatometerScoreAll']

@@ -41,23 +41,32 @@ class Candidate:
 class NeedsUserInputError(Exception):
     pass
 
+class BlockedError(Exception):
+    pass
+
 class Recruiter:
-    def __init__(self, xmlfile, patterns):
+    def __init__(self, xmlfile, patterns, get_user_input=True):
         self.patterns = patterns
         self.filename = xmlfile
+        self.get_user_input = get_user_input
 
+    def candidate_from_entry(self, entry):
+        if not self.blocked.empty():
+            sys.exit()
 
+        logging.debug("candidate_from_entry {}".format(entry.title))
 
-    def candidate_from_entry(self, entry, needs_input_queue):
         for p in self.patterns:
             if m := re.search(p, entry.text):
                 if not (citation := Recruiter._find_citation(entry.text, m)):
+                    logging.info("No citation found for [[{}]]".format(entry.title))
                     continue
                 rt_id = Recruiter._find_id(citation)
                 try:
                     rt_id, rt_data = self._rt_data(entry.title, rt_id)
                 except NeedsUserInputError:
-                    needs_input_queue.put((entry, m, citation, rt_id))
+                    if self.get_user_input:
+                        self.needs_input_list.append((entry, m, citation, rt_id))
                 else:
                     if rt_data:
                         return Candidate(
@@ -77,29 +86,37 @@ class Recruiter:
         """
         total, count = 0, 0
         xml_entries = XmlDump(self.filename).parse()
-        needs_input = Queue()
 
-        max_workers = 15
-        with ThreadPoolExecutor(max_workers=max_workers) as x:
-            futures = (x.submit(self.candidate_from_entry, entry, needs_input) for entry in xml_entries)
-            for future in as_completed(futures):
+        # save pages which need user input for the end
+        self.needs_input_list = []
+
+        # if we get blocked (status code 403), add something to this queue
+        # if Queue is empty, then not blocked.
+        # if Queue is not empty, then we got blocked
+        self.blocked = Queue()
+
+        # 20 threads is fine, but don't rerun on the same pages immediately
+        # after a run, or the caching may result in sending too many
+        # requests too fast, and we'll get blocked.
+        with ThreadPoolExecutor(max_workers=20) as x:
+            futures = (x.submit(self.candidate_from_entry, entry) for entry in xml_entries)
+            for future in as_completed(futures, timeout=10):
                 total += 1
                 try:
                     cand = future.result()
                 except SystemExit:
+                    x.shutdown(wait=True, cancel_futures=True)
                     logger.error("Exiting program.")
                     sys.exit()
-                except NeedsUserInputError:
-                    needs_input.append()
                 else:
                     if cand:
                         count += 1
                         yield cand
 
-        while not needs_input.empty():
-            entry, m, citation, rt_id = needs_input.get()
+        for entry, m, citation, rt_id in self.needs_input_list:
             rt_id, rt_data = self._bad_try(rt_id, entry.title, user_input_mode=True)
             if rt_data:
+                count += 1
                 yield Candidate(
                     title=entry.title,
                     text=m.group(),
@@ -115,12 +132,15 @@ class Recruiter:
     def _rt_data(self, title, movieid):
         """
         Three possible return values.
-        1. The rating data we want.
-        2. None. Which means there is no rating data, or the user opted to skip.
-        3. Empty dict, which happens when the rating data exists but
+        1. id, data. The rating data we want.
+        2. _ , none. Which means there is no rating data, or the user opted to skip.
+        3. id, empty dict. Which happens when the rating data exists but
         Rotten Tomatoes is having trouble loading the rating data for a movie.
         """
-        logger.debug("Obtaining data for [[{}]]".format(title))
+        if not self.blocked.empty():
+            sys.exit()
+
+        logger.info("Processing potential candidate [[{}]]".format(title))
         return self._get_data(movieid, title, self._bad_first_try)
 
 
@@ -128,17 +148,26 @@ class Recruiter:
     def _get_data(self, movieid, title, func, *args, **kwargs):
         """
         Tries to return the Rotten Tomatoes data for a movie.
-        Executes func on a requests.exceptions.HTTPError.
-        Func is meant to be a function which returns the desired Rotten Tomatoes data.
+        Executes func if there is a requests.exceptions.HTTPError.
+        Func is meant to be a function which returns the desired Rotten Tomatoes data
+        in a tuple (id, data).
         """
+        if not self.blocked.empty():
+            raise sys.exit()
+
         try:
             return movieid, scraper.get_rt_rating(rt_url(movieid))
         except requests.exceptions.HTTPError as x:
             if x.response.status_code == 403:
-                logger.error("{}. Probably blocked by rottentomatoes.com. Exiting thread".format(x))
+                self.blocked.put("blocked")
+                logger.exception("Probably blocked by rottentomatoes.com. Exiting thread")
                 sys.exit()
+            elif x.response.status_code == 404:
+                logger.exception("404 Client Error")
+            elif x.response.status_code == 500:
+                logger.exception("500 Server Error")
             else:
-                logger.error("{}".format(x))
+                raise
             return func(movieid, title, *args, **kwargs)
 
     def _bad_first_try(self, movieid, title):
@@ -146,6 +175,8 @@ class Recruiter:
         if p := Recruiter._p1258(title):
             logger.debug("Found Wikidata property P1258 for [[{}]]".format(title, p))
             msg = 'Problem getting Rotten Tomatoes data for [[{}]] with P1258 value {}'.format(title, p)
+            if p == movieid:
+                return self._bad_try(movieid, title, msg)
             return self._get_data(p, title, self._bad_try, msg)
         else:
             msg = "Wikidata property P1258 does not exist for [[{}]]".format(title)
@@ -161,22 +192,23 @@ class Recruiter:
                 logger.info(msg)
             else:
                 logger.info("Problem getting Rotten Tomatoes data for [[{}]] from id {}".format(title, movieid))
-            logger.info("The article [[{}]] will need user's input".format(title))
+            logger.debug("[[{}]] will need user's input".format(title))
             raise NeedsUserInputError
 
 
     def _ask_for_id(self, title):
         """
-        Asks for a user decisions regarding the Rotten Tomatoes id for a film
-        whose title is the title argument.
+        Asks for a user decision regarding the Rotten Tomatoes id for a film.
 
         Returns:
             if user decides to skip, returns None
-            otherwise returns the suggested id or the manually entered id
+            otherwise returns the suggested id or a manually entered id
         """
 
         url = googlesearch.lucky(title + " site:rottentomatoes.com/m/")
-        suggested_id = url.split('rottentomatoes.com/')[1]
+        suggested_id = url.split('rottentomatoes.com/m/')[1]
+        # in case it's like m/moviename/reviews
+        suggested_id = 'm/' + suggested_id.split('/')[0]
 
         prompt = """Please select an option for [[{}]]:
     1) use suggested id {}
@@ -191,6 +223,8 @@ Your selection: """.format(title, suggested_id, title)
                 webbrowser.open(rt_url(suggested_id))
                 webbrowser.open(pwb.Page(pwb.Site('en', 'wikipedia'), title).full_url())
                 input("Press Enter when finished in browser.")
+            else:
+                print("Not a valid selection.")
 
         if user_input == '1':
             return suggested_id
@@ -216,7 +250,7 @@ Your selection: """.format(title, suggested_id, title)
 
         Args:
             text: the text of the page
-            j: the start index of the re.Match object
+            j: the start index, beginning of sentence should come before
         """
         italics = False
         for i in range(j - 1, -1, -1):
@@ -232,7 +266,6 @@ Your selection: """.format(title, suggested_id, title)
 
         while text[ind] == ' ':
             ind += 1
-
         return ind
 
     @staticmethod

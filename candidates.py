@@ -100,7 +100,7 @@ class Recruiter:
         # requests too fast, and we'll get blocked.
         with ThreadPoolExecutor(max_workers=20) as x:
             futures = (x.submit(self.candidate_from_entry, entry) for entry in xml_entries)
-            for future in as_completed(futures, timeout=10):
+            for future in as_completed(futures, timeout=None):
                 total += 1
                 try:
                     cand = future.result()
@@ -167,7 +167,11 @@ class Recruiter:
             elif x.response.status_code == 500:
                 logger.exception("500 Server Error")
             else:
+                logger.exception("An unknown HTTPError occured for [[{}]] with id {}".format(title, movieid))
                 raise
+            return func(movieid, title, *args, **kwargs)
+        except requests.exceptions.TooManyRedirects as x:
+            logger.exception("Too many redirects for [[{}]] with id {}".format(title, movieid))
             return func(movieid, title, *args, **kwargs)
 
     def _bad_first_try(self, movieid, title):

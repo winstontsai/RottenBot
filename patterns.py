@@ -78,7 +78,7 @@ t_rt = r"{{(?P<rt>" + construct_redirects(rt_redirects) + r".+?)}}"
 
 t_ldref = r'<ref name ?= ?(?P<ldrefname>[^>"]+?) ?/ ?>'
 
-citation_re = '(?P<citation><ref( name ?= ?(?P<refname>[^>"]+?))? *>{}|{})'.format(alternates([t_citeweb, t_citert, t_rt]), t_ldref)
+citation_re = '(?P<citation><ref( name ?= ?(?P<refname>[^<>]+?))? *>{}|{})'.format(alternates([t_citeweb, t_citert, t_rt]), t_ldref)
 
 cand_re1 = rt_re + r"[^.\n>]*?" + score_re + r"[^\n>]*?" + citation_re
 cand_re2 = score_re + r"[^.\n>]*?" + rt_re + r"[^\n>]*?" + citation_re

@@ -58,33 +58,49 @@ url_re = r"rottentomatoes.com/(?P<rt_id>m/[-a-z0-9_]+)"
 # Regular expressions for the source/citation, where we will find the
 # Rotten Tomatoes URL for the movie.
 
-# for the {{cite-web}} template
-citeweb_redirects = ["Cite web", "Cite-web", "Citeweb", "Cite Web"]
+# for the {{Cite web}} and {{Cite news}} and {{Citation}} templates
+citeweb_redirects = [
+    "Cite web", "Cite-web", "Citeweb", "Cite Web",
+    "Cite news", "Citenews", "Cite-news", "Cite News",
+    "Citation", "Cite",
+    ]
 t_citeweb = fr"{{{{(?P<citeweb>{construct_redirects(citeweb_redirects)}.+?{url_re}.*?)}}}}"
 
+citenews_redirects = []
 
 # for the {{Cite Rotten Tomatoes}} template
 citert_redirects = ["Cite Rotten Tomatoes", "Cite rotten tomatoes", "Cite rt", "Cite RT"]
 t_citert = fr"{{{{(?P<citert>{construct_redirects(citert_redirects)}.+?)}}}}"
 
-
 # for the {{Rotten Tomatoes}} template
 rt_redirects = [ "Rotten Tomatoes", "Rotten-tomatoes", "Rottentomatoes",
 				"Rotten tomatoes", "Rotten", "Rottentomatoes.com"]
-t_rt = fr"{{{{(?P<rt>{construct_redirects(rt_redirects)}.+?)}}}}"
+t_rt = fr"{{{{(?P<rt>{construct_redirects(rt_redirects)}.*?)}}}}"
 
-t_ldref = r'<ref +name *= *(?P<ldrefname>[^<>]+?) */ *>'
+# For any reference which includes the rotten tomatoes url pattern.
+# Not necessarily a template
+# This is a generalization of the Cite web, Cite news, and Citation templates.
+# Can handle "abnormal" cases where a template is not used.
+t_other = fr'(?P<citeweb>.+?{url_re}.*?)'
 
-t_alternates = alternates([t_citeweb,t_citert,t_rt])
+# for inline citations
+t_alternates = alternates([t_other,t_citert,t_rt])
+citation_re = fr'(?P<citation><ref( +name *= *(?P<refname>[^<>]+?))? *>.*?{t_alternates}.*?</ref *>)'
 
-citation_re = fr'(?P<citation>(<ref( +name *= *(?P<refname>[^<>]+?))? *>{t_alternates}.*?</ref *>|{t_ldref}))'
+# for list-defined references
+ldref_re = r'(?P<ldref><ref +name *= *(?P<ldrefname>[^<>]+?) */>)'
 
-cand_re1 = rt_re + r"[^.\n>]*?" + score_re + r"[^\n>]*?" + citation_re
-cand_re2 = score_re + r"[^.\n>]*?" + rt_re + r"[^\n>]*?" + citation_re
+cand_re1 = rt_re + r"[^.\n<>]*?" + score_re + r"[^\n<>]*?" + citation_re
+cand_re2 = score_re + r"[^.\n<>]*?" + rt_re + r"[^\n<>]*?" + citation_re
+cand_re3 = rt_re + r"[^.\n<>]*?" + score_re + r"[^\n<>]*?" + ldref_re
+cand_re4 = score_re + r"[^.\n<>]*?" + rt_re + r"[^\n<>]*?" + ldref_re
+
+cand_re5 = rt_re + r"[^.\n<>]*?" + score_re + r"[^\n<>]*?" + alternates([citation_re,ldref_re])
+cand_re6 = score_re + r"[^.\n<>]*?" + rt_re + r"[^\n<>]*?" + alternates([citation_re,ldref_re])
 
 # cand_re1 = fr"{rt_re}[^.\n>]*?{score_re}[^\n>]*?{citation_re}"
 # cand_re2 = fr"{score_re}[^.\n>]*?{rt_re}[^\n>]*?{citation_re}"
-cand_res = [cand_re1, cand_re2]
+cand_res = [cand_re5, cand_re6]
 
 
 

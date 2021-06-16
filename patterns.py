@@ -110,9 +110,8 @@ cand_re6 = score_re + r"[^.\n<>]*?" + rt_re + r"[^\n]*?" + alternates([citation_
 cand_re7 = rt_re + r"[^.\n<>]*?" + score_re + r"[^\n<>]*?" + fr"{anyrefs_re}{rtref_re}{anyrefs_re}"
 cand_re8 = score_re + r"[^.\n<>]*?" + rt_re + r"[^\n<>]*?" + fr"{anyrefs_re}{rtref_re}{anyrefs_re}"
 
-# cand_re1 = fr"{rt_re}[^.\n>]*?{score_re}[^\n>]*?{citation_re}"
-# cand_re2 = fr"{score_re}[^.\n>]*?{rt_re}[^\n>]*?{citation_re}"
-cand_res = [cand_re5, cand_re6]
+
+cand_res = [citation_re]
 
 
 

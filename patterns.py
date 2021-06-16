@@ -1,6 +1,9 @@
 # This module defines some regexes/patterns that will be used, along with some
 # related helper functions.
 
+import re
+
+
 def rt_url(movieid):
 	return "https://www.rottentomatoes.com/" + movieid
 
@@ -66,8 +69,6 @@ citeweb_redirects = [
     ]
 t_citeweb = fr"{{{{(?P<citeweb>{construct_redirects(citeweb_redirects)}.+?{url_re}.*?)}}}}"
 
-citenews_redirects = []
-
 # for the {{Cite Rotten Tomatoes}} template
 citert_redirects = ["Cite Rotten Tomatoes", "Cite rotten tomatoes", "Cite rt", "Cite RT"]
 t_citert = fr"{{{{(?P<citert>{construct_redirects(citert_redirects)}.+?)}}}}"
@@ -81,22 +82,33 @@ t_rt = fr"{{{{(?P<rt>{construct_redirects(rt_redirects)}.*?)}}}}"
 # Not necessarily a template
 # This is a generalization of the Cite web, Cite news, and Citation templates.
 # Can handle "abnormal" cases where a template is not used.
-t_other = fr'(?P<citeweb>.+?{url_re}.*?)'
+# t_other = fr'(?P<citeweb>.+?{url_re}.*?)'
+t_other = fr'(?P<citeweb>{url_re})'
 
 # for inline citations
 t_alternates = alternates([t_other,t_citert,t_rt])
 citation_re = fr'(?P<citation><ref( +name *= *(?P<refname>[^<>]+?))? *>.*?{t_alternates}.*?</ref *>)'
+# citation_re = fr'(?P<citation><ref( +name *= *(?P<refname>[^<>]+?))? *>[^<>]*?{t_alternates}[^<>]*?</ref *>)'
 
 # for list-defined references
 ldref_re = r'(?P<ldref><ref +name *= *(?P<ldrefname>[^<>]+?) */>)'
 
-cand_re1 = rt_re + r"[^.\n<>]*?" + score_re + r"[^\n<>]*?" + citation_re
-cand_re2 = score_re + r"[^.\n<>]*?" + rt_re + r"[^\n<>]*?" + citation_re
-cand_re3 = rt_re + r"[^.\n<>]*?" + score_re + r"[^\n<>]*?" + ldref_re
-cand_re4 = score_re + r"[^.\n<>]*?" + rt_re + r"[^\n<>]*?" + ldref_re
+rtref_re = alternates([citation_re,ldref_re])
 
-cand_re5 = rt_re + r"[^.\n<>]*?" + score_re + r"[^\n<>]*?" + alternates([citation_re,ldref_re])
-cand_re6 = score_re + r"[^.\n<>]*?" + rt_re + r"[^\n<>]*?" + alternates([citation_re,ldref_re])
+# matches zero or more consecutive references (not necessarily for RT)
+# needs re.DOTALL
+anyrefs_re = r'(<ref( +name *= *[^<>]+?)? *>.*?</ref *>|<ref +name *= *[^<>]+? */>)*'
+
+# cand_re1 = rt_re + r"[^.\n<>]*?" + score_re + r"[^\n<>]*?" + citation_re
+# cand_re2 = score_re + r"[^.\n<>]*?" + rt_re + r"[^\n<>]*?" + citation_re
+# cand_re3 = rt_re + r"[^.\n<>]*?" + score_re + r"[^\n<>]*?" + ldref_re
+# cand_re4 = score_re + r"[^.\n<>]*?" + rt_re + r"[^\n<>]*?" + ldref_re
+
+cand_re5 = rt_re + r"[^.\n<>]*?" + score_re + r"[^\n]*?" + alternates([citation_re,ldref_re])
+cand_re6 = score_re + r"[^.\n<>]*?" + rt_re + r"[^\n]*?" + alternates([citation_re,ldref_re])
+
+cand_re7 = rt_re + r"[^.\n<>]*?" + score_re + r"[^\n<>]*?" + fr"{anyrefs_re}{rtref_re}{anyrefs_re}"
+cand_re8 = score_re + r"[^.\n<>]*?" + rt_re + r"[^\n<>]*?" + fr"{anyrefs_re}{rtref_re}{anyrefs_re}"
 
 # cand_re1 = fr"{rt_re}[^.\n>]*?{score_re}[^\n>]*?{citation_re}"
 # cand_re2 = fr"{score_re}[^.\n>]*?{rt_re}[^\n>]*?{citation_re}"

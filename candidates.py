@@ -53,26 +53,33 @@ class Recruiter:
         if not self.blocked.empty():
             sys.exit()
 
-        logging.debug("candidate_from_entry %s", entry.title)
+        title = entry.title
+
+        logging.debug(f"candidate_from_entry {title}")
 
         for p in self.patterns:
-            if m := re.search(p, entry.text):
-                #print(m.group())
-                if not (citation := Recruiter._find_citation(entry.text, m)):
-                    logging.info("No citation found for [[%s]]", entry.title)
+            if m := re.search(p, entry.text, flags=0):
+
+                # This is mostly just for list-defined references
+                if not (citation := Recruiter._find_citation(m)):
+                    logging.info(f"No citation found for [[{title}]] with match {m.group()}")
                     continue
-                rt_id = Recruiter._find_id(citation)
+
+                return Candidate(title, m.group(),
+                    self._find_prose(m), citation, '', {})
+
+                rt_id = Recruiter._find_id(citation,title)
                 try:
-                    rt_id, rt_data = self._rt_data(entry.title, rt_id)
+                    rt_id, rt_data = self._rt_data(title, rt_id)
                 except NeedsUserInputError:
                     if self.get_user_input:
-                        self.needs_input_list.append((entry, m, citation, rt_id))
+                        self.needs_input_list.append((title, m, citation))
                 else:
                     if rt_data:
                         return Candidate(
-                            title=entry.title,
+                            title=title,
                             text=m.group(),
-                            prose=self._find_prose(entry.text, m),
+                            prose=self._find_prose(m),
                             citation=citation,
                             rt_id=rt_id,
                             rt_data=rt_data)
@@ -95,10 +102,10 @@ class Recruiter:
         # if Queue is not empty, then we got blocked
         self.blocked = Queue()
 
-        # 20 threads is fine, but don't rerun on the same pages immediately
+        # 15 threads is fine, but don't rerun on the same pages immediately
         # after a run, or the caching may result in sending too many
         # requests too fast, and we'll get blocked.
-        with ThreadPoolExecutor(max_workers=20) as x:
+        with ThreadPoolExecutor(max_workers=15) as x:
             futures = (x.submit(self.candidate_from_entry, entry) for entry in xml_entries)
             for future in as_completed(futures, timeout=None):
                 total += 1
@@ -113,14 +120,14 @@ class Recruiter:
                         count += 1
                         yield cand
 
-        for entry, m, citation, rt_id in self.needs_input_list:
-            rt_id, rt_data = self._bad_try(rt_id, entry.title, user_input_mode=True)
+        for title, m, citation in self.needs_input_list:
+            rt_id, rt_data = self._bad_try("", entry.title, user_input_mode=True)
             if rt_data:
                 count += 1
                 yield Candidate(
                     title=entry.title,
                     text=m.group(),
-                    prose=self._find_prose(entry.text, m),
+                    prose=self._find_prose(m),
                     citation=citation,
                     rt_id=rt_id,
                     rt_data=rt_data)
@@ -242,59 +249,65 @@ Your selection: """
         elif user_input == '5':
             print("Quitting program."); sys.exit()
 
+
+
+
+
     @staticmethod
-    def _find_start(text, j):
+    def _find_prose(match):
         """
-        This function is supposed to find the index of the beginning of
+        This function is supposed to return the prose part of the match.
+        It tries find the beginning of
         the sentence containing the Rotten Tomatoes rating info.
 
-        NOTE: There are edge cases where the index returned by this function
-        is in fact NOT the start of the desired sentence (see suspicious_start).
-        In these cases the bot operator will be asked for input.
-
+        NOTE: There are edge cases where the start position found
+        by this function
+        is in fact NOT the start of the desired sentence.
+        For example, if the movie title is 'Mr. Bobby' and it isn't italicized
+        in the Wikitext, then this function might identify the start at 'B'.
+        
         Args:
-            text: the text of the page
-            j: the start index, beginning of sentence should come before
+            match: match object which identified this potential candidate
         """
+        text = match.string
         italics = False
-        for i in range(j - 1, -1, -1):
+        for i in range(match.start() - 1, -1, -1):
             c = text[i]
-            if c in "\n>":
-                ind = i + 1
-                break
-            elif c == "." and not italics:
+            if c in "\n>" or (c == "." and not italics):
                 ind = i + 1
                 break
             elif c == "'" == text[i + 1]:
                 italics = not italics
-
         while text[ind] == ' ':
             ind += 1
-        return ind
+        if match.groupdict()['citation']:
+            end = match.start('citation')
+        else:
+            end = match.start('ldref')
+        return text[ind : end]
+
+
 
     @staticmethod
-    def _find_prose(text, match):
-        i = Recruiter._find_start(text, match.start())
-        return text[i : match.start('citation')]
-
-    @staticmethod
-    def _find_citation(text, match):
-        if match.group('citeweb') or match.group('citert') or match.group('rt'):
+    def _find_citation(match):
+        text = match.string
+        # list-defined reference case
+        if ldrefname := match.group('ldrefname'):       
+            ldrefname = re.escape(ldrefname.strip('"'))
+            ldrefname = fr'({ldrefname}|"{ldrefname}")'
+            # p = fr"<ref +name *= *{ldrefname} *>[^<>]*?{t_alternates}[^<>]*?</ref *>"
+            p = fr"<ref +name *= *{ldrefname} *>.*?{t_alternates}.*?</ref *>"
+            m = re.search(p, text, flags=re.DOTALL)
+            # Technically it's possible that we didn't find the definition of the
+            # reference with name ldrefname, e.g. no proper citation.
+            # In this case we return None
+            return m.group() if m else None
+        # inline reference case
+        else:
             return text[match.start('citation') : match.end()]
-        else: # list-defined reference case
-            refname = re.escape(match.group('ldrefname').strip('"'))
-            refname = fr'({refname}|"{refname}")'
-            # print(refname)
-            p = fr"<ref +name *= *{refname} *>{t_alternates}"
-            if m := re.search(p, text):
-                return m.group()
-            else:
-                # Technically it's possible that we didn't find the definition of the
-                # reference with name refname, e.g. no proper citation.
-                return None
 
     @staticmethod
-    def _find_id(citation):
+    def _find_id(citation, title):
         answer = None
 
         # Cite web template case
@@ -319,6 +332,7 @@ Your selection: """
         
         if answer is None:
             logger.error("Could not find a Rotten Tomatoes ID from the following citation: %s", citation)
+            raise ValueError("Could not find a Rotten Tomatoes ID from the following citation: {}".format(citation))
         else:
             logger.debug('Found id %s from the citation "%s"', answer, citation)
 

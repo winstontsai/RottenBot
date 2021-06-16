@@ -29,6 +29,7 @@ def store_candidates(args):
 
     with open(args.file, 'wb') as f:
         for cand in r.find_candidates():
+            logger.info("Found candidate [[%s]]", cand.title)
             pickle.dump(cand, f)
 
 
@@ -106,7 +107,7 @@ if __name__ == '__main__':
     file_handler = logging.handlers.RotatingFileHandler(
         filename = "logs/rottenbot.log",
         backupCount = 20)
-    formatter = logging.Formatter('%(asctime)s %(threadName)s %(name)s %(funcName)s [%(levelname)s]: %(message)s')
+    formatter = logging.Formatter('%(asctime)s %(name)s %(funcName)s [%(levelname)s]: %(message)s')
     file_handler.setFormatter(formatter)
     file_handler.setLevel(logging.INFO)
     if should_roll:

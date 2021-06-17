@@ -52,7 +52,10 @@ def construct_template(name, d):
 	return s
 
 rt_re = r"[rR]otten [tT]omatoes"
+
+# don't put space in front
 score_re = r"(?P<score>([0-9]|[1-9][0-9]|100)(%| percent))"
+
 count_re = r"(?P<count>([5-9]|[1-9][0-9]|[1-9][0-9][0-9]) ((critical )?reviews|(surveyed )?critics))"
 average_re = r"(?P<average>([0-9]|10)(\.\d{1,2})?(/| out of )(10|ten))"
 
@@ -87,34 +90,46 @@ t_other = fr'(?P<citeweb>{url_re})'
 
 # for inline citations
 t_alternates = alternates([t_other,t_citert,t_rt])
-citation_re = fr'(?P<citation><ref( +name *= *(?P<refname>[^<>]+?))? *>.*?{t_alternates}.*?</ref *>)'
-# citation_re = fr'(?P<citation><ref( +name *= *(?P<refname>[^<>]+?))? *>[^<>]*?{t_alternates}[^<>]*?</ref *>)'
 
-# for list-defined references
-ldref_re = r'(?P<ldref><ref +name *= *(?P<ldrefname>[^<>]+?) */>)'
+#citation_re = fr'(?P<citation><ref( +name *= *(?P<refname>[^<>]+?))? *>.*?{t_alternates}.*?</ref *>)'
+
+#citation_re = fr'(?P<citation><ref( +name *= *(?P<refname>[^<>]+?))? *>[^<>]*?{t_alternates}[^<>]*?</ref *>)'
+
+# using negative lookahead. Don't want glue, i.e. .*?, to contain the substring "<ref"
+citation_re = fr'(?P<citation><ref( +name *= *(?P<qmark>"?)(?P<refname>[^>]+?)(?P=qmark))? *>((?!<ref).)*?{t_alternates}((?!<ref).)*?</ref *>)'
+
+# for list-defined references. 
+ldref_re = r'(?P<ldref><ref +name *= *(?P<qmark>"?)(?P<ldrefname>[^>]+?)(?P=qmark) */>)'
+
+
+
+# for list-defined references, but with positive lookahead
+# to ensure that the reference is actually for rottentomatoes
+# ldref_re = fr'(?P<ldref><ref +name *= *(?P<qmark>"?)(?P<ldrefname>[^>]+?)(?P=qmark) */>)(?=(?P<ldcitation><ref( +name *= *((?P=ldrefname)|"(?P=ldrefname)") *>((?!<ref).)*?{t_alternates}((?!<ref).)*?</ref *>))'
 
 rtref_re = alternates([citation_re,ldref_re])
 
 # matches zero or more consecutive references (not necessarily for RT)
 # needs re.DOTALL
-anyrefs_re = r'(<ref( +name *= *[^<>]+?)? *>.*?</ref *>|<ref +name *= *[^<>]+? */>)*'
+anyrefs_re = r'(<ref( +name *= *[^<>]+?)? *>((?!<ref).)*?</ref *>|<ref +name *= *[^<>]+? */>)*'
 
-# cand_re1 = rt_re + r"[^.\n<>]*?" + score_re + r"[^\n<>]*?" + citation_re
-# cand_re2 = score_re + r"[^.\n<>]*?" + rt_re + r"[^\n<>]*?" + citation_re
-# cand_re3 = rt_re + r"[^.\n<>]*?" + score_re + r"[^\n<>]*?" + ldref_re
-# cand_re4 = score_re + r"[^.\n<>]*?" + rt_re + r"[^\n<>]*?" + ldref_re
+cand_re1 = rt_re + r"[^\n<]*?" + score_re + r"[^\n]*?" + citation_re
+cand_re2 = score_re + r"[^\n<]*?" + rt_re + r"[^\n]*?" + citation_re
+cand_re3 = rt_re + r"[^\n<]*?" + score_re + r"[^\n]*?" + ldref_re
+cand_re4 = score_re + r"[^\n<]*?" + rt_re + r"[^\n]*?" + ldref_re
 
-cand_re5 = rt_re + r"[^.\n<>]*?" + score_re + r"[^\n]*?" + alternates([citation_re,ldref_re])
-cand_re6 = score_re + r"[^.\n<>]*?" + rt_re + r"[^\n]*?" + alternates([citation_re,ldref_re])
-
-cand_re7 = rt_re + r"[^.\n<>]*?" + score_re + r"[^\n<>]*?" + fr"{anyrefs_re}{rtref_re}{anyrefs_re}"
-cand_re8 = score_re + r"[^.\n<>]*?" + rt_re + r"[^\n<>]*?" + fr"{anyrefs_re}{rtref_re}{anyrefs_re}"
+cand_re5 = rt_re + r"[^.\n<>]*?" + score_re + r"[^\n]*?" + rtref_re
+cand_re6 = score_re + r"[^.\n<>]*?" + rt_re + r"[^\n]*?" + rtref_re
 
 
-cand_res = [citation_re]
+# cand_re7 = rt_re + r"[^.\n<>]*?" + score_re + r"[^\n<>]*?" + fr"{anyrefs_re}{rtref_re}{anyrefs_re}"
+# cand_re8 = score_re + r"[^.\n<>]*?" + rt_re + r"[^\n<>]*?" + fr"{anyrefs_re}{rtref_re}{anyrefs_re}"
+
+cand_res = [cand_re1, cand_re2, cand_re3, cand_re4]
+# cand_res = [cand_re5, cand_re6]
 
 
 
 if __name__ == "__main__":
-	print(parse_template("cite web | title= Meadowland Reviews | url= https://www.metacritic.com/movie/meadowland | website= [[Metacritic]] |publisher= [[CBS Interactive]] | access-date= February 22, 2020 "))
+	print(t_alternates)
 

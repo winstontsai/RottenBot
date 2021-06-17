@@ -58,7 +58,12 @@ class Recruiter:
         logging.debug(f"candidate_from_entry {title}")
 
         for p in self.patterns:
-            if m := re.search(p, entry.text, flags=0):
+            # if x := list(re.finditer(p, entry.text, flags=re.DOTALL)):
+            #     if len(x) > 1:
+            #         print([m.group() for m in x])
+            #         print()
+
+            if m := re.search(p, entry.text, flags=re.DOTALL):
 
                 # This is mostly just for list-defined references
                 if not (citation := Recruiter._find_citation(m)):
@@ -86,11 +91,44 @@ class Recruiter:
 
         return None # not a candidate
 
+    def candidate_from_entry2(self, entry):
+        if not self.blocked.empty():
+            sys.exit()
+
+        title = entry.title
+
+        logging.debug(f"candidate_from_entry2 {title}")
+
+
+
+        matches = []
+
+        for p in self.patterns:
+            for m in re.finditer(f"(?=({p}))", entry.text, flags=re.DOTALL):
+                if citation := Recruiter._find_citation(m):
+                    text = m.group()
+                    prose = self._find_prose(m)
+                    rt_id = ''
+                    matches.append(m.group(1))
+
+        if not matches:
+            return None
+        elif len(matches) > 1:
+            print("\n\n".join(matches))
+            print()
+            return Candidate(title, '',
+                '', '', '', {})
+
+
+
+
     def find_candidates(self):
         """
         Given an XmlDump, yields all pages (as a Candidate) in the dump
         which match at least one pattern in patterns.
         """
+        logging.info(f"Finding candidates with patterns {self.patterns}")
+
         total, count = 0, 0
         xml_entries = XmlDump(self.filename).parse()
 
@@ -280,7 +318,7 @@ Your selection: """
                 italics = not italics
         while text[ind] == ' ':
             ind += 1
-        if match.groupdict()['citation']:
+        if 'citation' in match.groupdict() and match.group('citation'):
             end = match.start('citation')
         else:
             end = match.start('ldref')
@@ -292,19 +330,25 @@ Your selection: """
     def _find_citation(match):
         text = match.string
         # list-defined reference case
-        if ldrefname := match.group('ldrefname'):       
-            ldrefname = re.escape(ldrefname.strip('"'))
+        if 'ldrefname' in match.groupdict() and (ldrefname := match.group('ldrefname')):
+            ldrefname = re.escape(ldrefname)
             ldrefname = fr'({ldrefname}|"{ldrefname}")'
-            # p = fr"<ref +name *= *{ldrefname} *>[^<>]*?{t_alternates}[^<>]*?</ref *>"
-            p = fr"<ref +name *= *{ldrefname} *>.*?{t_alternates}.*?</ref *>"
+
+            #p = fr"<ref +name *= *{ldrefname} *>[^<>]*?{t_alternates}[^<>]*?</ref *>"
+
+            #p = fr"<ref +name *= *{ldrefname} *>.*?{t_alternates}.*?</ref *>"
+
+            p = fr"<ref +name *= *{ldrefname} *>((?!</ref).)*?{t_alternates}((?!</ref).)*?</ref *>"
+
             m = re.search(p, text, flags=re.DOTALL)
+
             # Technically it's possible that we didn't find the definition of the
             # reference with name ldrefname, e.g. no proper citation.
             # In this case we return None
             return m.group() if m else None
         # inline reference case
         else:
-            return text[match.start('citation') : match.end()]
+            return text[match.start('citation') : match.end('citation')]
 
     @staticmethod
     def _find_id(citation, title):

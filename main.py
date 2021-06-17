@@ -113,7 +113,7 @@ if __name__ == '__main__':
     if should_roll:
         file_handler.doRollover()
 
-    stream_handler = logging.StreamHandler(sys.stdout)
+    stream_handler = logging.StreamHandler(sys.stderr)
     formatter = logging.Formatter('[%(levelname)s]: %(message)s')
 
     stream_handler.setLevel(logging.INFO)

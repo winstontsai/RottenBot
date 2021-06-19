@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from queue import Queue
+from threading import Lock
 from dataclasses import dataclass
 
 import googlesearch
@@ -50,12 +51,31 @@ class Recruiter:
         self.get_user_input = get_user_input
 
     def candidate_from_entry(self, entry):
-        if not self.blocked.empty():
+        if self.blocked.locked():
             sys.exit()
 
         title = entry.title
 
         logging.debug(f"candidate_from_entry {title}")
+
+        self.patterns = [cand_re1, cand_re2]
+
+        # Get allowed refnames. Dictionary mapping name to definition
+        refnames = dict()
+        for m in re.finditer(fr'(?P<citation><ref +name *= *"?(?P<refname>[^>]+?)"? *>((?!<ref).)*{t_alternates}((?!<ref).)*</ref *>)', entry.text, flags=re.DOTALL):
+            refnames[re.escape(m.group('refname'))] = m.group()
+
+        if refnames:
+            allowed_refname = alternates(refnames)
+
+            ldref_re = fr'(?P<ldref><ref +name *= *"?(?P<ldrefname>{allowed_refname})"? */>)'
+            ldref_re2 = fr'(?P<ldref2><ref +name *= *"?(?P<ldrefname2>{allowed_refname})"? */>)'
+            rtref_re2 = alternates([citation_re2,ldref_re2])
+
+            cand_re3 = rt_re + r"[^\n<>]*?" + score_re + r"[^\n]*?" + ldref_re +    fr'([^\n.]*? consensus[^n]*?".*?"[.]?{rtref_re2}?)?(?![^\n]* consensus)'
+            cand_re4 = score_re + r"[^\n<>]*?" + rt_re + r"[^\n]*?" + ldref_re +    fr'([^\n.]*? consensus[^n]*?".*?"[.]?{rtref_re2}?)?(?![^\n]* consensus)'
+            self.patterns += [cand_re3, cand_re4]
+
 
         for p in self.patterns:
             # if x := list(re.finditer(p, entry.text, flags=re.DOTALL)):
@@ -92,14 +112,22 @@ class Recruiter:
         return None # not a candidate
 
     def candidate_from_entry2(self, entry):
-        if not self.blocked.empty():
+        if self.blocked.locked():
             sys.exit()
 
         title = entry.title
 
         logging.debug(f"candidate_from_entry2 {title}")
 
+        # Get allowed refnames
+        refnames = []
+        for m in re.finditer(citation_re, entry.text, flags=re.DOTALL):
+            if refname := m.group('refname'):
+                refnames.append(refname)
+        # add quote possibilities
+        refnames += [f'"{refname}"' for refname in refnames]
 
+        allowed_refnames = alternates(refnames)
 
         matches = []
 
@@ -138,7 +166,8 @@ class Recruiter:
         # if we get blocked (status code 403), add something to this queue
         # if Queue is empty, then not blocked.
         # if Queue is not empty, then we got blocked
-        self.blocked = Queue()
+        # self.blocked = Queue()
+        self.blocked = Lock()
 
         # 15 threads is fine, but don't rerun on the same pages immediately
         # after a run, or the caching may result in sending too many
@@ -182,7 +211,7 @@ class Recruiter:
         3. id, empty dict. Which happens when the rating data exists but
         Rotten Tomatoes is having trouble loading the rating data for a movie.
         """
-        if not self.blocked.empty():
+        if self.blocked.locked():
             sys.exit()
 
         logger.info("Processing potential candidate [[%s]]", title)
@@ -197,14 +226,14 @@ class Recruiter:
         Func is meant to be a function which returns the desired Rotten Tomatoes data
         in a tuple (id, data).
         """
-        if not self.blocked.empty():
+        if self.blocked.locked():
             raise sys.exit()
 
         try:
             return movieid, scraper.get_rt_rating(rt_url(movieid))
         except requests.exceptions.HTTPError as x:
             if x.response.status_code == 403:
-                self.blocked.put("blocked")
+                self.blocked.acquire()
                 logger.exception("Probably blocked by rottentomatoes.com. Exiting thread")
                 sys.exit()
             elif x.response.status_code == 404:
@@ -311,13 +340,15 @@ Your selection: """
         italics = False
         for i in range(match.start() - 1, -1, -1):
             c = text[i]
-            if c in "\n>" or (c == "." and not italics):
+            if c in "\n>" or (c == "." and not italics and text[i+1] == ' '):
                 ind = i + 1
                 break
             elif c == "'" == text[i + 1]:
                 italics = not italics
+
         while text[ind] == ' ':
             ind += 1
+
         if 'citation' in match.groupdict() and match.group('citation'):
             end = match.start('citation')
         else:

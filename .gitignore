@@ -10,6 +10,7 @@ __pycache__/
 
 # my files
 logs/
+storage/
 env/
 core_stable/
 example_movies/

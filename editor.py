@@ -1,4 +1,16 @@
 # This module takes Candidates and computes produces the new text to be used.
+# `
+# FIXES
+# 0. If multiple matches in the page, needs manual edit
+# 1. swap " and .
+# 2. update score
+# 3. update count
+# 4. update average
+# 5. add critical consensus if ' consensus' does not appear in the sequel
+# 6. Check if more than one reference. If so, needs manual edit.
+# 7. Use full replacement if no count, no average, or no critical consensus.
+# 8. If any edit will be made, change the citation to use Cite Rotten Tomatoes template.
+
 
 import re
 import sys
@@ -14,10 +26,10 @@ from patterns import *
 
 
 
-def prose_replacement(cand, d):
+def prose_replacement(cand, d, add_consensus = False):
     s = "On review aggregator [[Rotten Tomatoes]], the film holds an approval rating \
 of {}% based on {} reviews, with an average rating of {}/10.".format(d['score'], d['reviewCount'], d['average'])
-    if d['consensus']:
+    if add_consensus and d['consensus']:
         s += " The website's critical consensus reads, \"{}\"".format(d['consensus'])
 
     # add citation

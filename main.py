@@ -25,7 +25,8 @@ def store_edits(args):
             
 
 def store_candidates(args):
-    r = candidates.Recruiter(args.xmlfile,  patterns.cand_res, False)
+    r = candidates.Recruiter(args.xmlfile,
+        patterns.cand_res, get_user_input = True)
 
     with open(args.file, 'wb') as f:
         for cand in r.find_candidates():

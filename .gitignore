@@ -11,6 +11,7 @@ __pycache__/
 # my files
 logs/
 storage/
+xmldumps/
 env/
 core_stable/
 example_movies/

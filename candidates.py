@@ -154,14 +154,15 @@ class Recruiter:
 
         logging.debug("multiple_matches_list: %s", self.multiple_matches_list)
         for title, suggested_id in self.multiple_matches_list:
-            prompt = f"""Multiple matches found in [[{title}]].\nPlease select an option.
-    1) open {rt_url(suggested_id)} and [[{title}]] in the browser for manual editing
+            prompt = f"""Multiple matches found in [[{title}]].\nPlease select an option:
+    1) open [[{title}]] and {rt_url(suggested_id)} in the browser for manual editing
     2) skip this article
     3) quit the program
 Your selection: """
-            while print() or (user_input := input(prompt)) not in ['1', '2', '3']:
-                print("Not a valid selection.")
+            while (user_input := input(prompt)) not in ['1', '2', '3']:
+                print("\nNot a valid selection.\n")
 
+            print()
             if user_input == '1':
                 webbrowser.open(pwb.Page(pwb.Site('en', 'wikipedia'), title).full_url())
                 webbrowser.open(rt_url(suggested_id))
@@ -169,8 +170,6 @@ Your selection: """
                 continue
             elif user_input == '3':
                 print("Quitting program."); sys.exit()
-
-
 
         logger.info("Found %s candidates out of %s pages", count, total)
 
@@ -247,9 +246,10 @@ Your selection: """
             if user decides to skip, returns None
             otherwise returns the suggested id or a manually entered id
         """
-        prompt = f"""Please select an option for [[{title}]]:
+        prompt = f"""No working id found for [[{title}]]
+Please select an option:
     1) use suggested id {suggested_id}
-    2) open {rt_url(suggested_id)} and [[{title}]] in the browser
+    2) open [[{title}]] and {rt_url(suggested_id)} in the browser
     3) enter id manually
     4) skip this article
     5) quit the program
@@ -260,8 +260,9 @@ Your selection: """
                 webbrowser.open(pwb.Page(pwb.Site('en', 'wikipedia'), title).full_url())
                 webbrowser.open(rt_url(suggested_id))
             else:
-                print("Not a valid selection.")
+                print("Not a valid selection.\n")
 
+        print()
         if user_input == '1':
             return suggested_id
         elif user_input == '3':

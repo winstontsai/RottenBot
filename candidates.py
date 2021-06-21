@@ -77,7 +77,8 @@ class Recruiter:
                 continue
             elif prose_set:
                 if self.get_user_input:
-                    self.multiple_matches_list.append(title)
+                    suggested_id = Recruiter._p1258(title) or Recruiter._get_suggested_id(title)
+                    self.multiple_matches_list.append((title, suggested_id))
                 return None
             prose_set.add(prose)
 
@@ -152,8 +153,23 @@ class Recruiter:
                 break
 
         logging.debug("multiple_matches_list: %s", self.multiple_matches_list)
-        for title in self.multiple_matches_list:
-            print(f"The article [[{title}]] contains multiple matches. Please select an option.")
+        for title, suggested_id in self.multiple_matches_list:
+            prompt = f"""Multiple matches found in [[{title}]].\nPlease select an option.
+    1) open {rt_url(suggested_id)} and [[{title}]] in the browser for manual editing
+    2) skip this article
+    3) quit the program
+Your selection: """
+            while print() or (user_input := input(prompt)) not in ['1', '2', '3']:
+                print("Not a valid selection.")
+
+            if user_input == '1':
+                webbrowser.open(pwb.Page(pwb.Site('en', 'wikipedia'), title).full_url())
+                webbrowser.open(rt_url(suggested_id))
+            elif user_input == '2':
+                continue
+            elif user_input == '3':
+                print("Quitting program."); sys.exit()
+
 
 
         logger.info("Found %s candidates out of %s pages", count, total)
@@ -179,7 +195,7 @@ class Recruiter:
             return movieid, scraper.get_rt_rating(rt_url(movieid))
         except requests.exceptions.HTTPError as x:
             if x.response.status_code == 403:
-                self.blocked.acquire()
+                self.blocked.acquire(blocking=False)
                 logger.exception("Probably blocked by rottentomatoes.com. Exiting thread")
                 sys.exit()
             elif x.response.status_code == 404:
@@ -204,7 +220,7 @@ class Recruiter:
                 return p, scraper.get_rt_rating(rt_url(p))
             except requests.exceptions.HTTPError as x:
                 if x.response.status_code == 403:
-                    self.blocked.acquire()
+                    self.blocked.acquire(blocking=False)
                     logger.exception("Probably blocked by rottentomatoes.com. Exiting thread")
                     sys.exit()
                 elif x.response.status_code == 404:
@@ -233,7 +249,7 @@ class Recruiter:
         """
         prompt = f"""Please select an option for [[{title}]]:
     1) use suggested id {suggested_id}
-    2) open the suggested id's Rotten Tomato page and [[{title}]] in the browser
+    2) open {rt_url(suggested_id)} and [[{title}]] in the browser
     3) enter id manually
     4) skip this article
     5) quit the program
@@ -340,7 +356,7 @@ Your selection: """
             elif p := Recruiter._p1258(title):
                 return (citation, p)
 
-        logger.info(f'AHHHHHHHHHHHHH {title}\n{m.group()}\n{groupdict}')
+        raise ValueError(f'Problem getting citation and id for a match in [[{title}]]')
 
     @staticmethod
     def _p1258(title):
@@ -361,14 +377,6 @@ Your selection: """
 
 if __name__ == "__main__":
     pass
-
-
-
-
-
-
-
-
 
 
 

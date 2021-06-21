@@ -30,8 +30,9 @@ def store_candidates(args):
 
     with open(args.file, 'wb') as f:
         for cand in r.find_candidates():
-            logger.info("Found candidate [[%s]]", cand.title)
             pickle.dump(cand, f)
+            # logger.info("Found candidate [[%s]]", cand.title)
+            
 
 
 # function for upload command

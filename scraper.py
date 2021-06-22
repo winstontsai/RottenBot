@@ -93,7 +93,7 @@ def get_rt_rating(url):
         consensus = consensus.replace("'''", r"''{{'}}") # apostrophe case
 
     return {'title' : title,
-            'url' : url,
+            'id' : url.split('/')[-1],
             'score' : sd['score'],
             'average' : sd['averageRating'],
             'reviewCount' : str(sd['reviewCount']),

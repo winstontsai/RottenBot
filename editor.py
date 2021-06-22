@@ -17,7 +17,7 @@ import sys
 import webbrowser
 import logging
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import pywikibot as pwb
 
@@ -37,20 +37,21 @@ of {}% based on {} reviews, with an average rating of {}/10.".format(d['score'],
 
     return s
 
-def citation_replacement(cand, rt_id, refname = None):
-    return ""
+def citation_replacement(rt_data, refname = None):
+    s = "<ref"
+    if refname:
+        s += f' name="{refname}">'
+    else:
+        s += '>'
+    s += f"{{{{Cite Rotten Tomatoes |id={rt_data['id']} |type=movie |title={rt_data['title']} |access-date={rt_data['accessDate']}}}}}</ref>"
+    return s
 
 
 @dataclass
-class _Edit:
+class Edit:
     title: str
-    rt_id: str
-    old_prose: str
-    new_prose: str
-    old_citation: str
-    new_citation: str
-
-    flags: list
+    replacements: list[tuple[str, str]] = field(default_factory=list)
+    flags: list[str] = field(default_factory=list)
 
 
 class Editor:
@@ -71,111 +72,83 @@ class Editor:
             user_input: if True, suspicious edits will require user input
             to be handled. Otherwise suspicious edits will be ignored.
         """
-
-        # Suspect list of suspicious edits.
-        suspects = []
-
-        for cand in self.recruiter.find_candidates():
+        for cand in list(self.recruiter.find_candidates()):
             e = self._compute_edit(cand, suspects)
             if e:
                 yield e
-        for suspect in suspects:
-            yield e
-
 
     def _compute_edit(self, cand, suspect_list):
         old_prose, old_citation = cand.prose, cand.citation
-        d = cand.rt_data
+        rt_data = cand.rt_data
         flags = []
 
-        handler = Editor._replacement_handler
+        if old_prose.count('<ref') > 1:
+            flags.append("multiple refs")
+
         # check for some suspicious first and last characters
         if old_prose[0] not in "[{'ABCDEFGHIJKLMNOPQRSTUVWXYZ":
-            flags.append("suspicious_start")
-            handler = Editor._suspicious_start_handler
-        if "consensus" in old_prose and old_prose[-2:] not in ('."', '".'):
-            flags.append("suspicious_end")
-            handler = Editor._suspicious_end_handler
-        elif "consensus" not in old_prose and old_prose[-1] != '.':
-            flags.append("suspicious_end")
-            handler = Editor._suspicious_end_handler
+            flags.append("suspicious start")
+
+        ref_start = old_prose.find('<ref')
+        if old_prose[ref_start - 1] not in '."':
+            flags.append("suspicious end")
+        if old_prose[:ref_start].count('"') > 2:
+            flags.append("too many quotes")
+
+        add_consensus = not re.match('[^\n]* consensus', cand.pagetext[cand.start:])
 
 
-
-        new_prose = old_prose # will be transformed into new prose
+        new_prose = old_prose[:ref_start] # will be transformed step-by-step into new prose
 
         # handle average rating     
-        new_prose, k = re.subn(average_re, d['average']+'/10', new_prose)
+        new_prose, k = re.subn(average_re, f'{rt_data["average"]}/10', new_prose)
         if k == 0:
-            return _Edit(
-                    title=cand.title,
-                    rt_id=cand.rt_id,
-                    old_prose=old_prose,
-                    new_prose=prose_replacement(cand, d),
-                    old_citation=cand.citation,
-                    new_citation=None,
-                    flags=flags
-                )
+            return "FULL REPLACEMENT"
         elif k > 1:
-            flags.append("multiple_average_handler")
-            handler = Editor._multiple_average_handler
-
-
+            flags.append("multiple averages")
+            
         # handle review reviewCount
-        if not (m := re.search(count_re, old_prose)):
-            return _Edit(
-                    title=cand.title,
-                    rt_id=cand.rt_id,
-                    old_prose=old_prose,
-                    new_prose=prose_replacement(cand, d),
-                    old_citation=cand.citation,
-                    new_citation=None,
-                    flags=flags
-                )
-        elif m.group().endswith("reviews"):
-            repl = d['reviewCount'] + " reviews"
-        else:
-            repl = d['reviewCount'] + " critics"
-
-        new_prose, k = re.subn(count_re, repl, new_prose)
-        if k > 1:
-            flags.append("multiple_count")
-            handler = Editor._multiple_count_handler
-
+        new_prose, k = re.subn(count_re, f"{rt_data['reviewCount']} \g<count_term>", new_prose)
+        if k == 0:
+            return "FULL REPLACEMENT"
+        elif k > 1:
+            flags.append("multiple counts")
 
         # handle score
-        old_score = re.search(score_re, old_prose).group()
-        new_prose, k = re.subn(old_score, d['score'] + '%', new_prose)
-        if k > 1 and not (old_score.startswith("0") or old_score.startswith("100")):
-            handler = Editor._multiple_score_handler
+        new_prose, k = re.subn(score_re, f"{rt_data['score']}%", new_prose)
+        if k > 1:
+            flags.append("multiple scores")
 
-        # period should be inside the consensus quote.
-        if new_prose.endswith('".'):
-            flags.append("period after quotation mark")
-            new_prose = new_prose[-2:] + '."'
+        # fix period/quote situation
+        if new_prose.endswith('.".'):
+            new_prose = new_prose[:-1]
+        elif new_prose.endswith('".'):
+            new_prose = new_prose[:-2] + '."'
 
-        # maybe has extra space at end?
-        new_prose = new_prose.rstrip()
+        if new_prose == old_prose[:ref_start]:
+            return None
 
-        if new_prose != old_prose:
-            return _Edit(
-                    title=cand.title,
-                    rt_id=cand.rt_id,
-                    old_prose=old_prose,
-                    new_prose=new_prose,
-                    old_citation=cand.citation,
-                    new_citation=None,
-                    flags=flags
-                )
+        # add reference
+        if cand.ld:
+            new_prose += f'<ref name="{cand.refname}" />'
+            replacements = [(old_prose, new_prose),
+                            (cand.citation, citation_replacement(rt_data, cand.refname))]
+        else:
+            new_prose += citation_replacement(rt_data, cand.refname)
+            replacements = [(old_prose, new_prose)]
 
-        return None
+        return Edit(cand.title, replacements, flags)
 
     @staticmethod
-    def make_replacement(edit):
+    def make_replacements(edit):
         page = pwb.Page(pwb.Site('en', 'wikipedia'), edit.title)
-        page.text = page.text.replace(edit.old_prose, edit.new_prose)
-        page.text = page.text.replace(edit.old_citation, edit.new_citation)
+        for old, new in edit.replacements:
+            if old in page.text:
+                page.text = page.text.replace(old, new)
+            else:
+                return False
         page.save()
+        return True
 
     @staticmethod
     def _replacement_handler(edit, interactive = True, dryrun = True):
@@ -210,92 +183,11 @@ Your selection: """.format(edit.title)
             return
         Editor.make_replacement(edit)
 
-    @staticmethod
-    def _suspicious_start_handler(edit, interactive = True, dryrun = True):
-        if not interactive:
-            return
-        print("Suspicious first character '{}' for [[{}]] detected.".format(edit.old_prose[0],
-            edit.title))
-        print("Here is the old prose:")
-        print(edit.old_prose + '\n')
-        print("Here is the new prose:")
-        print(edit.new_prose + '\n')
-        prompt = """Select an option:
-    1) replace old prose with new prose
-    2) open browser for manual editing
-    3) skip this edit
-    4) quit the program.
-Your selection: """
-        while (user_input := input(prompt)) not in "1234":
-            pass
-
-        if user_input == '1':
-            if dryrun:
-                return
-            Editor.make_replacement(edit)
-        elif user_input == '2':
-            webbrowser.open(pwb.Page(pwb.Site('en', 'wikipedia'), edit.title).full_url())
-            input("Press Enter when finished in browser.")
-        elif user_input == '3':
-            print("Skipping edit for [[{}]].".format(edit.title))
-            return
-        elif user_input == '4':
-            print("Quitting program.")
-            quit()
-
-    @staticmethod
-    def _suspicious_end_handler(edit, interactive = True, dryrun = True):
-        if not interactive:
-            return
-        print("Suspicious last character '{}' for [[{}]] detected.".format(edit.old_prose[-1],
-            edit.title))
-        print("Here is the old prose:")
-        print(edit.old_prose + '\n')
-        print("Here is the new prose:")
-        print(edit.new_prose + '\n')
-        prompt = """Select an option:
-    1) replace old prose with new prose
-    2) open browser for manual editing
-    3) skip this edit
-    4) quit the program.
-Your selection: """
-        while (user_input := input(prompt)) not in "1234":
-            pass
-
-        if user_input == '1':
-            if dryrun:
-                return
-            page = pwb.Page(pwb.Site('en', 'wikipedia'), edit.title)
-            page.text = page.text.replace(edit.old_prose, edit.new_prose)
-            page.text = page.text.replace(edit.old_citation, edit.new_citation)
-            page.save()
-        elif user_input == '2':
-            webbrowser.open(pwb.Page(pwb.Site('en', 'wikipedia'), edit.title).full_url())
-            input("Press Enter when finished in browser.")
-        elif user_input == '3':
-            print("Skipping edit for [[{}]].".format(edit.title))
-            return
-        elif user_input == '4':
-            print("Quitting program.")
-            quit()
-
-    @staticmethod
-    def _multiple_average_handler(edit, interactive = True):
-        print("multiple_average_handler")
-
-    @staticmethod
-    def _multiple_count_handler(edit, interactive = True):
-        print("multiple_count_handler")
-
-    @staticmethod
-    def _multiple_score_handler(edit, interactive = True):
-        print("multiple_score_handler")
-
 
 
 
 if __name__ == "__main__":
-    pass
+    print(citation_replacement({'id': 'titanic', 'title': 'TITLE HAAH', 'accessDate': 'June 2, 2021'}, refname="Finding Nemo"))
 
 
 

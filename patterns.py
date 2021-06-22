@@ -56,7 +56,7 @@ rt_re = r"[rR]otten [tT]omatoes"
 # don't put space in front
 score_re = r"(?P<score>([0-9]|[1-9][0-9]|100)(%| percent))"
 
-count_re = r"(?P<count>([5-9]|[1-9][0-9]|[1-9][0-9][0-9]) ((critical )?reviews|(surveyed )?critics))"
+count_re = r"(?P<count>([5-9]|[1-9][0-9]|[1-9][0-9][0-9]) (?P<count_term>(critical )?reviews|(surveyed )?critics))"
 average_re = r"(?P<average>([0-9]|10)(\.\d{1,2})?(/| out of )(10|ten))"
 
 url_re = r"rottentomatoes.com/(?P<rt_id>m/[-a-z0-9_]+)"

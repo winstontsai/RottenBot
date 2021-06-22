@@ -127,6 +127,7 @@ if __name__ == '__main__':
 
     # START PROGRAM
     logging.info("COMMAND '{}'".format(' '.join(sys.argv)))
+    pwb.Site('en', 'wikipedia').login()
 
     t0 = time.perf_counter()
     args = get_args()

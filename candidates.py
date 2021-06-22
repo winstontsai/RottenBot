@@ -15,7 +15,6 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from queue import Queue
 from threading import Lock
 from dataclasses import dataclass
-from collections import namedtuple
 
 import googlesearch
 import requests
@@ -23,12 +22,22 @@ import requests
 import pywikibot as pwb
 from pywikibot.xmlreader import XmlDump
 
+
 import scraper
 from patterns import *
 
-RTMatch = namedtuple('RTMatch', ['pagetext', 'prose', 'citation', 'rt_id', 'rt_data'])
+@dataclass
+class Candidate:
+    title: str
+    pagetext: str
+    start: int
+    prose: str
+    citation: str
+    refname: str
+    ld: bool
+    rt_id: str = ''
+    rt_data: dict = None
 
-Candidate = namedtuple('Candidate', ['title', 'matches'])
 
 class NeedsUserInputError(Exception):
     pass
@@ -48,6 +57,7 @@ class Recruiter:
 
         # Get allowed refnames. Dictionary maps refname to match object of the citation definition
         refnames = dict()
+
         for m in re.finditer(fr'(?P<citation><ref +name *= *"?(?P<refname>[^>]+?)"? *>((?!<ref).)*{t_alternates}((?!<ref).)*</ref *>)', text, re.DOTALL):
             refnames[m.group('refname')] = m
         # pattern for allowed refnames
@@ -64,15 +74,13 @@ class Recruiter:
         for p in [cand_re8, cand_re9, cand_re10]:
             all_matches.extend(re.finditer(p, text, flags=re.DOTALL))
         
+
+        cand = None
         # different matches may be for the same prose. Only want one.
         prose_set = set()
-        # maps a supposed Rotten Tomatoes id rt_id to the value self.rt_data(title, rt_id)
-        # So we don't have to scrape the same url twice
-        data_dict = dict()
-
         matches = []
         for m in all_matches:
-            prose = self._find_prose(m)
+            start, prose = self._find_prose(m)
             if prose in prose_set:
                 continue
             elif prose_set:
@@ -82,25 +90,36 @@ class Recruiter:
                 return None
             prose_set.add(prose)
 
-            citation, initial_rt_id = self._find_citation_and_id(title, m, refnames)
-
-            # matches.append( RTMatch( text, prose, citation, '', {} ) )
-            # break
+            citation, refname, list_defined, initial_rt_id = self._find_citation_and_id(title, m, refnames)
 
             try:
-                rt_id, rt_data = data_dict.get(initial_rt_id, self._rt_data(title, initial_rt_id))
+                rt_id, rt_data = self._rt_data(title, initial_rt_id)
             except NeedsUserInputError:
                 if self.get_user_input:
                     suggested_id = Recruiter._get_suggested_id(title)
-                    self.needs_input_list.append((title, text, m, prose, citation, suggested_id))
+                    self.needs_input_list.append((Candidate(
+                        title = title,
+                        pagetext = text,
+                        start = start,
+                        prose = prose,
+                        citation = citation,
+                        refname = refname,
+                        ld = list_defined,), suggested_id))
             else:
-                data_dict[initial_rt_id] = (rt_id, rt_data) 
+                # data_dict[initial_rt_id] = (rt_id, rt_data) 
                 if rt_data:
-                    matches.append( RTMatch( text, prose, citation, rt_id, rt_data ) )
+                    cand = Candidate(
+                        title = title,
+                        pagetext = text,
+                        start = start,
+                        prose = prose,
+                        citation = citation,
+                        refname = refname,
+                        ld = list_defined,
+                        rt_id = rt_id,
+                        rt_data = rt_data)
+        return cand
 
-
-        
-        return Candidate(title, matches) if matches else None
 
     def find_candidates(self):
         """
@@ -136,23 +155,24 @@ class Recruiter:
                         count += 1
                         yield cand
 
-        for title, text, m, prose, citation, suggested_id in self.needs_input_list:
+        for cand, suggested_id in self.needs_input_list:
             while True:
-                newid = self._ask_for_id(title, suggested_id)
+                newid = self._ask_for_id(cand.title, suggested_id)
                 if not newid:
                     break
                 try:
                     rt_id, rt_data = self._get_data2(newid, title)
                 except NeedsUserInputError:
-                    print(f"Problem getting Rotten Tomatoes data with id {newid}")
+                    print(f"Problem getting Rotten Tomatoes data with id {newid}\n")
                     continue
                 if rt_data:
                     count += 1
-                    matches = [RTMatch( text, prose, citation, rt_id, rt_data )]
-                    yield Candidate(title, matches)
+                    cand.rt_id, cand.rt_data = rt_id, rt_data
+                    yield cand
                 break
 
         logging.debug("multiple_matches_list: %s", self.multiple_matches_list)
+
         for title, suggested_id in self.multiple_matches_list:
             prompt = f"""Multiple matches found in [[{title}]].\nPlease select an option:
     1) open [[{title}]] and {rt_url(suggested_id)} in the browser for manual editing
@@ -246,7 +266,7 @@ Your selection: """
             if user decides to skip, returns None
             otherwise returns the suggested id or a manually entered id
         """
-        prompt = f"""No working id found for [[{title}]]
+        prompt = f"""No working id found for [[{title}]].
 Please select an option:
     1) use suggested id {suggested_id}
     2) open [[{title}]] and {rt_url(suggested_id)} in the browser
@@ -260,7 +280,7 @@ Your selection: """
                 webbrowser.open(pwb.Page(pwb.Site('en', 'wikipedia'), title).full_url())
                 webbrowser.open(rt_url(suggested_id))
             else:
-                print("Not a valid selection.\n")
+                print("\nNot a valid selection.\n")
 
         print()
         if user_input == '1':
@@ -280,8 +300,7 @@ Your selection: """
     @staticmethod
     def _find_prose(match):
         """
-        This function is supposed to return the prose part of the match.
-        It tries find the beginning of
+        This function tries find the beginning of
         the sentence containing the Rotten Tomatoes rating info.
 
         NOTE: There are edge cases where the start position found
@@ -306,56 +325,35 @@ Your selection: """
         while text[ind] == ' ':
             ind += 1
 
-        return text[ ind : match.end() ]
+        return ind, text[ ind : match.end() ]
 
-
-
-    @staticmethod
-    def _find_citation(match):
-        text = match.string
-        # list-defined reference case
-        if 'ldrefname' in match.groupdict() and (ldrefname := match.group('ldrefname')):
-            ldrefname = re.escape(ldrefname)
-            ldrefname = fr'({ldrefname}|"{ldrefname}")'
-
-            #p = fr"<ref +name *= *{ldrefname} *>[^<>]*?{t_alternates}[^<>]*?</ref *>"
-
-            #p = fr"<ref +name *= *{ldrefname} *>.*?{t_alternates}.*?</ref *>"
-
-            p = fr"<ref +name *= *{ldrefname} *>((?!</ref).)*?{t_alternates}((?!</ref).)*?</ref *>"
-
-            m = re.search(p, text, flags=re.DOTALL)
-
-            # Technically it's possible that we didn't find the definition of the
-            # reference with name ldrefname, e.g. no proper citation.
-            # In this case we return None
-            return m.group() if m else None
-        # inline reference case
-        else:
-            return text[match.start('citation') : match.end('citation')]
 
     @staticmethod
     def _find_citation_and_id(title, m, refnames):
         groupdict = m.groupdict()
         if ldrefname := groupdict.get('ldrefname'):
+            list_defined = True
+            refname = ldrefname
             citation = refnames[ldrefname].group()
             groupdict = refnames[ldrefname].groupdict()
         else:
-            citation = m.group('citation')
+            citation = groupdict['citation']
+            refname = groupdict.get('refname')
+            list_defined = False
 
 
         if rt_id := groupdict.get('rt_id'):
-            return citation, rt_id
+            return citation, refname, list_defined, rt_id,
         elif citert := groupdict.get('citert'):
             d = parse_template(citert)[1]
-            return (citation, "m/" + d['id'])
+            return citation, refname, list_defined, "m/" + d['id']
         elif rt := groupdict.get('rt'):
             d = parse_template(rt)[1]
             if 1 in d.keys() or 'id' in d.keys():
                 key = 1 if 1 in d.keys() else 'id'
-                return (citation, ["m/",""][d[key].startswith("m/")] + d[key])
+                return citation, refname, list_defined, ["m/",""][d[key].startswith("m/")] + d[key]
             elif p := Recruiter._p1258(title):
-                return (citation, p)
+                return citation, refname, list_defined, p
 
         raise ValueError(f'Problem getting citation and id for a match in [[{title}]]')
 

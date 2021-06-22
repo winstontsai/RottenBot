@@ -7,9 +7,6 @@ logger = logging.getLogger(__name__)
 
 from datetime import date
 
-
-
-SESSION = requests.Session()
 HEADERS = {
     'Host': 'www.rottentomatoes.com',
     'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:89.0) Gecko/20100101 Firefox/89.0',
@@ -21,6 +18,9 @@ HEADERS = {
     'Upgrade-Insecure-Requests': '1',
     'Sec-GPC': '1',
 }
+
+def rt_url(movieid):
+    return "https://www.rottentomatoes.com/" + movieid
 
 def url_contents(url):
     logger.debug("Scraping %s", url)
@@ -47,24 +47,25 @@ def find_substring(s, indicator, terminator):
     return s[i + len(indicator) : j]
 
 
-def get_rt_rating(url):
+def get_rt_rating(movieid):
     """
     Given the url of a movie page from Rotten tomatoes,
     returns a dictionary containing the score, average rating, review count,
     and also the current date.
     All the values will be in string form.
     """
+    url = rt_url(movieid)
     contents = url_contents(url)
 
     indicator = '<script id="score-details-json" type="application/json">'
     terminator = '</script>'
     score_data = find_substring(contents, indicator, terminator)
     if not score_data:
-        raise ValueError("Could not find score data at {}".format(url))
+        raise ValueError(f"Could not find score data for {movieid}.")
 
     sd = json.loads(score_data)['modal']
     if sd['hasTomatometerScoreAll'] == False:
-        logger.debug("Tomatometer not yet available for %s", url)
+        logger.debug("Tomatometer not yet available for %s", movieid)
         return None
 
     sd = sd['tomatometerScoreAll']
@@ -73,7 +74,7 @@ def get_rt_rating(url):
     # it means that Rotten Tomatoes isn't loading the rating for whatever reason.
     # Not sure why this happens. Usually it loads if you try again later.
     if not sd:
-        logger.error("Rotten Tomatoes is not currently loading the rating for %s", url)
+        logger.error("Rotten Tomatoes is not currently loading the rating for %s", movieid)
         return {}
 
     # get title
@@ -93,7 +94,8 @@ def get_rt_rating(url):
         consensus = consensus.replace("'''", r"''{{'}}") # apostrophe case
 
     return {'title' : title,
-            'id' : url.split('/')[-1],
+            'url' : url,
+            'id' : movieid,
             'score' : sd['score'],
             'average' : sd['averageRating'],
             'reviewCount' : str(sd['reviewCount']),
@@ -101,6 +103,8 @@ def get_rt_rating(url):
             'consensus' : consensus,
             'accessDate' : date.today().strftime("%B %d, %Y"), # e.g. May 24, 2021
         }
+
+
 
 
 if __name__ == "__main__":

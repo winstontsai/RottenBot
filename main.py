@@ -21,7 +21,8 @@ def store_edits(args):
 
     with open(args.file, 'wb') as f:
         for edit in e.compute_edits():
-            pickle.dump(edit, f)
+            if edit:
+                pickle.dump(edit, f)
             
 
 def store_candidates(args):
@@ -31,7 +32,7 @@ def store_candidates(args):
     with open(args.file, 'wb') as f:
         for cand in r.find_candidates():
             pickle.dump(cand, f)
-            # logger.info("Found candidate [[%s]]", cand.title)
+            logger.info("Found candidate [[%s]]", cand.title)
             
 
 

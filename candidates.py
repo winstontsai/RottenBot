@@ -43,8 +43,7 @@ class NeedsUserInputError(Exception):
     pass
 
 class Recruiter:
-    def __init__(self, xmlfile, patterns, get_user_input=True):
-        self.patterns = patterns
+    def __init__(self, xmlfile, get_user_input=True):
         self.filename = xmlfile
         self.get_user_input = get_user_input                         
 
@@ -78,7 +77,6 @@ class Recruiter:
         cand = None
         # different matches may be for the same prose. Only want one.
         prose_set = set()
-        matches = []
         for m in all_matches:
             start, prose = self._find_prose(m)
             if prose in prose_set:
@@ -161,7 +159,7 @@ class Recruiter:
                 if not newid:
                     break
                 try:
-                    rt_id, rt_data = self._get_data2(newid, title)
+                    rt_id, rt_data = self._rt_data(cand.title, newid)
                 except NeedsUserInputError:
                     print(f"Problem getting Rotten Tomatoes data with id {newid}\n")
                     continue
@@ -175,7 +173,7 @@ class Recruiter:
 
         for title, suggested_id in self.multiple_matches_list:
             prompt = f"""Multiple matches found in [[{title}]].\nPlease select an option:
-    1) open [[{title}]] and {rt_url(suggested_id)} in the browser for manual editing
+    1) open [[{title}]] and {suggested_id} in the browser for manual editing
     2) skip this article
     3) quit the program
 Your selection: """
@@ -208,7 +206,7 @@ Your selection: """
         if self.blocked.locked():
             sys.exit()
 
-        logger.info("Processing potential candidate [[%s]]", title)
+        logger.debug("Processing potential candidate [[%s]]", title)
 
         try:
             return movieid, scraper.get_rt_rating(rt_url(movieid))
@@ -269,7 +267,7 @@ Your selection: """
         prompt = f"""No working id found for [[{title}]].
 Please select an option:
     1) use suggested id {suggested_id}
-    2) open [[{title}]] and {rt_url(suggested_id)} in the browser
+    2) open [[{title}]] and {suggested_id} in the browser
     3) enter id manually
     4) skip this article
     5) quit the program
@@ -279,6 +277,7 @@ Your selection: """
             if user_input == '2':
                 webbrowser.open(pwb.Page(pwb.Site('en', 'wikipedia'), title).full_url())
                 webbrowser.open(rt_url(suggested_id))
+                print()
             else:
                 print("\nNot a valid selection.\n")
 

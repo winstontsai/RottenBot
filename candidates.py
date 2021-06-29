@@ -229,7 +229,7 @@ Please select an option:
             return suggested_id
         elif user_input == '3':
             while not (newid := input("Enter id here: ")).startswith('m/'):
-                print('Not a valid id. A valid id begins with "m/".')
+                print('A valid id must begin with "m/".')
             return newid
         elif user_input == '4':
             return None
@@ -244,17 +244,15 @@ Please select an option:
 Please select an option:
     1) open [[{title}]] in the browser for manual editing
     2) skip this article
-    3) quit the program
-Your selection: """
-            while (user_input := input(prompt)) not in ['2', '3']:
+    3) quit the program"""
+            while (user_input := input('Your selection: ')) not in ['2', '3']:
                 if user_input == '1':
                     webbrowser.open(pwb.Page(pwb.Site('en', 'wikipedia'), title).full_url())
                     print()
                     prompt2 = f"""When finished in browser:
     1) get current revision of [[{title}]] and process all valid matches found
-    2) continue
-Your selection: """
-                    while (user_input2 := input(prompt2)) not in ['1', '2']:
+    2) continue"""
+                    while (user_input2 := input('Your selection: ')) not in ['1', '2']:
                         print("\nNot a valid selection.\n")
                     if user_input2 == '1':
                         page = pwb.Page(pwb.Site('en', 'wikipedia'), title)

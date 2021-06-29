@@ -14,26 +14,33 @@ import editor
 import patterns
 
 
-
-def store_edits(args):
-    r = candidates.Recruiter(args.xmlfile, patterns.cand_res)
-    e = editor.Editor(r)
-
-    with open(args.file, 'wb') as f:
-        for edit in e.compute_edits():
-            if edit:
-                pickle.dump(edit, f)
-            
-
 def store_candidates(args):
-    r = candidates.Recruiter(args.xmlfile,
-        patterns.cand_res, get_user_input = True)
-
-    with open(args.file, 'wb') as f:
+    r = candidates.Recruiter(args.file1)
+    with open(args.file2, 'wb') as f:
         for cand in r.find_candidates():
             pickle.dump(cand, f)
-            logger.info("Found candidate [[%s]]", cand.title)
-            
+            logger.debug("Found candidate [[%s]]", cand.title)
+
+def store_edits(args):
+    filename = args.file1
+
+    if filename.endswith('.cands'):
+        cand_list = []
+        with open(filename, 'rb') as f:
+            while True:
+                try:
+                    cand_list.append(pickle.load(f))
+                except EOFError:
+                    break            
+    else:
+        r = candidates.Recruiter(filename)
+        cand_list = list(r.find_candidates())
+
+    ed = editor.Editor()
+    with open(args.file2, 'wb') as f:
+        for edit in ed.compute_edits(cand_list):
+            if edit:
+                pickle.dump(edit, f)
 
 
 # function for upload command
@@ -76,8 +83,8 @@ See 'https://github.com/winstontsai/RottenBot' for source code and more info."""
     parser_s.add_argument('-c', '--candidates',
         dest='func', action='store_const', const=store_candidates,
         help='store candidates instead of edits')
-    parser_s.add_argument('xmlfile', help="file containing the XML dump of Wikipedia pages to work on")
-    parser_s.add_argument('file', help='file in which to store edits')
+    parser_s.add_argument('file1', help="file containing the XML dump of Wikipedia pages to work on. Can also be a file with extension '.cands' containing a pickled Candidate on each line")
+    parser_s.add_argument('file2', help='file in which to store edits')
     
 
     # parser for uploading
@@ -118,12 +125,12 @@ if __name__ == '__main__':
 
     stream_handler = logging.StreamHandler(sys.stderr)
     formatter = logging.Formatter('[%(levelname)s]: %(message)s')
-
     stream_handler.setLevel(logging.INFO)
     stream_handler.setFormatter(formatter)
+
     logger.addHandler(file_handler)
-    logger.addHandler(stream_handler)
-    logger.setLevel(logging.DEBUG)
+    # logger.addHandler(stream_handler)
+    logger.setLevel(logging.INFO)
 
 
     # START PROGRAM

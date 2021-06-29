@@ -1,15 +1,12 @@
 # This module takes Candidates and computes produces the new text to be used.
-# `
+# 
 # FIXES
-# 0. If multiple matches in the page, needs manual edit
-# 1. swap " and .
-# 2. update score
-# 3. update count
-# 4. update average
-# 5. add critical consensus if ' consensus' does not appear in the sequel
-# 6. Check if more than one reference. If so, needs manual edit.
-# 7. Use full replacement if no count, no average, or no critical consensus.
-# 8. If any edit will be made, change the citation to use Cite Rotten Tomatoes template.
+# 0. Add flags for multiple references, suspicious start, suspicious end, too many quotes
+# 1. build new prose, using full prose replacement if missing average or count,
+#    and adding flags for multiple average, multiple count, or multiple score
+# 3. tack on critical consensus if safe
+# 4. tack citation
+# 5. return Edit object
 
 
 import re
@@ -17,7 +14,8 @@ import sys
 import webbrowser
 import logging
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+
 
 import pywikibot as pwb
 
@@ -54,17 +52,13 @@ def full_replacement(cand, add_consensus = False):
 @dataclass
 class Edit:
     title: str
-    replacements: list[tuple[str, str]] = field(default_factory=list)
-    flags: list[str] = field(default_factory=list)
+    replacements: list[tuple[str, str]]
+    flags: list[str]
 
 
 class Editor:
 
-    def __init__(self, recruiter):
-        self.recruiter = recruiter
-
-
-    def compute_edits(self, user_input = True):
+    def compute_edits(self, candidates, user_input = True):
         """
         Takes the candidates that the recruiter provides and computes
         the edits needed for each candidate.
@@ -76,35 +70,46 @@ class Editor:
             user_input: if True, suspicious edits will require user input
             to be handled. Otherwise suspicious edits will be ignored.
         """
-        for cand in list(self.recruiter.find_candidates()):
-            e = self._compute_edit(cand)
+        for cand in candidates:
+            e = Editor.compute_edit(cand)
             if e:
                 yield e
 
-    def _compute_edit(self, cand):
-        old_prose, old_citation = cand.prose, cand.citation
+    @staticmethod
+    def compute_edit(cand):
         rt_data = cand.rt_data
-        flags = []
+        if not rt_data:
+            return None
 
-        if old_prose.count('<ref') > 1:
+        span, pagetext, flags = cand.span, cand.pagetext, list()
+        old_prose = pagetext[span[0] : span[1]]
+
+        # set new_prose to the old_prose without the references
+        # we will update/build up new_prose step by step in the sequel
+        new_prose = old_prose
+
+        if cand.prose.count('<ref') > 1:
             flags.append("multiple refs")
 
-        # check for some suspicious first and last characters
-        if old_prose[0] not in "[{'ABCDEFGHIJKLMNOPQRSTUVWXYZ":
+        # check for some suspicious characters
+        if old_prose[0] not in "[{'ABCGIORTW1234567890":
             flags.append("suspicious start")
 
-        ref_start = old_prose.find('<ref')
-        if old_prose[ref_start - 1] not in '."':
+        if old_prose[-1] not in '."}' and cand.prose[-1] != '.' and pagetext[span[2]] != '\n':
             flags.append("suspicious end")
-        if old_prose[:ref_start].count('"') > 2:
-            flags.append("too many quotes")
-
-        new_prose = old_prose[:ref_start] # will be transformed step-by-step
 
         # First deal with template {{Rotten Tomatoes prose}}
         if m := re.match(t_rtprose, new_prose):
             new_prose = '{{Rotten Tomatoes prose|' + f'{rt_data["score"]}|{rt_data["average"]}|{rt_data["reviewCount"]}' + '}}'
         else:
+            # NOWHERE DOES IT SAY IT'S A WEIGHTED AVERAGE
+            if re.search("[wW]eighted", new_prose):
+                new_prose = prose_replacement(cand)
+
+            # Remove as of date
+            if re.search("[Aa]s ?of", new_prose):
+                new_prose = prose_replacement(cand)
+
             # handle average rating     
             new_prose, k = re.subn(average_re, f'{rt_data["average"]}/10', new_prose)
             if k == 0:
@@ -120,12 +125,16 @@ class Editor:
                 flags.append("multiple counts")
 
             # handle score
-            new_prose, k = re.subn(score_re, f"{rt_data['score']}%", new_prose)
-            if k > 1:
+            all_scores = re.findall(score_re, old_prose)
+            if len(all_scores)>1 and set(all_scores) not in ({'0%'}, {'100%'}):
                 flags.append("multiple scores")
+            elif len(all_scores) > 1 and f"{rt_data['score']}%" != all_scores[0]:
+                flags.append("multiple scores")
+            new_prose= re.sub(score_re, f"{rt_data['score']}%", new_prose)
+
 
         # add consensus if safe
-        if cand.rt_data["consensus"] and not re.match('[^\n]* consensus', cand.pagetext[cand.start:]):
+        if rt_data["consensus"] and 'consensus' not in new_prose and not re.match('[^\n]* consensus', pagetext[span[2]:]):
             new_prose += " " + consensus_prose(cand)
 
         # fix period/quote situation
@@ -135,30 +144,35 @@ class Editor:
             new_prose = new_prose[:-2] + '."'
 
         # if no change, don't produce an edit
-        if new_prose == old_prose[:ref_start]:
+        if new_prose == old_prose:
             return None
 
         # add reference and create replacements list
         if cand.ld: # list-defined reference requires two replacements
             new_prose += f'<ref name="{cand.refname}" />'
-            replacements = [(old_prose, new_prose),
+            replacements = [(cand.prose, new_prose),
                             (cand.citation, citation_replacement(cand))]
         else:
             new_prose += citation_replacement(cand)
-            replacements = [(old_prose, new_prose)]
+            replacements = [(cand.prose, new_prose)]
 
         return Edit(cand.title, replacements, flags)
 
     @staticmethod
-    def make_replacements(edit):
-        page = pwb.Page(pwb.Site('en', 'wikipedia'), edit.title)
-        for old, new in edit.replacements:
-            if old in page.text:
-                page.text = page.text.replace(old, new)
+    def make_replacements(edit_list):
+        site = pwb.Site('en', 'wikipedia')
+        not_edited = list()
+        for edit in edit_list:
+            page = pwb.Page(site, edit.title)
+            for old, new in edit.replacements:
+                if old in page.text:
+                    page.text = page.text.replace(old, new)
+                else:
+                    not_edited.append(edit.title)
+                    break
             else:
-                return False
-        page.save()
-        return True
+                page.save()
+        return not_edited
 
     @staticmethod
     def _replacement_handler(edit, interactive = True, dryrun = True):

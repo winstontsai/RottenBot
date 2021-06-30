@@ -4,8 +4,9 @@ import os
 import pickle
 import json
 import argparse
-import logging
 import logging.handlers
+import logging
+logger = logging.getLogger(__name__)
 
 import pywikibot as pwb
 
@@ -22,25 +23,20 @@ def store_candidates(args):
             logger.debug("Found candidate [[%s]]", cand.title)
 
 def store_edits(args):
-    filename = args.file1
-
-    if filename.endswith('.cands'):
+    if args.file1.endswith('.cands'):
         cand_list = []
-        with open(filename, 'rb') as f:
+        with open(args.file1, 'rb') as f:
             while True:
                 try:
                     cand_list.append(pickle.load(f))
                 except EOFError:
                     break            
     else:
-        r = candidates.Recruiter(filename)
-        cand_list = list(r.find_candidates())
+        cand_list = list(candidates.Recruiter(args.file1).find_candidates())
 
-    ed = editor.Editor()
     with open(args.file2, 'wb') as f:
-        for edit in ed.compute_edits(cand_list):
-            if edit:
-                pickle.dump(edit, f)
+        for edit in editor.compute_edits(cand_list):
+            pickle.dump(edit, f)
 
 
 # function for upload command
@@ -105,13 +101,12 @@ See 'https://github.com/winstontsai/RottenBot' for source code and more info."""
     return parser.parse_args()
 
 
-
-
-if __name__ == '__main__':
+def main():
     # handle logging setup
     os.makedirs("logs/", exist_ok=True)
 
-    logger = logging.getLogger()
+    root_logger = logging.getLogger()
+    print_logger = logging.getLogger('print_logger')
 
     should_roll = os.path.isfile("logs/rottenbot.log")
     file_handler = logging.handlers.RotatingFileHandler(
@@ -123,19 +118,20 @@ if __name__ == '__main__':
     if should_roll:
         file_handler.doRollover()
 
+    root_logger.addHandler(file_handler)
+    root_logger.setLevel(logging.INFO)
+
     stream_handler = logging.StreamHandler(sys.stderr)
-    formatter = logging.Formatter('[%(levelname)s]: %(message)s')
+    formatter = logging.Formatter('%(message)s')
     stream_handler.setLevel(logging.INFO)
     stream_handler.setFormatter(formatter)
 
-    logger.addHandler(file_handler)
-    # logger.addHandler(stream_handler)
-    logger.setLevel(logging.INFO)
+    print_logger.addHandler(stream_handler)
+    print_logger.setLevel(logging.INFO)
 
 
     # START PROGRAM
     logging.info("COMMAND '{}'".format(' '.join(sys.argv)))
-    pwb.Site('en', 'wikipedia').login()
 
     t0 = time.perf_counter()
     args = get_args()
@@ -143,6 +139,10 @@ if __name__ == '__main__':
     t1 = time.perf_counter()
 
     logging.info("TIME ELAPSED = {}".format(t1 - t0))
+
+
+if __name__ == '__main__':
+    main()
 
 
 

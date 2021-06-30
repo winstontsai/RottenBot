@@ -3,7 +3,9 @@ certifi==2020.12.5
 chardet==4.0.0
 google==3.0.0
 idna==2.10
-pywikibot==6.1.0
+mwparserfromhell==0.6.2
+oauthlib==3.1.1
+pywikibot==6.3.0
 requests==2.25.1
 soupsieve==2.2.1
 urllib3==1.26.4

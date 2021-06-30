@@ -18,7 +18,7 @@ def construct_redirects(l):
 
 def parse_template(template):
     """
-    Takes the text of a template (the stuff between "{{"" and ""}}"") and
+    Takes the text of a template and
     returns the template's name and a dict of the key-value pairs.
     Unnamed parameters are given the integer keys 1, 2, 3, etc, in order.
     """
@@ -40,19 +40,20 @@ def parse_template(template):
 
 def construct_template(name, d):
     s = name
-    for key,value in d:
+    for x in sorted(x for x in d.keys() if type(x)==int):
+        s += f"|{d[x]}"
+    for key,value in d.items():
         if type(key) == int:
-            s += f" |{value}"
-        else:
-            s += f" |{key}={value}"
+            continue
+        s += f"|{key}={value}"
     return '{{' + s + '}}'
 
 rt_re = r"[rR]otten [tT]omatoes"
 
 # don't put space in front
-score_re = r"(?P<score>(?:[0-9]|[1-9][0-9]|100)(?:%| percent))"
+score_re = r"(?P<score>[0-9]|[1-9][0-9]|100)(?:%| percent)"
 
-count_re = r"(?P<count>(?:[5-9]|[1-9][0-9]|[1-9][0-9][0-9]) (?P<count_term>(critic(?:al)? )?reviews|(surveyed )?critics))"
+count_re = r"(?P<count>[5-9]|[1-9][0-9]|[1-9][0-9][0-9]) (?P<count_term>(critic(al)? )?reviews|(surveyed )?critics)"
 average_re = r"(?P<average>(?:[0-9]|10)(?:\.\d{1,2})?(?:/| out of )(?:10|ten))"
 
 url_re = r"rottentomatoes.com/(?P<rt_id>m/[-a-z0-9_]+)"
@@ -95,7 +96,7 @@ rtprose_redirects = [
     'RT',
     'RT prose', 
 ]
-t_rtprose = fr"(?P<rtprose>{{{{{construct_redirects(rtprose_redirects)}.+?}}}})"
+t_rtprose = fr"(?P<rtprose>{{{{{construct_redirects(rtprose_redirects)}.*?}}}})"
 
 
 # for inline citations
@@ -177,5 +178,13 @@ cand_res = [cand_re1, cand_re2, cand_re3, cand_re4]
 
 
 if __name__ == "__main__":
-    print(t_alternates)
+    d = {
+        3: 'asdfasdf',
+        1 : 'hello',
+        'key1': 'value1',
+        'key2': 'value2',
+        2: 'bibi',
+        'key3': 'value3',
+    }
+    print(construct_template('name', d))
 

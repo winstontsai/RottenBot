@@ -12,6 +12,7 @@ import io
 import os.path
 import logging
 logger = logging.getLogger(__name__)
+print_logger = logging.getLogger('print_logger')
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from queue import Queue
@@ -67,7 +68,7 @@ class Recruiter:
         if self.blocked.locked():
             sys.exit()
 
-        print(f"Processing [[{entry.title}]]")
+        print_logger.info(f"Processing [[{entry.title}]]")
 
         title = entry.title
         text = entry.text
@@ -95,6 +96,7 @@ class Recruiter:
         
         for m in all_matches:
             span, prose = self._find_span_and_prose(m)
+            # print(prose, "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
             if prose in prose_set:
                 continue
             prose_set.add(prose)
@@ -154,7 +156,7 @@ class Recruiter:
         # 15 threads is fine, but don't rerun on the same pages immediately
         # after a run, or the caching may result in sending too many
         # requests too fast, and we'll get blocked.
-        with ThreadPoolExecutor(max_workers=15) as x:
+        with ThreadPoolExecutor(max_workers=18) as x:
             futures = (x.submit(self.candidate_from_entry,
                     entry, get_user_input=get_user_input) for entry in xml_entries)
             for future in as_completed(futures, timeout=None):
@@ -205,11 +207,7 @@ class Recruiter:
         """
         title = cand.title
         i, j = cand.span[0], cand.span[2]
-        prompt = f"""\033[96mNo working id found for the following candidate:\033[0m
-\033[95m{cand.title}\033[0m
-\033[95mContext---------------------------------------------------\033[0m
-{cand.pagetext[i - 60: i]}\033[1m{cand.pagetext[i: j]}\033[0m{cand.pagetext[j: j+30]}
-\033[95m----------------------------------------------------------\033[0m
+        prompt = f"""\033[96mNo working id found for {cand.title}.\033[0m
 Please select an option:
     1) use suggested id {suggested_id}
     2) open [[{title}]] and {suggested_id} in the browser
@@ -245,25 +243,30 @@ Please select an option:
     1) open [[{title}]] in the browser for manual editing
     2) skip this article
     3) quit the program"""
+            print(prompt)
             while (user_input := input('Your selection: ')) not in ['2', '3']:
                 if user_input == '1':
                     webbrowser.open(pwb.Page(pwb.Site('en', 'wikipedia'), title).full_url())
                     print()
                     prompt2 = f"""When finished in browser:
     1) get current revision of [[{title}]] and process all valid matches found
-    2) continue"""
-                    while (user_input2 := input('Your selection: ')) not in ['1', '2']:
-                        print("\nNot a valid selection.\n")
+    2) continue
+    3) quit the program"""
+                    print(prompt2)
+                    while (user_input2 := input('Your selection: ')) not in ['1','2','3']:
+                        print("Not a valid selection.")
                     if user_input2 == '1':
                         page = pwb.Page(pwb.Site('en', 'wikipedia'), title)
                         entry = Entry(title, page.text)
                         cl = self.candidate_from_entry(entry, get_all=True, get_user_input=False)
                         for cand in cl:
                             yield cand
+                    elif user_input2 == '3':
+                        print("Quitting program."); sys.exit()
                     print()
                     break
                 else:
-                    print("\nNot a valid selection.\n")
+                    print("Not a valid selection.")
             else:
                 print()
                 if user_input == '3':
@@ -411,8 +414,6 @@ Please select an option:
 
     @staticmethod
     def suggested_id(title):
-        if x := Recruiter._p1258(title):
-            return x
         url = googlesearch.lucky(title + "movie site:rottentomatoes.com/m/")
         suggested_id = url.split('rottentomatoes.com/')[1]
         return suggested_id

@@ -52,7 +52,7 @@ def get_rt_rating(movieid):
     Given the url of a movie page from Rotten tomatoes,
     returns a dictionary containing the score, average rating, review count,
     and also the current date.
-    All the values will be in string form.
+    All the values are strings.
     """
     url = rt_url(movieid)
     contents = url_contents(url)
@@ -81,6 +81,7 @@ def get_rt_rating(movieid):
     indicator = "<title>"
     terminator = " - Rotten Tomatoes"
     title = find_substring(contents, indicator, terminator)
+    year = title[-5:-1]
 
     # get critics consensus, if it exists.
     indicator = '<span data-qa="critics-consensus">'
@@ -94,6 +95,7 @@ def get_rt_rating(movieid):
         consensus = consensus.replace("'''", r"''{{'}}") # apostrophe case
 
     return {'title' : title,
+            'year' : year,
             'url' : url,
             'id' : movieid,
             'score' : sd['score'],
@@ -108,7 +110,7 @@ def get_rt_rating(movieid):
 
 
 if __name__ == "__main__":
-    pass
+    print(get_rt_rating('m/titanic'))
 
 
 

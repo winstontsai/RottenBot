@@ -1,10 +1,4 @@
 # This module takes Candidates and computes the new text to be used.
-# 
-# 0. Add flags for multiple references, suspicious start, suspicious end
-# 1. build new prose, tacking on consensus if safe
-# 4. tack on citation
-# 5. return Edit object
-
 
 import re
 import sys

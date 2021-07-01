@@ -4,6 +4,7 @@ import re
 import sys
 import webbrowser
 import logging
+logger = logging.getLogger(__name__)
 
 from dataclasses import dataclass
 

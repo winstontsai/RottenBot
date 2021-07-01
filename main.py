@@ -20,7 +20,7 @@ def store_candidates(args):
     with open(args.file2, 'wb') as f:
         for cand in r.find_candidates():
             pickle.dump(cand, f)
-            logger.debug("Found candidate [[%s]]", cand.title)
+            # logger.debug("Found candidate [[%s]]", cand.title)
 
 def store_edits(args):
     if args.file1.endswith('.cands'):
@@ -128,6 +128,7 @@ def main():
 
     print_logger.addHandler(stream_handler)
     print_logger.setLevel(logging.INFO)
+    print_logger.propagate = False
 
 
     # START PROGRAM

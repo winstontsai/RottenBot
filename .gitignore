@@ -13,7 +13,7 @@ logs/
 storage/
 xmldumps/
 env/
-core_stable/
+core/
 example_movies/
 outputs/
 logs/

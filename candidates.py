@@ -15,17 +15,14 @@ logger = logging.getLogger(__name__)
 print_logger = logging.getLogger('print_logger')
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from queue import Queue
 from threading import Lock
 from dataclasses import dataclass
 from collections import namedtuple
 
-import googlesearch
 import requests
-
+import googlesearch
 import pywikibot as pwb
 from pywikibot.xmlreader import XmlDump
-
 
 import scraper
 from patterns import *
@@ -90,6 +87,8 @@ class Recruiter:
         all_matches = []
         for p in [cand_re8, cand_re9, cand_re10]:
             all_matches.extend(re.finditer(p, text, re.DOTALL))
+        # if all_matches:
+        #     return 1
         
         cand_list = []
         prose_set = set()      # different matches may be for the same prose

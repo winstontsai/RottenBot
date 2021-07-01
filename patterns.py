@@ -1,6 +1,7 @@
 # This module defines some reusable regexes/patterns, and some helper functions.
-
+################################################################################
 import re
+################################################################################
 
 def alternates(l):
     return f'(?:{"|".join(l)})'
@@ -89,6 +90,10 @@ rtprose_redirects = [
     'RT prose', 
 ]
 t_rtprose = fr"(?P<rtprose>{{{{{construct_redirects(rtprose_redirects)}.*?}}}})"
+
+# for the {{As of}} template
+asof_redirects = ["As of", "Asof"]
+t_asof = fr"(?P<asof>{{{{{construct_redirects(asof_redirects)}.*?}}}})"
 
 # for inline citations
 t_alternates = alternates([t_other,t_citert,t_rt])

@@ -1,5 +1,5 @@
 # This module takes Candidates and computes the new text to be used.
-
+################################################################################
 import re
 import sys
 import webbrowser
@@ -7,11 +7,12 @@ import logging
 logger = logging.getLogger(__name__)
 
 from dataclasses import dataclass
-
+from datetime import date
 
 import pywikibot as pwb
 
 from patterns import *
+################################################################################
 
 def rating_prose(cand):
     d = cand.rt_data
@@ -85,8 +86,19 @@ def compute_edit(cand):
         if re.search("[wW]eighted", new_prose):
             new_prose = rating_prose(cand)
 
-        # Remove as of date
-        if re.search("[Aa]s ?of", new_prose):
+        # Update As of template, if it exists.
+        # Otherwise remove as of prose
+        if m:=re.search(t_asof, new_prose):
+            old_temp = m.group()
+            temp_dict = parse_template(old_temp)[1]
+            day, month, year = date.today().strftime("%d %m %Y").split()
+            temp_dict[1] = year
+            temp_dict[2] = month
+            if 3 in temp_dict:
+                temp_dict[3] = day
+            new_temp = construct_template("As of", temp_dict)
+            new_prose = new_prose.replace(old_temp, new_temp)
+        elif re.search("[Aa]s ?of", new_prose):
             new_prose = rating_prose(cand)
 
         # handle average rating     

@@ -13,7 +13,7 @@ import pywikibot as pwb
 import candidates
 import editor
 import patterns
-
+################################################################################
 
 def store_candidates(args):
     r = candidates.Recruiter(args.file1)
@@ -114,12 +114,12 @@ def main():
         backupCount = 20)
     formatter = logging.Formatter('%(asctime)s %(name)s %(funcName)s [%(levelname)s]: %(message)s')
     file_handler.setFormatter(formatter)
-    file_handler.setLevel(logging.INFO)
+    file_handler.setLevel(logging.DEBUG)
     if should_roll:
         file_handler.doRollover()
 
     root_logger.addHandler(file_handler)
-    root_logger.setLevel(logging.INFO)
+    root_logger.setLevel(logging.DEBUG)
 
     stream_handler = logging.StreamHandler(sys.stderr)
     formatter = logging.Formatter('%(message)s')

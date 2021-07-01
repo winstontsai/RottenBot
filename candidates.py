@@ -4,12 +4,10 @@
 # and also finds (or at least tries to) the start of the sentence in which
 # the rating info is contained.
 # In particular, a candidate should always have a Tomatometer score available.
-
+################################################################################
 import re
 import sys
 import webbrowser
-import io
-import os.path
 import logging
 logger = logging.getLogger(__name__)
 print_logger = logging.getLogger('print_logger')
@@ -26,7 +24,7 @@ from pywikibot.xmlreader import XmlDump
 
 import scraper
 from patterns import *
-
+################################################################################
 
 class NeedsUserInputError(Exception):
     pass
@@ -87,8 +85,8 @@ class Recruiter:
         all_matches = []
         for p in [cand_re8, cand_re9, cand_re10]:
             all_matches.extend(re.finditer(p, text, re.DOTALL))
-        # if all_matches:
-        #     return 1
+        if all_matches:
+            return Entry(title, '')
         
         cand_list = []
         prose_set = set()      # different matches may be for the same prose
@@ -182,6 +180,7 @@ class Recruiter:
 
     def _process_needs_input_list(self):
         for cand in self.needs_input_list:
+            logger.info(f"Processing [[{cand.title}]] in needs_input_list")
             while True:
                 newid = self._ask_for_id(cand, cand.suggested_id)
                 if newid is None:
@@ -204,6 +203,7 @@ class Recruiter:
             if user decides to skip, returns None
             otherwise returns the suggested id or a manually entered id
         """
+        logger.debug("Asking for id for [[%s]]", cand.title)
         title = cand.title
         i, j = cand.span[0], cand.span[2]
         prompt = f"""\033[96mNo working id found for {cand.title}.\033[0m
@@ -223,20 +223,24 @@ Please select an option:
 
         print()
         if user_input == '1':
+            logger.info("Used suggested id for [[%s]]", cand.title)
             return suggested_id
         elif user_input == '3':
             while not (newid := input("Enter id here: ")).startswith('m/'):
                 print('A valid id must begin with "m/".')
+            logger.info("Entered id '%s' for [[%s]]", newid, cand.title)
             return newid
         elif user_input == '4':
-            return None
             logger.info("Skipping article [[%s]]", title)
+            return None
         elif user_input == '5':
-            print("Quitting program."); sys.exit()                
+            print("Quitting program.")
+            sys.exit()                
 
 
     def _process_multiple_matches_list(self):
         for title in self.multiple_matches_list:
+            logger.debug(f"Processing [[{title}]] in multiple_matches_list")
             prompt = f"""\033[96mMultiple matches found in [[{title}]].\033[0m
 Please select an option:
     1) open [[{title}]] in the browser for manual editing
@@ -245,6 +249,7 @@ Please select an option:
             print(prompt)
             while (user_input := input('Your selection: ')) not in ['2', '3']:
                 if user_input == '1':
+                    logger.debug(f"Opening [[{title}]] in the browser")
                     webbrowser.open(pwb.Page(pwb.Site('en', 'wikipedia'), title).full_url())
                     print()
                     prompt2 = f"""When finished in browser:
@@ -255,13 +260,15 @@ Please select an option:
                     while (user_input2 := input('Your selection: ')) not in ['1','2','3']:
                         print("Not a valid selection.")
                     if user_input2 == '1':
+                        logger.info(f"Getting current revision of [[{title}]]")
                         page = pwb.Page(pwb.Site('en', 'wikipedia'), title)
                         entry = Entry(title, page.text)
                         cl = self.candidate_from_entry(entry, get_all=True, get_user_input=False)
                         for cand in cl:
                             yield cand
                     elif user_input2 == '3':
-                        print("Quitting program."); sys.exit()
+                        print("Quitting program.")
+                        sys.exit()
                     print()
                     break
                 else:
@@ -269,7 +276,8 @@ Please select an option:
             else:
                 print()
                 if user_input == '3':
-                    print("Quitting program."); sys.exit()
+                    print("Quitting program.")
+                    sys.exit()
 
 
     def _rt_data(self, title, movieid, use_p1258 = True):

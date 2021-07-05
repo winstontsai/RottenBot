@@ -4,6 +4,8 @@
 # and also finds (or at least tries to) the start of the sentence in which
 # the rating info is contained.
 # In particular, a candidate should always have a Tomatometer score available.
+#
+# Multiple matches IF more than one match with distinct initial rt_ids
 ################################################################################
 import re
 import sys
@@ -16,6 +18,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from threading import Lock
 from dataclasses import dataclass
 from collections import namedtuple
+from itertools import chain
 
 import requests
 import googlesearch
@@ -27,6 +30,9 @@ from patterns import *
 ################################################################################
 
 class NeedsUserInputError(Exception):
+    pass
+
+class OverlappingMatchError(Exception):
     pass
 
 Entry = namedtuple('Entry', ["title", "text"])
@@ -46,6 +52,8 @@ class Candidate:
     ref: Reference
     rt_id: str = ''
     rt_data: dict = None
+    multiple_matches: bool = False
+    multiple_movies: bool = False
 
 class Recruiter:
     def __init__(self, xmlfile):
@@ -73,62 +81,73 @@ class Recruiter:
         for m in re.finditer(fr'(?P<citation><ref +name *= *"?(?P<refname>[^>]+?)"? *>((?!<ref).)*{t_alternates}((?!<ref).)*</ref *>)', text, re.DOTALL):
             refnames[m.group('refname')] = m
         # pattern for allowed refnames
-        allowed_refname = alternates(map(re.escape, refnames)) 
+        allowed_refname = alternates(map(re.escape, refnames))
 
         ldref_re = fr'(?P<ldref><ref +name *= *"?(?P<ldrefname>{allowed_refname})"? */>)'
         rtref_re = alternates([citation_re,ldref_re]) if refnames else citation_re
 
-        cand_re8 = fr'{rt_re}(?!((?!<!--)[^\n])*-->)((?!</?ref)[^\n])*?{score_re}((?!</?ref)[^\n])*?{anyrefs_re}{rtref_re}{anyrefs_re}[.]?'
-        cand_re9 = fr'{score_re}(?!((?!<!--)[^\n])*-->)((?!</?ref)[^\n])*?{rt_re}((?!</?ref)[^\n])*?{anyrefs_re}{rtref_re}{anyrefs_re}[.]?'
-        cand_re10 = fr'{t_rtprose}((?!</?ref).)*?{rtref_re}'
+        cand_re1 = fr'{rt_re}(?!((?!<!--)[^\n])*-->)((?!</?ref)[^\n])*?{score_re}((?!</?ref)[^\n])*?{anyrefs_re}{rtref_re}{anyrefs_re}[.]?'
+        cand_re2 = fr'{score_re}(?!((?!<!--)[^\n])*-->)((?!</?ref)[^\n])*?{rt_re}((?!</?ref)[^\n])*?{anyrefs_re}{rtref_re}{anyrefs_re}[.]?'
+        cand_re3 = fr'{t_rtprose}((?!</?ref).)*?{rtref_re}'
+        pats = list(map(re.compile, [cand_re1, cand_re1, cand_re3], [re.DOTALL]*3))
 
-        all_matches = []
-        for p in [cand_re8, cand_re9, cand_re10]:
-            all_matches.extend(re.finditer(p, text, re.DOTALL))
-        if all_matches:
-            return Entry(title, '')
+        # We want to begin the search from the Reception or Critical Response section,
+        # then loop back to the beginning to search the rest.
+        # startpos = 0
+        # if m:=(re.search(r'={2,3}.*[rR]e(ception|sponse).*={2,3}',text)
+        #         or re.search(r'={2,3}.*[rR]elease.*={2,3}', text)):
+        #     startpos = m.end()
+
+
+        # all_matches = sorted(chain(*(p.finditer(text, startpos) for p in pats)),
+        #     key = lambda x: x.start())
+        # all_matches.extend(sorted(chain(*(p.finditer(text, 0, startpos) for p in pats)),
+        #     key = lambda x: x.start()))
+
+        all_matches = chain(*(p.finditer(text) for p in pats))
+        # if all_matches:
+        #     return Entry(title, text)
         
         cand_list = []
-        prose_set = set()      # different matches may be for the same prose
-        
+        span_set = set()      # different matches may be for the same prose
+        id_set = set()
         for m in all_matches:
             span, prose = self._find_span_and_prose(m)
-            # print(prose, "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@")
-            if prose in prose_set:
+            if span in span_set:
                 continue
-            prose_set.add(prose)
-
-            if cand_list and not get_all:
-                if get_user_input:
-                    self.multiple_matches_list.append(title)
-                return None
+            else:
+                for x in span_set:
+                    if (x[0]<span[0] and x[2]>span[0]) or (span[0]<x[0] and span[2]>x[0]):
+                        raise OverlappingMatchError
+            span_set.add(span)
 
             ref, initial_rt_id = self._find_citation_and_id(title, m, refnames)
+            id_set.add(initial_rt_id)
+
             cand = Candidate(
                     title = title,
                     pagetext = text,
                     span = span,
                     prose = prose,
-                    ref = ref,)
-            try:
-                rt_id, rt_data = self._rt_data(title, initial_rt_id,
-                    use_p1258 = not get_all)
-            except NeedsUserInputError:
-                cand.suggested_id = Recruiter.suggested_id(title)
-            else:
-                #if rt_data:
-                cand.rt_id, cand.rt_data = rt_id, rt_data
-
+                    ref = ref,
+                    rt_id = initial_rt_id)
             cand_list.append(cand)
 
-        if get_all:
-            return [x for x in cand_list if x.rt_data]
-        elif cand_list:
-            cand = cand_list[0]
-            if cand.rt_data:
-                return cand
-            elif get_user_input and hasattr(cand, 'suggested_id'):
-                self.needs_input_list.append(cand)                
+        if len(span_set)>1:
+            for cand in cand_list:
+                cand.multiple_matches = True
+        if len(id_set)>1:
+            for cand in cand_list:
+                cand.multiple_movies = True
+
+        for cand in cand_list:
+            try:
+                cand.rt_id, cand.rt_data = self._rt_data(cand.title, cand.rt_id,
+                    make_guess = not cand.multiple_movies)
+            except NeedsUserInputError:
+                self.needs_input_list.append(cand)
+
+        return [x for x in cand_list if x.rt_data]        
                 
 
     def find_candidates(self, get_user_input = True):
@@ -153,30 +172,31 @@ class Recruiter:
         # 15 threads is fine, but don't rerun on the same pages immediately
         # after a run, or the caching may result in sending too many
         # requests too fast, and we'll get blocked.
-        with ThreadPoolExecutor(max_workers=18) as x:
+        with ThreadPoolExecutor(max_workers=17) as x:
             futures = (x.submit(self.candidate_from_entry,
                     entry, get_user_input=get_user_input) for entry in xml_entries)
             for future in as_completed(futures, timeout=None):
                 total += 1
                 try:
-                    cand = future.result()
+                    cands = future.result()
                 except SystemExit:
                     x.shutdown(wait=True, cancel_futures=True)
                     logger.error("Exiting program.")
                     sys.exit()
-                if cand:
+                for x in cands:
                     count += 1
-                    yield cand
+                    yield x
 
         for cand in self._process_needs_input_list():
             count += 1
             yield cand
 
-        for cand in self._process_multiple_matches_list():
-            count += 1
-            yield cand
+        # for cand in self._process_multiple_matches_list():
+        #     count += 1
+        #     yield cand
 
         logger.info("Found %s candidates out of %s pages", count, total)
+        print_logger.info("Found %s candidates out of %s pages", count, total)
 
     def _process_needs_input_list(self):
         for cand in self.needs_input_list:
@@ -186,12 +206,11 @@ class Recruiter:
                 if newid is None:
                     break
                 try:
-                    rt_id, rt_data = self._rt_data(cand.title, newid, use_p1258=False)
+                    cand.rt_id, cand.rt_data = self._rt_data(cand.title, newid)
                 except NeedsUserInputError:
                     print(f"Problem getting Rotten Tomatoes data with id {newid}\n")
                     continue
-                if rt_data:
-                    cand.rt_id, cand.rt_data = rt_id, rt_data
+                if cand.rt_data:
                     yield cand
                 break
 
@@ -204,9 +223,12 @@ class Recruiter:
             otherwise returns the suggested id or a manually entered id
         """
         logger.debug("Asking for id for [[%s]]", cand.title)
-        title = cand.title
+        title, pagetext = cand.title, cand.pagetext
         i, j = cand.span[0], cand.span[2]
-        prompt = f"""\033[96mNo working id found for {cand.title}.\033[0m
+        prompt = f"""\033[96mNo working id found for a match in [[{cand.title}]].\033[0m
+Context------------------------------------------------------------------------
+{cand.pagetext[i-75: i]}\033[1m{cand.pagetext[i: j]}\033[0m{cand.pagetext[j: j+50]}
+-------------------------------------------------------------------------------
 Please select an option:
     1) use suggested id {suggested_id}
     2) open [[{title}]] and {suggested_id} in the browser
@@ -280,7 +302,7 @@ Please select an option:
                     sys.exit()
 
 
-    def _rt_data(self, title, movieid, use_p1258 = True):
+    def _rt_data(self, title, movieid, make_guess = False):
         """
         Tries to return the Rotten Tomatoes data for a movie.
         Raises NeedsUserInputError if it is determined that the
@@ -299,131 +321,115 @@ Please select an option:
         try:
             return movieid, scraper.get_rt_rating(movieid)
         except requests.exceptions.HTTPError as x:
-            if x.response.status_code == 403:
-                self.blocked.acquire(blocking=False)
-                logger.exception("Probably blocked by rottentomatoes.com. Exiting thread")
-                sys.exit()
-            elif x.response.status_code == 404:
-                logger.debug("404 Client Error", exc_info=True)
-            elif x.response.status_code == 500:
-                logger.debug("500 Server Error", exc_info=True)
-            else:
-                logger.exception("An unknown HTTPError occured for [[%s]] with id %s", title, movieid)
+            if x.response.status_code not in [403, 404, 500, 504]:
                 raise
         except requests.exceptions.TooManyRedirects as x:
-            logger.exception("Too many redirects for [[%s]] with id %s", title, movieid)
+            pass
 
+        if not make_guess:
+            logger.info("Problem getting Rotten Tomatoes data for [[%s]] with id %s", title, movieid)
+            raise NeedsUserInputError
 
-        if use_p1258:
-            logger.info("Problem getting Rotten Tomatoes data for [[%s]] with id %s. Trying Wikidata property P1258...", title, movieid)
-            if p := Recruiter._p1258(title):
-                logger.info("Found Wikidata property P1258 for [[%s]]: %s", title, p)
+        logger.info("Problem getting Rotten Tomatoes data for [[%s]] with id %s. Trying Wikidata property P1258", title, movieid)
+        if p := _p1258(title):
+            logger.info("Found Wikidata property P1258 for [[%s]]: %s", title, p)
+            if p == movieid: # in case it's the same and we already know it fails
+                raise NeedsUserInputError
+            try:
+                return p, scraper.get_rt_rating(p)
+            except requests.exceptions.HTTPError as x:
+                if x.response.status_code not in [403, 404, 500, 504]:
+                    raise
+            except requests.exceptions.TooManyRedirects as x:
+                pass
+            logger.info(f'Problem getting Rotten Tomatoes data for [[{title}]] with P1258 value {p}')
+        else:
+            logger.info(f"Wikidata property P1258 does not exist for [[{title}]]")
 
-                if p == movieid: # in case it's the same and we already know it fails
-                    raise NeedsUserInputError
-
-                try:
-                    return p, scraper.get_rt_rating(p)
-                except requests.exceptions.HTTPError as x:
-                    if x.response.status_code == 403:
-                        self.blocked.acquire(blocking=False)
-                        logger.exception("Probably blocked by rottentomatoes.com. Exiting thread")
-                        sys.exit()
-                    elif x.response.status_code == 404:
-                        logger.debug("404 Client Error", exc_info=True)
-                    elif x.response.status_code == 500:
-                        logger.debug("500 Server Error", exc_info=True)
-                    else:
-                        logger.exception("An unknown HTTPError occured for [[%s]] with id %s", title, p)
-                        raise
-                except requests.exceptions.TooManyRedirects as x:
-                    logger.debug("Too many redirects for [[%s]] with id %s", title, p, exc_info=True)
-
-                logger.info(f'Problem getting Rotten Tomatoes data for [[{title}]] with P1258 value {p}')
-            else:
-                logger.info(f"Wikidata property P1258 does not exist for [[{title}]]")
+        
 
         logger.info("Problem getting Rotten Tomatoes data for [[%s]] with id %s", title, movieid)
         raise NeedsUserInputError
 
-    # ===========================================================================================
+# ===========================================================================================
+def _find_span_and_prose(match):
+    """
+    This function tries find the beginning of
+    the sentence containing the Rotten Tomatoes rating info.
 
-    @staticmethod
-    def _find_span_and_prose(match):
-        """
-        This function tries find the beginning of
-        the sentence containing the Rotten Tomatoes rating info.
+    NOTE: There are edge cases where the start position found
+    by this function
+    is in fact NOT the start of the desired sentence.
+    For example, if the movie title is 'Mr. Bobby' and it isn't italicized
+    in the Wikitext, then this function might identify the start at 'B'.
+    
+    Args:
+        match: match object which identified this potential candidate
+    """
+    text = match.string
+    text = text.replace('“', '"').replace('”', '"')
+    italics = False
+    i = match.start() - 1
+    while i >= 0:
+        c = text[i]
+        # skip over comments. As a result, comments may be removed
+        if text[i-2: i+1] == '-->':
+            i = text.rfind('<!--', 0, i)
+            print_logger.info(f'Found comment in {text[i:match.end()]}')
+            continue
+        if c == '\n>' or (c == '.' and not italics and text[i+1] in ' "'):
+            ind = i + 1
+            break
+        elif c == "'" == text[i + 1]:
+            italics = not italics
+        i -= 1
 
-        NOTE: There are edge cases where the start position found
-        by this function
-        is in fact NOT the start of the desired sentence.
-        For example, if the movie title is 'Mr. Bobby' and it isn't italicized
-        in the Wikitext, then this function might identify the start at 'B'.
-        
-        Args:
-            match: match object which identified this potential candidate
-        """
-        text = match.string
-        text = text.replace('“', '"').replace('”', '"')
-        italics = False
-        for i in range(match.start() - 1, -1, -1):
-            c = text[i]
-            if c in "\n>" or (c == "." and not italics and text[i+1] in ' "'):
-                ind = i + 1
-                break
-            elif c == "'" == text[i + 1]:
-                italics = not italics
+    while text[ind] in ' "':
+        ind += 1
 
-        while text[ind] in ' "':
-            ind += 1
-
-        mid = text.find('<ref', ind)
-        end = match.end()
-        return (ind, mid, end), text[ ind : end ]
+    mid = text.find('<ref', ind)
+    end = match.end()
+    return (ind, mid, end), text[ ind : end ]
 
 
-    @staticmethod
-    def _find_citation_and_id(title, m, refnames):
-        groupdict = m.groupdict()
-        ref = Reference('')
-        if ldrefname := groupdict.get('ldrefname'):
-            ref.reftext = refnames[ldrefname].group()
-            ref.refname = ldrefname
-            ref.ld = True
-            groupdict = refnames[ldrefname].groupdict()
-        else:
-            ref.reftext = groupdict['citation']
-            ref.refname = groupdict.get('refname')
+def _find_citation_and_id(title, m, refnames):
+    groupdict = m.groupdict()
+    ref = Reference('')
+    if ldrefname := groupdict.get('ldrefname'):
+        ref.reftext = refnames[ldrefname].group()
+        ref.refname = ldrefname
+        ref.ld = True
+        groupdict = refnames[ldrefname].groupdict()
+    else:
+        ref.reftext = groupdict['citation']
+        ref.refname = groupdict.get('refname')
 
-        if rt_id := groupdict.get('rt_id'):
-            return ref, rt_id
-        elif citert := groupdict.get('citert'):
-            d = parse_template(citert)[1]
-            return ref, "m/" + d['id']
-        elif rt := groupdict.get('rt'):
-            d = parse_template(rt)[1]
-            if 1 in d.keys() or 'id' in d.keys():
-                key = 1 if 1 in d.keys() else 'id'
-                return ref, ["m/",""][d[key].startswith("m/")] + d[key]
-            elif p := Recruiter._p1258(title):
-                return ref, p
+    if rt_id := groupdict.get('rt_id'):
+        return ref, rt_id
+    elif citert := groupdict.get('citert'):
+        d = parse_template(citert)[1]
+        return ref, "m/" + d['id']
+    elif rt := groupdict.get('rt'):
+        d = parse_template(rt)[1]
+        if 1 in d.keys() or 'id' in d.keys():
+            key = 1 if 1 in d.keys() else 'id'
+            return ref, ["m/",""][d[key].startswith("m/")] + d[key]
+        elif p := _p1258(title):
+            return ref, p
+    raise ValueError(f'Problem getting citation and id for a match in [[{title}]]')
 
-        raise ValueError(f'Problem getting citation and id for a match in [[{title}]]')
+def _p1258(title):
+    page = pwb.Page(pwb.Site('en','wikipedia'), title)
+    item = pwb.ItemPage.fromPage(page)
+    item.get()
+    if 'P1258' in item.claims:
+        return item.claims['P1258'][0].getTarget()
+    return None
 
-    @staticmethod
-    def _p1258(title):
-        page = pwb.Page(pwb.Site('en','wikipedia'), title)
-        item = pwb.ItemPage.fromPage(page)
-        item.get()
-        if 'P1258' in item.claims:
-            return item.claims['P1258'][0].getTarget()
-        return None
-
-    @staticmethod
-    def suggested_id(title):
-        url = googlesearch.lucky(title + "movie site:rottentomatoes.com/m/")
-        suggested_id = url.split('rottentomatoes.com/')[1]
-        return suggested_id
+ def suggested_id(title):
+    url = googlesearch.lucky(title + "movie site:rottentomatoes.com/m/")
+    suggested_id = url.split('rottentomatoes.com/')[1]
+    return suggested_id
 
 if __name__ == "__main__":
     pass

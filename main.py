@@ -7,6 +7,7 @@ import argparse
 import logging.handlers
 import logging
 logger = logging.getLogger(__name__)
+print_logger = logging.getLogger('print_logger')
 
 import pywikibot as pwb
 
@@ -132,14 +133,15 @@ def main():
 
 
     # START PROGRAM
-    logging.info("COMMAND '{}'".format(' '.join(sys.argv)))
+    logger.info("COMMAND '{}'".format(' '.join(sys.argv)))
 
     t0 = time.perf_counter()
     args = get_args()
     args.func(args)
     t1 = time.perf_counter()
 
-    logging.info("TIME ELAPSED = {}".format(t1 - t0))
+    logger.info("TIME ELAPSED = {}".format(t1 - t0))
+    print_logger.info("TIME ELAPSED = {}".format(t1 - t0))
 
 
 if __name__ == '__main__':

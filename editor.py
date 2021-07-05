@@ -5,6 +5,7 @@ import sys
 import webbrowser
 import logging
 logger = logging.getLogger(__name__)
+print_logger = logging.getLogger('print_logger')
 
 from dataclasses import dataclass
 from datetime import date
@@ -128,7 +129,8 @@ def compute_edit(cand):
     # add consensus if safe
     if (rt_data["consensus"]
             and ' consensus' not in new_prose
-            and not re.match('[^\n]* consensus', pagetext[span[2]: ]) ):
+            and not re.match('[^\n]* consensus', pagetext[span[2]: ])
+            and not span[0] < pagetext.find('==')):
         new_prose += " " + consensus_prose(cand)
 
     # fix period/quote situation

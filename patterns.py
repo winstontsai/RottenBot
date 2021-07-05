@@ -95,7 +95,6 @@ t_rtprose = fr"(?P<rtprose>{{{{{construct_redirects(rtprose_redirects)}.*?}}}})"
 asof_redirects = ["As of", "Asof"]
 t_asof = fr"(?P<asof>{{{{{construct_redirects(asof_redirects)}.*?}}}})"
 
-# for inline citations
 t_alternates = alternates([t_other,t_citert,t_rt])
 t_alternates2 = alternates([t_other2,t_citert2,t_rt2])
 
@@ -113,52 +112,9 @@ rtref_re2 = alternates([citation_re2,ldref_re2])
 # matches zero or more consecutive references (not necessarily for RT), use re.DOTALL
 anyrefs_re = r'(<ref( +name *= *[^>]+?)? *>((?!<ref).)*?</ref *>|<ref +name *= *[^>]+? */>)*'
 
-# cand_re1 = rt_re + r"[^\n<>]*?" + score_re + r"[^\n]*?" + citation_re + fr"(?![^\n]* consensus[^\n<>]*{rtref_re2})(?![^\n.]* consensus)"
-# cand_re2 = score_re + r"[^\n<>]*?" + rt_re + r"[^\n]*?" + citation_re + fr"(?![^\n]* consensus[^\n<>]*{rtref_re2})(?![^\n.]* consensus)"
-# cand_re3 = rt_re + r"[^\n<>]*?" + score_re + r"[^\n]*?" + ldref_re + fr"(?![^\n]* consensus[^\n<>]*{rtref_re2})(?![^\n.]* consensus)"
-# cand_re4 = score_re + r"[^\n<>]*?" + rt_re + r"[^\n]*?" + ldref_re + fr"(?![^\n]* consensus[^\n<>]*{rtref_re2})(?![^\n.]* consensus)"
-
-# cand_re1 = rt_re + r"[^\n<>]*?" + score_re + r"[^\n]*?" + citation_re + fr"(?![^\n]* consensus)"
-# cand_re2 = score_re + r"[^\n<>]*?" + rt_re + r"[^\n]*?" + citation_re + fr"(?![^\n]* consensus)"
-# cand_re3 = rt_re + r"[^\n<>]*?" + score_re + r"[^\n]*?" + ldref_re + fr"(?![^\n]* consensus)"
-# cand_re4 = score_re + r"[^\n<>]*?" + rt_re + r"[^\n]*?" + ldref_re + fr"(?![^\n]* consensus)"
-
-# cand_re1 = rt_re + r"[^\n<>]*?" + score_re + r"[^\n]*?" + citation_re + fr"([^\n.]* consensus)?(?![^\n]* consensus)"
-# cand_re2 = score_re + r"[^\n<>]*?" + rt_re + r"[^\n]*?" + citation_re + fr"([^\n.]* consensus)?(?![^\n]* consensus)"
-# cand_re3 = rt_re + r"[^\n<>]*?" + score_re + r"[^\n]*?" + ldref_re + fr"([^\n.]* consensus)?(?![^\n]* consensus)"
-# cand_re4 = score_re + r"[^\n<>]*?" + rt_re + r"[^\n]*?" + ldref_re + fr"([^\n.]* consensus)?(?![^\n]* consensus)"
-
-# cand_re1 = rt_re + r"[^\n<>]*?" + score_re + r"[^\n]*?" + citation_re + fr'([^\n.]*? consensus[^n]*?".*?")?(?![^\n]* consensus)'
-# cand_re2 = score_re + r"[^\n<>]*?" + rt_re + r"[^\n]*?" + citation_re + fr'([^\n.]*? consensus[^n]*?".*?")?(?![^\n]* consensus)'
-# cand_re3 = rt_re + r"[^\n<>]*?" + score_re + r"[^\n]*?" + ldref_re +    fr'([^\n.]*? consensus[^n]*?".*?")?(?![^\n]* consensus)'
-# cand_re4 = score_re + r"[^\n<>]*?" + rt_re + r"[^\n]*?" + ldref_re +    fr'([^\n.]*? consensus[^n]*?".*?")?(?![^\n]* consensus)'
-
-# cand_re1 = rt_re + r"[^\n<>]*?" + score_re + r"[^\n]*?" + citation_re + fr'([^\n.]*? consensus[^n]*?".*?"[.]?{rtref_re2}?)?(?![^\n]* consensus)'
-# cand_re2 = score_re + r"[^\n<>]*?" + rt_re + r"[^\n]*?" + citation_re + fr'([^\n.]*? consensus[^n]*?".*?"[.]?{rtref_re2}?)?(?![^\n]* consensus)'
-# cand_re3 = rt_re + r"[^\n<>]*?" + score_re + r"[^\n]*?" + ldref_re +    fr'([^\n.]*? consensus[^n]*?".*?"[.]?{rtref_re2}?)?(?![^\n]* consensus)'
-# cand_re4 = score_re + r"[^\n<>]*?" + rt_re + r"[^\n]*?" + ldref_re +    fr'([^\n.]*? consensus[^n]*?".*?"[.]?{rtref_re2}?)?(?![^\n]* consensus)'
-
-
-# cand_re1 = fr'{rt_re}(?!((?!<!--)[^\n])*-->)((?!</?ref)[^\n])*?{score_re}[^\n]*?{anyrefs_re}{citation_re}{anyrefs_re}[.]?([^\n.]*? consensus[^n]*?".*?"[.]?{rtref_re2}?)?(?![^\n]* consensus)'
-# cand_re2 = fr'{score_re}(?!((?!<!--)[^\n])*-->)((?!</?ref)[^\n])*?{rt_re}[^\n]*?{anyrefs_re}{citation_re}{anyrefs_re}[.]?([^\n.]*? consensus[^n]*?".*?"[.]?{rtref_re2}?)?(?![^\n]* consensus)'
-# cand_re3 = fr'{rt_re}(?!((?!<!--)[^\n])*-->)((?!</?ref)[^\n])*?{score_re}[^\n]*?{anyrefs_re}{ldref_re}{anyrefs_re}[.]?([^\n.]*? consensus[^n]*?".*?"[.]?{rtref_re2}?)?(?![^\n]* consensus)'
-# cand_re4 = fr'{score_re}(?!((?!<!--)[^\n])*-->)((?!</?ref)[^\n])*?{rt_re}[^\n]*?{anyrefs_re}{ldref_re}{anyrefs_re}[.]?([^\n.]*? consensus[^n]*?".*?"[.]?{rtref_re2}?)?(?![^\n]* consensus)'
-
-# cand_re1 = fr'{rt_re}(?!((?!<!--)[^\n])*-->)((?!</?ref)[^\n])*?{score_re}((?!</?ref)[^\n])*?{anyrefs_re}{citation_re}{anyrefs_re}[.]?([^\n.]*? consensus[^n]*?".*?"[.]?{rtref_re2}?)?(?![^\n]* consensus)'
-# cand_re2 = fr'{score_re}(?!((?!<!--)[^\n])*-->)((?!</?ref)[^\n])*?{rt_re}((?!</?ref)[^\n])*?{anyrefs_re}{citation_re}{anyrefs_re}[.]?([^\n.]*? consensus[^n]*?".*?"[.]?{rtref_re2}?)?(?![^\n]* consensus)'
-# cand_re3 = fr'{rt_re}(?!((?!<!--)[^\n])*-->)((?!</?ref)[^\n])*?{score_re}((?!</?ref)[^\n])*?{anyrefs_re}{ldref_re}{anyrefs_re}[.]?([^\n.]*? consensus[^n]*?".*?"[.]?{rtref_re2}?)?(?![^\n]* consensus)'
-# cand_re4 = fr'{score_re}(?!((?!<!--)[^\n])*-->)((?!</?ref)[^\n])*?{rt_re}((?!</?ref)[^\n])*?{anyrefs_re}{ldref_re}{anyrefs_re}[.]?([^\n.]*? consensus[^n]*?".*?"[.]?{rtref_re2}?)?(?![^\n]* consensus)'
-
-# cand_re1 = fr'{rt_re}(?!((?!<!--)[^\n])*-->)((?!</?ref)[^\n])*?{score_re}((?!</?ref)[^\n])*?{anyrefs_re}{citation_re}{anyrefs_re}[.]?([^\n.]*? consensus[^n]*?".*?"[.]?{rtref_re2}?)?'
-# cand_re2 = fr'{score_re}(?!((?!<!--)[^\n])*-->)((?!</?ref)[^\n])*?{rt_re}((?!</?ref)[^\n])*?{anyrefs_re}{citation_re}{anyrefs_re}[.]?([^\n.]*? consensus[^n]*?".*?"[.]?{rtref_re2}?)?'
-# cand_re3 = fr'{rt_re}(?!((?!<!--)[^\n])*-->)((?!</?ref)[^\n])*?{score_re}((?!</?ref)[^\n])*?{anyrefs_re}{ldref_re}{anyrefs_re}[.]?([^\n.]*? consensus[^n]*?".*?"[.]?{rtref_re2}?)?'
-# cand_re4 = fr'{score_re}(?!((?!<!--)[^\n])*-->)((?!</?ref)[^\n])*?{rt_re}((?!</?ref)[^\n])*?{anyrefs_re}{ldref_re}{anyrefs_re}[.]?([^\n.]*? consensus[^n]*?".*?"[.]?{rtref_re2}?)?'
-
-# cand_re1 = fr'{rt_re}(?!((?!<!--)[^\n])*-->)((?!</?ref)[^\n])*?{score_re}((?!</?ref)[^\n])*?{anyrefs_re}{citation_re}{anyrefs_re}[.]?'
-# cand_re2 = fr'{score_re}(?!((?!<!--)[^\n])*-->)((?!</?ref)[^\n])*?{rt_re}((?!</?ref)[^\n])*?{anyrefs_re}{citation_re}{anyrefs_re}[.]?'
-# cand_re3 = fr'{rt_re}(?!((?!<!--)[^\n])*-->)((?!</?ref)[^\n])*?{score_re}((?!</?ref)[^\n])*?{anyrefs_re}{ldref_re}{anyrefs_re}[.]?'
-# cand_re4 = fr'{score_re}(?!((?!<!--)[^\n])*-->)((?!</?ref)[^\n])*?{rt_re}((?!</?ref)[^\n])*?{anyrefs_re}{ldref_re}{anyrefs_re}[.]?'
-
+# matches a bulleted list
+# used to find the External Links section
+list_re = r'([*][^\n]+\n)+'
 
 if __name__ == "__main__":
     d = {

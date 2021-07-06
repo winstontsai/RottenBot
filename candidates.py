@@ -21,12 +21,11 @@ from dataclasses import dataclass
 from itertools import chain
 
 import requests
-import urllib.error
+import urllib.error # for google search maybe
 import pywikibot as pwb
-import wikitextparser as wtp
 
 from pywikibot.xmlreader import XmlDump
-from googlesearch import lucky, get_random_user_agent
+from googlesearch import lucky
 
 import scraper
 from scraper import RTMovie

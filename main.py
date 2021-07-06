@@ -137,7 +137,10 @@ def main():
 
     t0 = time.perf_counter()
     args = get_args()
-    args.func(args)
+    try:
+        args.func(args)
+    except SystemExit:
+        pass
     t1 = time.perf_counter()
 
     logger.info("TIME ELAPSED = {}".format(t1 - t0))

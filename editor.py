@@ -93,10 +93,10 @@ def compute_edit(cand):
             old_temp = m.group()
             temp_dict = parse_template(old_temp)[1]
             day, month, year = date.today().strftime("%d %m %Y").split()
-            temp_dict[1] = year
-            temp_dict[2] = month
-            if 3 in temp_dict:
-                temp_dict[3] = day
+            temp_dict['1'] = year
+            temp_dict['2'] = month
+            if '3' in temp_dict:
+                temp_dict['3'] = day
             new_temp = construct_template("As of", temp_dict)
             new_prose = new_prose.replace(old_temp, new_temp)
         elif re.search("[Aa]s ?of", new_prose):

@@ -31,7 +31,7 @@ def parse_template(template):
     for piece in pieces[1:]:
         j = piece.find('=')
         if j == -1:
-            d[counter] = piece
+            d[str(counter)] = piece
             counter += 1
         else:
             key = piece[:j].rstrip()
@@ -40,14 +40,15 @@ def parse_template(template):
     return (template_name, d)
 
 def construct_template(name, d):
-    s = name
-    for x in sorted(x for x in d.keys() if type(x)==int):
-        s += f"|{d[x]}"
-    for key,value in d.items():
-        if type(key) == int:
-            continue
-        s += f"|{key}={value}"
-    return '{{' + s + '}}'
+    positional = ''
+    named = ''
+    for k, v in sorted(d.items()):
+        if re.fullmatch(r"[1-9][0-9]*", k):
+            positional += f"|{v}"
+    for k, v in d.items():
+        if not re.fullmatch(r"[1-9][0-9]*", k):
+            named += f"|{k}={v}"
+    return '{{' + name + positional + named + '}}'
 
 rt_re = r"[rR]otten [tT]omatoes"
 score_re = r"(?P<score>[0-9]|[1-9][0-9]|100)(?:%| percent)"
@@ -118,11 +119,11 @@ list_re = r'([*][^\n]+\n)+'
 
 if __name__ == "__main__":
     d = {
-        3: 'asdfasdf',
-        1 : 'hello',
+        '3': 'asdfasdf',
+        '1' : 'hello',
         'key1': 'value1',
         'key2': 'value2',
-        2: 'bibi',
+        '2': 'bibi',
         'key3': 'value3',
     }
     print(construct_template('name', d))

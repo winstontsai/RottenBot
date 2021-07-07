@@ -147,98 +147,13 @@ class RTMovie:
                 score = sd["score"]
                 self.tomatometer_score = (score, count, average)
 
-# def get_rt_rating(movieid):
-#     """
-#     Given the url of a movie page from Rotten tomatoes,
-#     returns a dictionary containing the score, average rating, review count,
-#     and also the current date.
-#     All the values are strings.
-#     """
-#     url = rt_url(movieid)
-#     try:
-#         contents = url_contents(url)
-#     except requests.exceptions.HTTPError as x:
-#         if x.response.status_code == 403:
-#             self.blocked.acquire(blocking=False)
-#             logger.exception("Probably blocked by rottentomatoes.com. Exiting thread")
-#             sys.exit()
-#         elif x.response.status_code == 404:
-#             logger.debug("404 Client Error", exc_info=True)
-#         elif x.response.status_code == 500:
-#             logger.debug("500 Server Error", exc_info=True)
-#         elif x.response.status_code == 504:
-#             logger.debug("504 Server Error", exc_info=True)
-#         else:
-#             logger.exception("An unknown HTTPError occured for [[%s]] with id %s", title, movieid)
-#         raise
-#     except requests.exceptions.TooManyRedirects as x:
-#         logger.exception("Too many redirects for [[%s]] with id %s", title, movieid)
-#         raise
-
-#     indicator = '<script id="score-details-json" type="application/json">'
-#     terminator = '</script>'
-#     score_data = find_substring(contents, indicator, terminator)
-#     if not score_data:
-#         raise ValueError(f"Could not find score data for {movieid}.")
-
-#     sd = json.loads(score_data)['modal']
-#     if sd['hasTomatometerScoreAll'] == False:
-#         logger.debug("Tomatometer not yet available for %s", movieid)
-#         return None
-
-#     sd = sd['tomatometerScoreAll']
-
-#     # When this occurs even though sd['hasTomatometerScoreAll'] == True,
-#     # it means that Rotten Tomatoes isn't loading the rating for whatever reason.
-#     # Not sure why this happens. Usually it loads if you try again later.
-#     if not sd:
-#         logger.error("Rotten Tomatoes is not currently loading the rating for %s", movieid)
-#         return {}
-
-#     # get title
-#     indicator = "<title>"
-#     terminator = " - Rotten Tomatoes"
-#     title = find_substring(contents, indicator, terminator)
-#     year = title[-5:-1]
-
-#     # get critics consensus, if it exists.
-#     indicator = '<span data-qa="critics-consensus">'
-#     terminator = '</span>'
-#     # will be None if there is no critic's consensus
-#     consensus = find_substring(contents, indicator, terminator)
-#     # replace <em> and </em> with '', which makes italics for Wikipedia
-#     if consensus: # make sure consensus is not None
-#         consensus = consensus.replace('<em>', "''").replace('</em>', "''")
-#         consensus = consensus.replace("'''", r"''{{'}}") # apostrophe case
-
-#     return {'title' : title,
-#             'year' : year,
-#             'url' : url,
-#             'id' : movieid,
-#             'score' : sd['score'],
-#             'average' : sd['averageRating'],
-#             'reviewCount' : str(sd['reviewCount']),
-#             'ratingCount' : str(sd['ratingCount']),
-#             'consensus' : consensus,
-#             'accessDate' : date.today().strftime("%B %d, %Y"), # e.g. May 24, 2021
-#         }
-
 
 if __name__ == "__main__":
     # r = requests.get(rt_url('m/meadowland'))
     # soup = BeautifulSoup(r.text, "html.parser")
     # d = json.loads(str(soup.find('script', id='score-details-json')).split('>')[1].split('<')[0])
     # print(json.dumps(d, indent=4))
-    from itertools import chain
-    movie = RTMovie('m/descendants_3_pop_up_version')
-
-    words_to_check_for = set([f"'''''{movie.title}'''''", ' '+movie.year])
-    names = chain(*(name.split() for name in movie.director+movie.writer))
-    for x in names:
-        if x[-1] != '.': # ignore abbreviations
-            words_to_check_for.add(x)
-    
-    print(words_to_check_for)
+    print(RTMovie('m/the_tomorrow_war'))
 
 
 

@@ -17,11 +17,9 @@ import patterns
 ################################################################################
 
 def store_candidates(args):
-    r = candidates.Recruiter(args.file1)
+    data = candidates.Recruiter(args.file1).find_candidates()
     with open(args.file2, 'wb') as f:
-        for cand in r.find_candidates():
-            pickle.dump(cand, f)
-            # logger.debug("Found candidate [[%s]]", cand.title)
+        pickle.dump(data, f)
 
 def store_edits(args):
     if args.file1.endswith('.cands'):
@@ -44,18 +42,18 @@ def store_edits(args):
 def upload_edits(args):
     print("upload_edits({})".format(args))
 
-
-
 def print_data(args):
-    s = []
     with open(args.file, 'rb') as f:
-        while True:
-            try:
-                d = vars(pickle.load(f))
-                s.append(json.dumps(d, indent = 4))
-            except EOFError:
-                break
-    print("\n".join(s))
+        data = pickle.load(f)
+    print(type(data))
+    print(data)
+
+def listpages(args):
+    site = pwb.Site('en','wikipedia')
+    for catname in args.catname:
+        cat = pwb.Category(pwb.Page(site, catname, ns=14))
+        for x in cat.articles(recurse=True, namespaces=0):
+            print(x.title())
 
 
 
@@ -74,30 +72,35 @@ See 'https://github.com/winstontsai/RottenBot' for source code and more info."""
         help='available commands',)
 
     # parser for shelving
-    parser_s = subparsers.add_parser('store',
+    parser_store = subparsers.add_parser('store',
         help='store edits in a file')
-    parser_s.set_defaults(func=store_edits)
-    parser_s.add_argument('-c', '--candidates',
+    parser_store.set_defaults(func=store_edits)
+    parser_store.add_argument('-c', '--candidates',
         dest='func', action='store_const', const=store_candidates,
         help='store candidates instead of edits')
-    parser_s.add_argument('file1', help="file containing the XML dump of Wikipedia pages to work on. Can also be a file with extension '.cands' containing a pickled Candidate on each line")
-    parser_s.add_argument('file2', help='file in which to store edits')
+    parser_store.add_argument('file1', help="file containing the XML dump of Wikipedia pages to work on. Can also be a file with extension '.cands' containing a pickled Candidate on each line")
+    parser_store.add_argument('file2', help='file in which to store edits')
     
 
     # parser for uploading
-    parser_u = subparsers.add_parser('upload',
+    parser_upload = subparsers.add_parser('upload',
         help='upload edits from a file to the live wiki')
-    parser_u.set_defaults(func=upload_edits)
-    parser_u.add_argument('file', help='name of the file from which edits will be uploaded')
-    parser_u.add_argument('-d', '--dryrun', action='store_true',
+    parser_upload.set_defaults(func=upload_edits)
+    parser_upload.add_argument('file', help='name of the file from which edits will be uploaded')
+    parser_upload.add_argument('-d', '--dryrun', action='store_true',
         help='no edits will actually be made to the live wiki')
 
-
     # parser for printing stored data
-    parser_r = subparsers.add_parser('print',
+    parser_print = subparsers.add_parser('print',
         help='print the edits stored in a file')
-    parser_r.set_defaults(func=print_data)
-    parser_r.add_argument('file', help = 'file in which the data is stored')
+    parser_print.set_defaults(func=print_data)
+    parser_print.add_argument('file', help = 'file in which the data is stored')
+
+    # parser for listing articles in a category
+    parser_list = subparsers.add_parser('listpages',
+        help='list (recursively) all articles in one or more categories')
+    parser_list.set_defaults(func=listpages)
+    parser_list.add_argument('catname', help='category name', nargs='+')
 
     return parser.parse_args()
 

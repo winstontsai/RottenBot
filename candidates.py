@@ -19,6 +19,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from threading import Lock
 from dataclasses import dataclass
 from itertools import chain
+from collections import defaultdict
 
 import requests
 import urllib.error # for google search maybe
@@ -33,9 +34,6 @@ from patterns import *
 ################################################################################
 WIKIDATA_LOCK = Lock()
 GOOGLESEARCH_LOCK = Lock()
-
-class NeedsUserInputError(Exception):
-    pass
 
 class OverlappingMatchError(Exception):
     pass
@@ -65,7 +63,7 @@ class Candidate:
 
         try:
             self.rt_data = RTMovie(movieid)
-            return
+            return True
         except requests.exceptions.HTTPError as x:
             if x.response.status_code not in [403, 404, 500, 504]:
                 raise
@@ -74,13 +72,13 @@ class Candidate:
 
         if not make_guess:
             logger.info(f"Couldn't get RT data for [[{title}]] with id {movieid}.")
-            raise NeedsUserInputError
+            return False
 
         logger.info(f"Couldn't get RT data for [[{title}]] with id {movieid}. Checking Wikidata property P1258.")
         if (p := _p1258(title)) and p != movieid:
             try:
                 self.rt_data = RTMovie(p)
-                return
+                return True
             except requests.exceptions.HTTPError as x:
                 if x.response.status_code not in [403, 404, 500, 504]:
                     raise
@@ -101,15 +99,13 @@ class Candidate:
             lead = text[:text.find('==')]
             words_to_check_for = set([f"'''''{movie.title}'''''", ' '+movie.year])
             names = chain(*(name.split() for name in movie.director+movie.writer))
-            for x in names:
-                if x[-1] != '.': # ignore abbreviations
-                    words_to_check_for.add(x)
+            words_to_check_for.update(x for x in names if x[-1] != '.')
             if all(x in lead for x in words_to_check_for):
                 self.rt_data = movie
-                return
+                return True
 
         logger.info(f"Google search for [[{title}]] failed.")
-        raise NeedsUserInputError
+        return False
 
 
 class Recruiter:
@@ -117,14 +113,7 @@ class Recruiter:
         self.filename = xmlfile                       
 
     # entry just needs .title and .text attributes for the page we are interested in
-    def candidate_from_entry(self, title, text, get_all = False, get_user_input = True):
-        """
-        When get_all is False, the behavior is as follows:
-        If multiple matches are found, the title is appended to
-        self.multiple_matches_list and None is returned.
-        If a single candidate is found with valid rt_data, it is returned.
-        If a single candidate is found without valid rt_data, 
-        """
+    def candidate_from_entry(self, title, text):
         if scraper.BLOCKED_LOCK.locked():
             sys.exit()
 
@@ -146,13 +135,6 @@ class Recruiter:
         cand_re3 = fr'{t_rtprose}((?!</?ref).)*?{rtref_re}'
         pats = list(map(re.compile, [cand_re1, cand_re1, cand_re3], [re.DOTALL]*3))
 
-        # We want to begin the search from the Reception or Critical Response section,
-        # then loop back to the beginning to search the rest.
-        # startpos = 0
-        # if m:=(re.search(r'={2,3}.*[rR]e(ception|sponse).*={2,3}',text)
-        #         or re.search(r'={2,3}.*[rR]elease.*={2,3}', text)):
-        #     startpos = m.end()
-
         all_matches = chain(*(p.finditer(text) for p in pats))
         
         cand_list = []
@@ -163,7 +145,7 @@ class Recruiter:
             if span in span_set:
                 continue
             else:
-                for x in span_set: # never see this error before, but could happen
+                for x in span_set: # not seen before, but could happen
                     if (x[0]<=span[0] and x[2]>span[0]) or (span[0]<=x[0] and span[2]>x[0]):
                         logger.error(f"Overlapping matches found in {title}",exc_info=True)
                         raise OverlappingMatchError
@@ -189,16 +171,11 @@ class Recruiter:
 
         to_return = []
         for cand, initial_rt_id in cand_list:
-            try:
-                cand._load_rt_data(initial_rt_id,
-                    make_guess=not cand.multiple_movies)
-            except NeedsUserInputError:
-                # cand.suggested_id = suggested_id(title)
-                self.needs_input_list.append(cand)
-            else:
+            if cand._load_rt_data(initial_rt_id, make_guess=not cand.multiple_movies):
                 if cand.rt_data.tomatometer_score:
                     to_return.append(cand)
-
+            else:
+                self.needs_input_list.append(cand)
         return to_return
 
 
@@ -214,18 +191,15 @@ class Recruiter:
         xml_entries = XmlDump(self.filename).parse()
 
         # Save pages which need user input for the end
-        # this list contains the candidates which need user input
-        # to get rt_id and rt_data
         self.needs_input_list = []
-        # this list contains the titles of pages with multiple matches
-        self.multiple_matches_list = []
 
+        return_dict = defaultdict(list)
         # 15 threads is fine, but don't rerun on the same pages immediately
         # after a run, or the caching may result in sending too many
         # requests too fast, and we'll get blocked.
         with ThreadPoolExecutor(max_workers=15) as x:
-            futures = (x.submit(self.candidate_from_entry, entry.title, entry.text,
-                get_user_input=get_user_input) for entry in xml_entries)
+            futures = (x.submit(self.candidate_from_entry, entry.title, entry.text)
+                for entry in xml_entries)
             for future in as_completed(futures, timeout=None):
                 total += 1
                 try:
@@ -234,44 +208,41 @@ class Recruiter:
                     x.shutdown(wait=True, cancel_futures=True)
                     logger.error("Exiting program.")
                     sys.exit()
-                for x in cands:
-                    count += 1
-                    yield x
+                if cands:
+                    count += len(cands)
+                    return_dict[cands[0].title] = cands
+                # for x in cands:
+                #     count += 1
+                #     yield x
 
-        for cand in self._process_needs_input_list():
-            count += 1
-            yield cand
+        if get_user_input:
+            for cand in self._process_needs_input_list():
+                count += 1
+                return_dict[cands.title].append(cand)
 
-        # for cand in self._process_multiple_matches_list():
-        #     count += 1
-        #     yield cand
 
         logger.info(f"Found {count} candidates out of {total} pages")
         print_logger.info(f"Found {count} candidates out of {total} pages")
+        return return_dict
 
     def _process_needs_input_list(self):
         for cand in self.needs_input_list:
             logger.info(f"Processing [[{cand.title}]] in needs_input_list")
             while True:
-                movieid = self._ask_for_id(cand, '')
+                movieid = self._ask_for_id(cand)
                 if movieid is None:
                     break
-                try:
-                    cand._load_rt_data(movieid)
-                except NeedsUserInputError:
+                if cand._load_rt_data(movieid):
+                    if cand.rt_data.tomatometer_score:
+                        yield cand
+                        break
+                else:
                     print(f"Problem getting Rotten Tomatoes data with id {newid}\n")
                     continue
-                if cand.rt_data.tomatometer_score:
-                    yield cand
-                break
 
-    def _ask_for_id(self, cand, suggested_id):
+    def _ask_for_id(self, cand):
         """
         Asks for a user decision regarding the Rotten Tomatoes id for a film.
-
-        Returns:
-            if user decides to skip, returns None
-            otherwise returns the suggested id or a manually entered id
         """
         logger.debug(f"Asking for id for [[{cand.title}]]")
         title, pagetext = cand.title, cand.pagetext
@@ -292,7 +263,6 @@ Please select an option:
         while (user_input:=input("Your selection: ")) not in ('1','3','4'):
             if user_input == '2':
                 webbrowser.open(pwb.Page(pwb.Site('en', 'wikipedia'), title).full_url())
-                # webbrowser.open(scraper.rt_url(suggested_id))
             else:
                 print("Not a valid selection.")
 
@@ -302,104 +272,12 @@ Please select an option:
                 print('A valid id must begin with "m/".')
             logger.info(f"Entered id '{newid}' for [[{cand.title}]]")
             return newid
-        elif user_input == '4':
+        elif user_input == '3':
             logger.info(f"Skipping article [[{title}]]")
             return None
-        elif user_input == '5':
-            print("Quitting program.")
+        elif user_input == '4':
+            print_logger.info("Quitting program.")
             sys.exit()                
-
-
-#     def _process_multiple_matches_list(self):
-#         for title in self.multiple_matches_list:
-#             logger.debug(f"Processing [[{title}]] in multiple_matches_list")
-#             prompt = f"""\033[96mMultiple matches found in [[{title}]].\033[0m
-# Please select an option:
-#     1) open [[{title}]] in the browser for manual editing
-#     2) skip this article
-#     3) quit the program"""
-#             print(prompt)
-#             while (user_input := input('Your selection: ')) not in ['2', '3']:
-#                 if user_input == '1':
-#                     logger.debug(f"Opening [[{title}]] in the browser")
-#                     webbrowser.open(pwb.Page(pwb.Site('en', 'wikipedia'), title).full_url())
-#                     print()
-#                     prompt2 = f"""When finished in browser:
-#     1) get current revision of [[{title}]] and process all valid matches found
-#     2) continue
-#     3) quit the program"""
-#                     print(prompt2)
-#                     while (user_input2 := input('Your selection: ')) not in ['1','2','3']:
-#                         print("Not a valid selection.")
-#                     if user_input2 == '1':
-#                         logger.info(f"Getting current revision of [[{title}]]")
-#                         page = pwb.Page(pwb.Site('en', 'wikipedia'), title)
-#                         cl = self.candidate_from_entry(title, page.text,
-#                             get_all=True, get_user_input=False)
-#                         for cand in cl:
-#                             yield cand
-#                     elif user_input2 == '3':
-#                         print("Quitting program.")
-#                         sys.exit()
-#                     print()
-#                     break
-#                 else:
-#                     print("Not a valid selection.")
-#             else:
-#                 print()
-#                 if user_input == '3':
-#                     print("Quitting program.")
-#                     sys.exit()
-
-
-    # def _rt_data(self, cand, make_guess = False):
-    #     """
-    #     Tries to return the Rotten Tomatoes data for a movie.
-    #     Raises NeedsUserInputError if it is determined that the
-    #     user will need to be asked for a Rotten Tomatoes id.
-
-    #     Two possible return values if NeedsUserInputError is not raised.
-    #     1. id, data. The rating data we want.
-    #     2. id, empty dict. Which happens when the rating data exists but
-    #     Rotten Tomatoes is having trouble loading the rating data for a movie.
-    #     """
-    #     if scraper.BLOCKED_LOCK.locked():
-    #         sys.exit()
-
-    #     title = cand.title
-    #     movieid = cand.initial_rt_id
-    #     logger.debug("Processing potential candidate [[%s]]", title)
-
-    #     try:
-    #         return RTMovie(movieid)
-    #     except requests.exceptions.HTTPError as x:
-    #         if x.response.status_code not in [403, 404, 500, 504]:
-    #             raise
-    #     except requests.exceptions.TooManyRedirects as x:
-    #         pass
-
-    #     if not make_guess:
-    #         logger.info("Problem getting Rotten Tomatoes data for [[%s]] with id %s", title, movieid)
-    #         raise NeedsUserInputError
-
-    #     logger.info("Problem getting Rotten Tomatoes data for [[%s]] with id %s. Trying Wikidata property P1258", title, movieid)
-    #     if p := _p1258(title):
-    #         logger.info("Found Wikidata property P1258 for [[%s]]: %s", title, p)
-    #         if p == movieid: # in case it's the same and we already know it fails
-    #             raise NeedsUserInputError
-    #         try:
-    #             return RTMovie(p)
-    #         except requests.exceptions.HTTPError as x:
-    #             if x.response.status_code not in [403, 404, 500, 504]:
-    #                 raise
-    #         except requests.exceptions.TooManyRedirects as x:
-    #             pass
-    #         logger.info(f'Problem getting Rotten Tomatoes data for [[{title}]] with P1258 value {p}')
-    #     else:
-    #         logger.info(f"Wikidata property P1258 does not exist for [[{title}]]")
-
-    #     logger.info("Problem getting Rotten Tomatoes data for [[%s]] with id %s", title, movieid)
-    #     raise NeedsUserInputError
 
 # ===========================================================================================
 def _find_span_and_prose(match):
@@ -482,7 +360,7 @@ def _p1258(title):
 def suggested_id(title):
     GOOGLESEARCH_LOCK.acquire()
     print_logger.info(f"GETTING SUGGESTED ID for {title}.")
-    time.sleep(2)       # help avoid getting blocked, better safe than sorry
+    time.sleep(1)       # help avoid getting blocked, better safe than sorry
     url = lucky(title + ' movie site:rottentomatoes.com/m/',
         user_agent=scraper.USER_AGENT)
     GOOGLESEARCH_LOCK.release()
@@ -490,8 +368,8 @@ def suggested_id(title):
     #     GOOGLESEARCH_LOCK.release()
     #     print_logger.exception(f"Error while getting suggested id for {title}")
     #     raise
-    suggested_id = url.split('rottentomatoes.com/m/')[1]
-    return 'm/' + suggested_id.split('/')[0]
+    suggested_id = url.split('rottentomatoes.com/m/', maxsplit=1)[1]
+    return 'm/' + suggested_id.split('/', maxsplit=1)[0]
 
 
 if __name__ == "__main__":

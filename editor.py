@@ -1,4 +1,4 @@
-# This module takes Candidates and computes the new text to be used.
+# This module takes Candidates and computes replacement text.
 ################################################################################
 import re
 import sys

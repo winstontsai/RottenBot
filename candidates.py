@@ -3,9 +3,6 @@
 # finds the corresponding Rotten Tomatoes data if possible,
 # and also finds (or at least tries to) the start of the sentence in which
 # the rating info is contained.
-# In particular, a candidate should always have a Tomatometer score available.
-#
-# Multiple matches IF more than one match with distinct initial rt_ids
 ################################################################################
 import re
 import sys

@@ -1,4 +1,4 @@
-# This module scrapes rottentomatoes.com for the desired data.
+# This module is for scraping rottentomatoes.com.
 ################################################################################
 import requests
 import sys

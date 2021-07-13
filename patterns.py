@@ -51,9 +51,9 @@ def construct_template(name, d):
     return '{{' + name + positional + named + '}}'
 
 rt_re = r"[rR]otten [tT]omatoes"
-score_re = r"(?P<score>[0-9]|[1-9][0-9]|100)(?:%| percent)"
-count_re = r"(?P<count>[5-9]|[1-9][0-9]|[1-9][0-9][0-9]) (?P<count_term>(critic(al)? )?reviews|(surveyed )?critics)"
-average_re = r"(?P<average>(?:[0-9]|10)(?:\.\d{1,2})?(?:/| out of )(?:10|ten))"
+score_re = r"\b(?P<score>[0-9]|[1-9][0-9]|100)(?:%| percent)"
+count_re = r"\b(?P<count>[5-9]|[1-9][0-9]|[1-9][0-9][0-9]) (?P<count_term>(critic(al)? )?reviews|(surveyed )?critics)"
+average_re = r"\b(?P<average>(?:[0-9]|10)(?:\.\d{1,2})?(?:/| out of )(?:10|ten))"
 
 url_re = r"rottentomatoes.com/(?P<rt_id>m/[-a-z0-9_]+)"
 url_re2 = r"rottentomatoes.com/(?P<rt_id2>m/[-a-z0-9_]+)"
@@ -100,8 +100,8 @@ t_alternates = alternates([t_other,t_citert,t_rt])
 t_alternates2 = alternates([t_other2,t_citert2,t_rt2])
 
 # Uses negative lookahead. Don't want glue, i.e. .*?, to contain the substring "<ref"
-citation_re = fr'(?P<citation><ref( +name *= *"?(?P<refname>[^>]+?)"?)? *>((?!<ref).)*{t_alternates}((?!<ref).)*</ref *>)'
-citation_re2 = fr'(?P<citation2><ref( +name *= *"?(?P<refname2>[^>]+?)"?)? *>((?!<ref).)*{t_alternates2}((?!<ref).)*</ref *>)'
+citation_re = fr'(?P<citation><ref( +name *= *"?(?P<refname>[^>]+?)"?)? *>((?!<ref).)*?{t_alternates}((?!<ref).)*</ref *>)'
+citation_re2 = fr'(?P<citation2><ref( +name *= *"?(?P<refname2>[^>]+?)"?)? *>((?!<ref).)*?{t_alternates2}((?!<ref).)*</ref *>)'
 
 # for list-defined references. 
 ldref_re = fr'(?P<ldref><ref +name *= *"?(?P<ldrefname>[^>]+?)"? */>)'

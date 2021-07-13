@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 print_logger = logging.getLogger('print_logger')
 
 from datetime import date
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from threading import Lock
 
 from bs4 import BeautifulSoup
@@ -58,26 +58,26 @@ def find_substring(s, indicator, terminator):
 @dataclass
 class RTMovie:
     short_url: str
-    url: str = ''
-    title: str = ''
-    year: str = ''
-    rtid: str = ''
-    access_date: str = ''
-    synopsis: str = ''
-    rating: str = ''
-    genre: str = ''
-    original_language: str = ''
-    director: list[str] = ''
-    producer: list[str] = ''
-    writer: list[str] = ''
-    release_date_theaters: str = ''
-    release_date_streaming: str = ''
-    box_office_gross_usa: str = ''
-    runtime: str = ''
-    production_co: list[str] = ''
-    sound_mix: list[str] = ''
-    aspect_ratio: list[str] = ''
-    view_the_collection: str = ''
+    url: str = None
+    access_date: str = None
+    rtid: str = None
+    title: str = None
+    year: str = None
+    synopsis: str = None
+    rating: str = None
+    genre: str = None
+    original_language: str = None
+    director: list[str] = field(default_factory=list)
+    producer: list[str] = field(default_factory=list)
+    writer: list[str] = field(default_factory=list)
+    release_date_theaters: str = None
+    release_date_streaming: str = None
+    box_office_gross_usa: str = None
+    runtime: str = None
+    production_co: list[str] = field(default_factory=list)
+    sound_mix: list[str] = field(default_factory=list)
+    aspect_ratio: list[str] = None
+    view_the_collection: str = None
 
     tomatometer_score: tuple[str, str, str] = None
     consensus: str = None
@@ -122,29 +122,29 @@ class RTMovie:
         self.synopsis = str(soup.find('div', id="movieSynopsis").string.strip())
 
         for x in soup.find_all('li', attrs={'data-qa': "movie-info-item"}):
-            item = x.div.string
-            attr = item.lower().translate(str.maketrans(' ', '_', ':()'))
-            if item in ['Genre:', 'Production Co:', 'Sound Mix:', 'Aspect Ratio:']:
+            item = x.div.string.rstrip(':')
+            attr = item.lower().translate(str.maketrans(' ', '_', '()'))
+            if item in ['Genre', 'Production Co', 'Sound Mix', 'Aspect Ratio']:
                 setattr(self, attr, [str(s.strip()) for s in x('div')[1].string.split(',')])
-            elif item in ['Director:', 'Producer:', 'Writer:']:
+            elif item in ['Director', 'Producer', 'Writer']:
                 setattr(self, attr, [str(a.string) for a in x('a')])
-            elif item == 'Release Date (Theaters):':
-                setattr(self, attr, f"{x.find('time').string} {x.find('span').string.strip().capitalize()}")
+            elif item == 'Release Date (Theaters)':
+                setattr(self, attr,
+                    f"{x.find('time').string} {x.find('span').string.strip().capitalize()}")
             else:
                 setattr(self, attr, str(x('div')[1].get_text(strip=True)))
 
-        consensus = str(soup.find('span', attrs={'data-qa': "critics-consensus"}))
-        consensus = consensus[consensus.find('>')+1 : consensus.rfind('<')]
-        consensus = consensus.replace('<em>',"''").replace('</em>',"''").replace("'''", r"''{{'}}")
-        self.consensus = consensus
+        if (consensus := soup.find('span', attrs={'data-qa': "critics-consensus"}))!=None:
+            consensus = str(consensus)
+            consensus = consensus[consensus.find('>')+1 : consensus.rfind('<')]
+            consensus = consensus.replace('<em>',"''").replace('</em>',"''").replace("'''", r"''{{'}}")
+            self.consensus = consensus
 
         sd = str(soup.find('script', id='score-details-json'))
         self.score_data = json.loads(sd[sd.find('>')+1 : sd.rfind('<')])["modal"]
         if self.score_data["hasTomatometerScoreAll"]:
             if sd := self.score_data["tomatometerScoreAll"]:
-                average = sd["averageRating"]
-                count = str(sd["ratingCount"])
-                score = sd["score"]
+                score, count, average = sd["score"], str(sd["ratingCount"]), sd["averageRating"]
                 self.tomatometer_score = (score, count, average)
 
 
@@ -153,7 +153,7 @@ if __name__ == "__main__":
     # soup = BeautifulSoup(r.text, "html.parser")
     # d = json.loads(str(soup.find('script', id='score-details-json')).split('>')[1].split('<')[0])
     # print(json.dumps(d, indent=4))
-    print(RTMovie('m/the_tomorrow_war'))
+    print(RTMovie('m/conrack'))
 
 
 

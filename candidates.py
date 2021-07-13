@@ -11,18 +11,18 @@ import re
 import sys
 import webbrowser
 import time
+import urllib.error # for google search maybe
 import logging
 logger = logging.getLogger(__name__)
 print_logger = logging.getLogger('print_logger')
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from threading import Lock
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from itertools import chain
-from collections import defaultdict
+from collections import defaultdict, namedtuple
 
 import requests
-import urllib.error # for google search maybe
 import pywikibot as pwb
 
 from pywikibot.xmlreader import XmlDump
@@ -38,28 +38,29 @@ GOOGLESEARCH_LOCK = Lock()
 class OverlappingMatchError(Exception):
     pass
 
+Entry = namedtuple('Entry',['title'])
+
 @dataclass
 class Reference:
-    refname: str = None
-    reftext: str = None
-    ld: bool = False
+    text: str
+    name: str = None
+    list_defined: bool = False
 
 @dataclass
-class Candidate:
-    title: str                   # article title
-    pagetext: str                # wikitext
-    span: tuple[int, int, int] 
-    prose: str
+class RTMatch:
+    """
+    For use in Candidate class. Represents location in an article
+    with Rotten tomatoes prose that may need editing.
+    """
+    span: tuple[int, int, int]
     ref: Reference
     rt_data: RTMovie = None
-    multiple_matches: bool = False
-    multiple_movies: bool = False
 
-    def _load_rt_data(self, movieid, make_guess = False):
+    def _load_rt_data(self, movieid, cand, make_guess = False):
         if scraper.BLOCKED_LOCK.locked():
             sys.exit()
 
-        title = self.title
+        title = cand.title
 
         try:
             self.rt_data = RTMovie(movieid)
@@ -95,10 +96,10 @@ class Candidate:
         except Exception:
             pass
         else:
-            text = self.pagetext
+            text = cand.text
             lead = text[:text.find('==')]
-            words_to_check_for = set([f"'''''{movie.title}'''''", ' '+movie.year])
-            names = chain(*(name.split() for name in movie.director+movie.writer))
+            words_to_check_for = set([f"'''''{movie.title}'''''", movie.year])
+            names = chain(*(name.split() for name in movie.director))
             words_to_check_for.update(x for x in names if x[-1] != '.')
             if all(x in lead for x in words_to_check_for):
                 self.rt_data = movie
@@ -106,6 +107,18 @@ class Candidate:
 
         logger.info(f"Google search for [[{title}]] failed.")
         return False
+
+@dataclass
+class Candidate:
+    """
+    An instance of this class should contain all the information necessary
+    to make the right edits to Rotten Tomatoes prose (while being as
+    concise as possible).
+    """
+    title: str                    # article title
+    text: str                     # wikitext
+    multiple_movies: bool = False # some articles have RT stuff for more than one movie, e.g. sequels
+    matches: list[RTMatch] = field(default_factory=list)
 
 
 class Recruiter:
@@ -119,6 +132,8 @@ class Recruiter:
 
         print_logger.info(f"Processing [[{title}]].")
 
+        cand = Candidate(title, text)
+
         # Get allowed refnames. Dictionary maps refname to match object of the citation definition
         refnames = dict()
         for m in re.finditer(fr'(?P<citation><ref +name *= *"?(?P<refname>[^>]+?)"? *>((?!<ref).)*{t_alternates}((?!<ref).)*</ref *>)', text, re.DOTALL):
@@ -130,53 +145,42 @@ class Recruiter:
         ldref_re = fr'(?P<ldref><ref +name *= *"?(?P<ldrefname>{allowed_refname})"? */>)'
         rtref_re = alternates([citation_re,ldref_re]) if refnames else citation_re
 
-        cand_re1 = fr'{rt_re}(?!((?!<!--)[^\n])*-->)((?!</?ref)[^\n])*?{score_re}((?!</?ref)[^\n])*?{anyrefs_re}{rtref_re}{anyrefs_re}[.]?'
-        cand_re2 = fr'{score_re}(?!((?!<!--)[^\n])*-->)((?!</?ref)[^\n])*?{rt_re}((?!</?ref)[^\n])*?{anyrefs_re}{rtref_re}{anyrefs_re}[.]?'
-        cand_re3 = fr'{t_rtprose}((?!</?ref).)*?{rtref_re}'
-        pats = list(map(re.compile, [cand_re1, cand_re1, cand_re3], [re.DOTALL]*3))
+        cand_re1 = fr'{rt_re}(?!((?!<!--)[^\n])*-->)((?!</?ref|{rt_re})[^\n])*?{score_re}((?!</?ref|{rt_re})[^\n])*?(?P<refs>{anyrefs_re}{rtref_re}{anyrefs_re})[.]?'
+        cand_re2 = fr'{score_re}(?!((?!<!--)[^\n])*-->)((?!</?ref|{rt_re})[^\n])*?{rt_re}((?!</?ref|{rt_re})[^\n])*?(?P<refs>{anyrefs_re}{rtref_re}{anyrefs_re})[.]?'
+        cand_re3 = fr'{t_rtprose}((?!</?ref).)*?(?P<refs>{rtref_re})'
+        pats = map(re.compile, [cand_re1, cand_re2, cand_re3], [re.DOTALL]*3)
 
-        all_matches = chain(*(p.finditer(text) for p in pats))
+        all_matches = list(chain(*(p.finditer(text) for p in pats)))
         
-        cand_list = []
+        rtmatch_list = []
         span_set = set()      # different matches may be for the same prose
         id_set = set()
         for m in all_matches:
-            span, prose = _find_span_and_prose(m)
+            span = _find_span(m)
             if span in span_set:
                 continue
             else:
-                for x in span_set: # not seen before, but could happen
+                for x in span_set: # could happen?
                     if (x[0]<=span[0] and x[2]>span[0]) or (span[0]<=x[0] and span[2]>x[0]):
-                        logger.error(f"Overlapping matches found in {title}",exc_info=True)
-                        raise OverlappingMatchError
+                        raise OverlappingMatchError(f"Overlapping matches found in {title}:\n{text[x[0]:x[2]]}\n\n{text[span[0]:span[2]]}")
             span_set.add(span)
 
             ref, initial_rt_id = _find_citation_and_id(title, m, refnames)
             id_set.add(initial_rt_id)
+            rtmatch_list.append((RTMatch(span, ref), initial_rt_id))
 
-            cand = Candidate(
-                    title = title,
-                    pagetext = text,
-                    span = span,
-                    prose = prose,
-                    ref = ref,)
-            cand_list.append((cand, initial_rt_id))
+        # if all_matches:
+        #     return Entry('asdf')
 
-        if len(span_set)>1:
-            for cand, rtid in cand_list:
-                cand.multiple_matches = True
-        if len(id_set)>1:
-            for cand, rtid in cand_list:
-                cand.multiple_movies = True
+        cand.multiple_movies = len(id_set) > 1
 
-        to_return = []
-        for cand, initial_rt_id in cand_list:
-            if cand._load_rt_data(initial_rt_id, make_guess=not cand.multiple_movies):
-                if cand.rt_data.tomatometer_score:
-                    to_return.append(cand)
-            else:
-                self.needs_input_list.append(cand)
-        return to_return
+        for rtmatch, initial_rt_id in rtmatch_list:
+            cand.matches.append(rtmatch)
+            if not rtmatch._load_rt_data(initial_rt_id, cand,
+                make_guess=not cand.multiple_movies):
+                self._needs_input_list.append( (cand, rtmatch) )
+
+        return cand if cand.matches else None
 
 
 
@@ -191,68 +195,57 @@ class Recruiter:
         xml_entries = XmlDump(self.filename).parse()
 
         # Save pages which need user input for the end
-        self.needs_input_list = []
+        self._needs_input_list = []
 
-        return_dict = defaultdict(list)
+        return_list = list()
         # 15 threads is fine, but don't rerun on the same pages immediately
         # after a run, or the caching may result in sending too many
         # requests too fast, and we'll get blocked.
-        with ThreadPoolExecutor(max_workers=15) as x:
+        with ThreadPoolExecutor(max_workers = 20) as x:
             futures = (x.submit(self.candidate_from_entry, entry.title, entry.text)
                 for entry in xml_entries)
             for future in as_completed(futures, timeout=None):
                 total += 1
                 try:
-                    cands = future.result()
+                    cand = future.result()
                 except SystemExit:
                     x.shutdown(wait=True, cancel_futures=True)
                     logger.error("Exiting program.")
                     sys.exit()
-                if cands:
-                    count += len(cands)
-                    return_dict[cands[0].title] = cands
-                # for x in cands:
-                #     count += 1
-                #     yield x
+                if cand:
+                    return_list.append(cand)
 
         if get_user_input:
-            for cand in self._process_needs_input_list():
-                count += 1
-                return_dict[cands.title].append(cand)
+            self._process_needs_input_list()
 
-
-        logger.info(f"Found {count} candidates out of {total} pages")
-        print_logger.info(f"Found {count} candidates out of {total} pages")
-        return return_dict
+        logger.info(f"Found {len(return_list)} candidates out of {total} pages")
+        print_logger.info(f"Found {len(return_list)} candidates out of {total} pages")
+        return return_list
 
     def _process_needs_input_list(self):
-        for cand in self.needs_input_list:
-            logger.info(f"Processing [[{cand.title}]] in needs_input_list")
+        to_return = []
+        for cand, rtmatch in self._needs_input_list:
             while True:
-                movieid = self._ask_for_id(cand)
-                if movieid is None:
+                newid = self._ask_for_id(cand, rtmatch)
+                if not newid or rtmatch._load_rt_data(newid, cand):
                     break
-                if cand._load_rt_data(movieid):
-                    if cand.rt_data.tomatometer_score:
-                        yield cand
-                        break
                 else:
                     print(f"Problem getting Rotten Tomatoes data with id {newid}\n")
                     continue
 
-    def _ask_for_id(self, cand):
+    def _ask_for_id(self, cand, rtmatch):
         """
         Asks for a user decision regarding the Rotten Tomatoes id for a film.
         """
         logger.debug(f"Asking for id for [[{cand.title}]]")
-        title, pagetext = cand.title, cand.pagetext
-        i, j = cand.span[0], cand.span[2]
+        title, text = cand.title, cand.text
+        i, j = rtmatch.span[0], rtmatch.span[2]
         warning = ''
         if cand.multiple_movies:
             warning = 'WARNING: More than one movie url detected in this article.\n'
-        prompt = f"""\033[96mNo working id found for a match in [[{cand.title}]].\033[0m
+        prompt = f"""\033[96mNo working id found for a match in [[{title}]].\033[0m
 \033[93m{warning}Context------------------------------------------------------------------------\033[0m
-{cand.pagetext[i-60: i]}\033[1m{cand.pagetext[i: j]}\033[0m{cand.pagetext[j: j+50]}
+{text[i-60: i]}\033[1m{text[i: j]}\033[0m{text[j: j+50]}
 \033[93m-------------------------------------------------------------------------------\033[0m
 Please select an option:
     1) enter id manually
@@ -270,7 +263,7 @@ Please select an option:
         if user_input == '1':
             while not (newid := input("Enter id here: ")).startswith('m/'):
                 print('A valid id must begin with "m/".')
-            logger.info(f"Entered id '{newid}' for [[{cand.title}]]")
+            logger.info(f"Entered id '{newid}' for [[{title}]]")
             return newid
         elif user_input == '3':
             logger.info(f"Skipping article [[{title}]]")
@@ -280,7 +273,7 @@ Please select an option:
             sys.exit()                
 
 # ===========================================================================================
-def _find_span_and_prose(match):
+def _find_span(match):
     """
     This function tries find the beginning of
     the sentence containing the Rotten Tomatoes rating info.
@@ -296,42 +289,53 @@ def _find_span_and_prose(match):
     """
     text = match.string
     text = text.replace('“', '"').replace('”', '"')
-    italics = False
-    i = match.start() - 1
+    i = match.start() - 1 
+    last = match.start()
     while i >= 0:
-        c = text[i]
-        # skip over comments. As a result, comments may be removed
-        if text[i-2: i+1] == '-->':
-            i = text.rfind('<!--', 0, i) - 1
+        truncated = text[:i+1]
+        # jump over bold/italicized text
+        if truncated.endswith("'''''"):
+            i = text.rfind("'''''", 0, i-4)
             continue
-        if c in '\n>' or (c == '.' and not italics and text[i+1] in ' "'):
-            i += 1
-            if text[i] == '"':
-                i += 1
-            break
-        elif c == "'" == text[i + 1]:
-            italics = not italics
-        i -= 1
+        elif truncated.endswith("'''"):
+            i = text.rfind("'''", 0, i-2)
+            continue
+        elif truncated.endswith("''"):
+            i = text.rfind("''", 0, i-1)
+            continue
 
-    while text[i] == ' ':
+        # skip comments
+        if truncated.endswith('-->'):
+            i = text.rfind('<!--', 0, i-2) - 1
+            continue
+
+        # skip references
+        if truncated.endswith("</ref>") or truncated.endswith("/>"):
+            i = text.rfind("<ref", 0, i) - 1
+            continue
+
+        if text[i] == '\n' or text[i:i+2] in ('. ', '.<', '"<', '."'):
+            break
+
+        last, i = i, i-1
+
+    i = last
+    while text[i] in ' "':
         i += 1
 
-    mid = text.find('<ref', i)
+    mid = match.start('refs')
     end = match.end()
-    return (i, mid, end), text[i : end]
+    return (i, mid, end)
 
 
 def _find_citation_and_id(title, m, refnames):
     groupdict = m.groupdict()
-    ref = Reference()
     if ldrefname := groupdict.get('ldrefname'):
-        ref.reftext = refnames[ldrefname].group()
-        ref.refname = ldrefname
-        ref.ld = True
+        ref = Reference(text=refnames[ldrefname].group(),
+            name=ldrefname, list_defined=True)
         groupdict = refnames[ldrefname].groupdict()
     else:
-        ref.reftext = groupdict['citation']
-        ref.refname = groupdict.get('refname')
+        ref = Reference(groupdict['citation'], groupdict.get('refname'))
 
     if rt_id := groupdict.get('rt_id'):
         return ref, rt_id

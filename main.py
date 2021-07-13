@@ -23,19 +23,14 @@ def store_candidates(args):
 
 def store_edits(args):
     if args.file1.endswith('.cands'):
-        cand_list = []
         with open(args.file1, 'rb') as f:
-            while True:
-                try:
-                    cand_list.append(pickle.load(f))
-                except EOFError:
-                    break            
+            cands = pickle.load(f)         
     else:
-        cand_list = list(candidates.Recruiter(args.file1).find_candidates())
+        cands = candidates.Recruiter(args.file1).find_candidates()
 
+    edits = editor.compute_edits(cands)
     with open(args.file2, 'wb') as f:
-        for edit in editor.compute_edits(cand_list):
-            pickle.dump(edit, f)
+        pickle.dump(edits, f)
 
 
 # function for upload command
@@ -54,7 +49,6 @@ def listpages(args):
         cat = pwb.Category(pwb.Page(site, catname, ns=14))
         for x in cat.articles(recurse=True, namespaces=0):
             print(x.title())
-
 
 
 def get_args():
@@ -97,7 +91,7 @@ See 'https://github.com/winstontsai/RottenBot' for source code and more info."""
     parser_print.add_argument('file', help = 'file in which the data is stored')
 
     # parser for listing articles in a category
-    parser_list = subparsers.add_parser('listpages',
+    parser_list = subparsers.add_parser('listpages', aliases=['list'],
         help='list (recursively) all articles in one or more categories')
     parser_list.set_defaults(func=listpages)
     parser_list.add_argument('catname', help='category name', nargs='+')
@@ -115,7 +109,7 @@ def main():
     should_roll = os.path.isfile("logs/rottenbot.log")
     file_handler = logging.handlers.RotatingFileHandler(
         filename = "logs/rottenbot.log",
-        backupCount = 20)
+        backupCount = 9)
     formatter = logging.Formatter('%(asctime)s %(name)s %(funcName)s [%(levelname)s]: %(message)s')
     file_handler.setFormatter(formatter)
     file_handler.setLevel(logging.DEBUG)
@@ -137,15 +131,15 @@ def main():
 
     # START PROGRAM
     logger.info("COMMAND '{}'".format(' '.join(sys.argv)))
-
     t0 = time.perf_counter()
+
     args = get_args()
     try:
         args.func(args)
     except SystemExit:
         pass
-    t1 = time.perf_counter()
 
+    t1 = time.perf_counter()
     logger.info("TIME ELAPSED = {}".format(t1 - t0))
     print_logger.info("TIME ELAPSED = {}".format(t1 - t0))
 

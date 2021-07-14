@@ -88,17 +88,29 @@ class RTMatch:
 
         logger.info(f"Performing lucky Google search for [[{title}]]")
         guessid = suggested_id(title)
+
         try:
             movie = RTMovie(guessid)
         except Exception:
             pass
         else:
-            text = cand.text
-            lead = text[:text.find('==')]
-            words_to_check_for = set([f"'''''{movie.title}'''''", movie.year])
-            names = chain(*(name.split() for name in movie.director))
-            words_to_check_for.update(x for x in names if x[-1] != '.')
-            if all(x in lead for x in words_to_check_for):
+            def probably_correct():
+                text = cand.text
+                lead = text[:text.find('==')]
+                words_to_check_for = set([' ' + movie.year])
+                names = chain(*(name.split() for name in movie.director+movie.writer))
+                words_to_check_for.update(x for x in names if x[-1] != '.')
+                if not all(x in lead for x in words_to_check_for):
+                    return False
+                if f"'''''{movie.title}'''''" in lead:
+                    return True
+                hrs, mins = movie.runtime[:-1].split('h ')
+                runtime = 60 * int(hrs) + int(mins)
+                if f"''{movie.title}''" in lead and f"{runtime} minutes" in lead:
+                    return True
+                return False
+
+            if probably_correct():
                 self.rt_data = movie
                 return True
 
@@ -153,7 +165,7 @@ class Recruiter:
         span_set = set()      # different matches may be for the same prose
         id_set = set()
         for m in all_matches:
-            span = _find_span(m)
+            span = _find_span(m, title)
             if span in span_set:
                 continue
             else:
@@ -245,7 +257,7 @@ class Recruiter:
 {text[i-60: i]}\033[1m{text[i: j]}\033[0m{text[j: j+50]}
 \033[93m-------------------------------------------------------------------------------\033[0m
 Please select an option:
-    1) enter id manually
+    1) enter id manually (perhaps {suggested_id(title)})
     2) open [[{title}]] in the browser
     3) skip this candidate
     4) quit the program"""
@@ -270,7 +282,7 @@ Please select an option:
             sys.exit()                
 
 # ===========================================================================================
-def _find_span(match):
+def _find_span(match, title):
     """
     This function tries find the beginning of
     the sentence containing the Rotten Tomatoes rating info.
@@ -284,21 +296,23 @@ def _find_span(match):
     Args:
         match: match object which identified this potential candidate
     """
-    text = match.string
+    text, matchstart = match.string, match.start()
     text = text.replace('“', '"').replace('”', '"')
-    i = match.start() - 1 
-    last = match.start()
-    while i >= 0:
+    i, last = matchstart - 1, matchstart
+
+    brackets_re = r'\s+\([^()]+?\)$'
+    title = re.sub(brackets_re, '', title)
+    
+    while i >= text.rfind('\n', 0, matchstart):
+        #print(text[i:i+7])
         truncated = text[:i+1]
-        # jump over bold/italicized text
-        if truncated.endswith("'''''"):
-            i = text.rfind("'''''", 0, i-4)
+        if truncated.endswith(title):
+            i -= len(title) - 1
             continue
-        elif truncated.endswith("'''"):
-            i = text.rfind("'''", 0, i-2)
-            continue
-        elif truncated.endswith("''"):
-            i = text.rfind("''", 0, i-1)
+
+        # skip links
+        if truncated.endswith(']]'):
+            i = text.rfind('[[', 0, i-1) - 1
             continue
 
         # skip comments
@@ -319,10 +333,7 @@ def _find_span(match):
     i = last
     while text[i] in ' "':
         i += 1
-
-    mid = match.start('refs')
-    end = match.end()
-    return (i, mid, end)
+    return (i, match.start('refs'), match.end())
 
 
 def _find_citation_and_id(title, m, refnames):
@@ -360,17 +371,13 @@ def _p1258(title):
 
 def suggested_id(title):
     GOOGLESEARCH_LOCK.acquire()
+    #time.sleep(1)       # help avoid getting blocked, better safe than sorry
     print_logger.info(f"GETTING SUGGESTED ID for {title}.")
-    time.sleep(1)       # help avoid getting blocked, better safe than sorry
     url = lucky(title + ' movie site:rottentomatoes.com/m/',
         user_agent=scraper.USER_AGENT)
     GOOGLESEARCH_LOCK.release()
-    # except StopIteration:
-    #     GOOGLESEARCH_LOCK.release()
-    #     print_logger.exception(f"Error while getting suggested id for {title}")
-    #     raise
-    suggested_id = url.split('rottentomatoes.com/m/', maxsplit=1)[1]
-    return 'm/' + suggested_id.split('/', maxsplit=1)[0]
+    suggested_id = url.split('rottentomatoes.com/m/')[1]
+    return 'm/' + suggested_id.split('/')[0]
 
 
 if __name__ == "__main__":

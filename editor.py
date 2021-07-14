@@ -84,8 +84,17 @@ def compute_edit_list(cand):
             flags.append("suspicious end")
 
         # audience score?
-        if 'audience' in old_prose:
+        y = 0
+        if rt_data.consensus and 'consensus' in old_prose:
+            y = rt_data.consensus.count('audience')
+        if old_prose.count('audience') - y > 0:
             flags.append("audience")
+
+        if re.search(r'\busers?\b', old_prose):
+            flags.append("user")
+
+        if 'Metacritic' in old_prose:
+            flags.append("Metacritic")
 
         # we will update/build up new_prose step by step
         new_prose = old_prose
@@ -97,7 +106,7 @@ def compute_edit_list(cand):
                 '2': average,
                 '3': count,
             }
-            new_prose = construct_template('Rotten Tomatoes prose', temp_dict)
+            new_prose = new_prose.replace(m.group(), construct_template('Rotten Tomatoes prose', temp_dict)) 
         else:
             # NOWHERE DOES IT SAY IT'S A WEIGHTED AVERAGE
             new_prose = re.sub(r'\[\[[wW]eighted.*?\]\]', 'average rating', new_prose)

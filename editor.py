@@ -72,14 +72,11 @@ def compute_edit_list(cand):
 
         if refs.count('<ref') > 1:
             flags.append("multiple references")
-
         if refs[-1] == '.':
             flags.append('period after reference')
-
         # check for some suspicious characters
         if old_prose[0] not in "[{'ABCGIORTW1234567890":
             flags.append("suspicious start")
-
         if old_prose[-1] not in '."}' and refs[-1]!='.' and text[span[2]]!='\n':
             flags.append("suspicious end")
 
@@ -90,14 +87,18 @@ def compute_edit_list(cand):
         if old_prose.count('audience') - y > 0:
             flags.append('audience')
 
-        if re.search(r'\busers?\b', old_prose):
-            flags.append('user')
-
+        # ...or user score?
         y = 0
         if rt_data.consensus and 'consensus' in old_prose:
-            y = rt_data.consensus.count('viewer')
-        if old_prose.count('viewer') - y > 0:
-            print("asdf")
+            y = pattern_count(r'\busers?\b', rt_data.consensus)
+        if pattern_count(r'\busers?\b', old_prose) - y > 0:
+            flags.append('user')
+
+        # ...or viewer score?
+        y = 0
+        if rt_data.consensus and 'consensus' in old_prose:
+            y = pattern_count(r'\bviewers?\b', rt_data.consensus)
+        if pattern_count(r'\bviewers?\b', old_prose) - y > 0:
             flags.append('viewer')
 
         if 'Metacritic' in old_prose:
@@ -209,13 +210,8 @@ def make_replacements(edit_list):
 
 
 
-
-
-
 if __name__ == "__main__":
     pass
-
-
 
 
 

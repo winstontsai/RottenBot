@@ -168,17 +168,16 @@ class Recruiter:
         span_set = set()      # different matches may be for the same prose
         id_set = set()
         def is_subspan(x, y):
-            if y[0]<=x[0] and x[2]<=y[2]:
-                return True
-            return False
+            return y[0]<=x[0] and x[2]<=y[2]
         for m in all_matches:
             span = _find_span(m, title)
 
             # naively check if match is inside a template or table
             x1, x2 = span[0], text.find('\n\n', span[0])
-            if text[x1:x2].count('{{') != text[x1:x2].count('}}'):
+            y = text[x1:x2]
+            if y.count('{{') != y.count('}}'):
                 continue
-            if text[x1:x2].count('{|') != pattern_count(r'\|}(?!})', text[x1:x2]):
+            if y.count('{|') != pattern_count(r'\|}(?!})', y):
                 continue
 
             # check if is subspan of something already, or is strict superspan or something already
@@ -211,7 +210,7 @@ class Recruiter:
             cand.matches.append(rtmatch)
             if not rtmatch._load_rt_data(initial_rt_id, cand,
                 make_guess=not cand.multiple_movies):
-                self._needs_input_list.append( (cand, rtmatch) )
+                self._needs_input_list.append( (cand, rtmatch, suggested_id(title)) )
 
         return cand if cand.matches else None
 
@@ -257,16 +256,16 @@ class Recruiter:
 
     def _process_needs_input_list(self):
         to_return = []
-        for cand, rtmatch in self._needs_input_list:
+        for cand, rtmatch, suggest_id in self._needs_input_list:
             while True:
-                newid = self._ask_for_id(cand, rtmatch)
+                newid = self._ask_for_id(cand, rtmatch, suggest_id)
                 if not newid or rtmatch._load_rt_data(newid, cand):
                     break
                 else:
                     print(f"Problem getting Rotten Tomatoes data with id {newid}\n")
                     continue
 
-    def _ask_for_id(self, cand, rtmatch):
+    def _ask_for_id(self, cand, rtmatch, suggested_id):
         """
         Asks for a user decision regarding the Rotten Tomatoes id for a film.
         """
@@ -281,7 +280,7 @@ class Recruiter:
 {text[i-60: i]}\033[1m{text[i: j]}\033[0m{text[j: j+50]}
 \033[93m-------------------------------------------------------------------------------\033[0m
 Please select an option:
-    1) enter id manually (perhaps {suggested_id(title)})
+    1) enter id manually (suggested: {suggested_id})
     2) open [[{title}]] in the browser
     3) skip this candidate
     4) quit the program"""
@@ -376,9 +375,10 @@ def _find_citation_and_id(title, m, refnames):
         return ref, "m/" + d['id']
     elif rt := groupdict.get('rt'):
         d = parse_template(rt)[1]
-        if '1' in d.keys() or 'id' in d.keys():
-            key = '1' if '1' in d.keys() else 'id'
-            return ref, ["m/",""][d[key].startswith("m/")] + d[key]
+        if '1' in d:
+            return ref, ["m/",""][d['1'].startswith("m/")] + d['1']
+        elif 'id' in d:
+            return ref, ["m/",""][d['id'].startswith("m/")] + d['id']
         elif p := _p1258(title):
             return ref, p
     raise ValueError(f'Problem getting citation and id for a match in [[{title}]]')
@@ -405,7 +405,9 @@ def suggested_id(title):
 
 
 if __name__ == "__main__":
-    print(suggested_id('endgame avengers'))
+    pass
+
+
 
 
 

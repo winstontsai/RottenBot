@@ -16,7 +16,6 @@ env/
 core/
 example_movies/
 outputs/
-logs/
 notes.txt
 play.py
 

@@ -134,7 +134,6 @@ class Recruiter:
     def __init__(self, xmlfile):
         self.filename = xmlfile                       
 
-    # entry just needs .title and .text attributes for the page we are interested in
     def candidate_from_entry(self, title, text):
         if scraper.BLOCKED_LOCK.locked():
             sys.exit()
@@ -154,32 +153,57 @@ class Recruiter:
         ldref_re = fr'(?P<ldref><ref +name *= *"?(?P<ldrefname>{allowed_refname})"? */>)'
         rtref_re = alternates([citation_re,ldref_re]) if refnames else citation_re
 
-        cand_re1 = fr'{rt_re}(?!((?!<!--)[^\n])*-->)((?!</?ref|{rt_re})[^\n])*?{score_re}((?!</?ref|{rt_re})[^\n])*?(?P<refs>{anyrefs_re}{rtref_re}{anyrefs_re})[.]?'
-        cand_re2 = fr'{score_re}(?!((?!<!--)[^\n])*-->)((?!</?ref|{rt_re})[^\n])*?{rt_re}((?!</?ref|{rt_re})[^\n])*?(?P<refs>{anyrefs_re}{rtref_re}{anyrefs_re})[.]?'
-        cand_re3 = fr'{t_rtprose}((?!</?ref).)*?(?P<refs>{rtref_re})'
+        # (?!((?!<!--).)*-->) is for not inside comment
+        # ((?!</?ref|\n\n).)*? is filler without ref tags or line breaks
+        cand_re1 = fr'{rt_re}(?!((?!<!--).)*-->)((?!</?ref|\n\n).)*?{score_re}((?!\n\n).)*?(?P<refs>{anyrefs_re}{rtref_re}{anyrefs_re})[.]?'
+        cand_re2 = fr'{score_re}(?!((?!<!--).)*-->)((?!</?ref|\n\n).)*?{rt_re}((?!\n\n).)*?(?P<refs>{anyrefs_re}{rtref_re}{anyrefs_re})[.]?'
+        cand_re3 = fr'{t_rtprose}(?!((?!<!--).)*-->)((?!</?ref|\n\n).)*?(?P<refs>{rtref_re})'
         pats = map(re.compile, [cand_re1, cand_re2, cand_re3], [re.DOTALL]*3)
 
         all_matches = list(chain(*(p.finditer(text) for p in pats)))
+        # if all_matches:
+        #     return Entry(title)
         
         rtmatch_list = []
         span_set = set()      # different matches may be for the same prose
         id_set = set()
+        def is_subspan(x, y):
+            if y[0]<=x[0] and x[2]<=y[2]:
+                return True
+            return False
         for m in all_matches:
             span = _find_span(m, title)
-            if span in span_set:
+
+            # naively check if match is inside a template or table
+            x1, x2 = span[0], text.find('\n\n', span[0])
+            if text[x1:x2].count('{{') != text[x1:x2].count('}}'):
                 continue
-            else:
-                for x in span_set: # could happen?
-                    if (x[0]<=span[0] and x[2]>span[0]) or (span[0]<=x[0] and span[2]>x[0]):
-                        raise OverlappingMatchError(f"Overlapping matches found in {title}:\n{text[x[0]:x[2]]}\n\n{text[span[0]:span[2]]}")
+            if text[x1:x2].count('{|') != pattern_count(r'\|}(?!})', text[x1:x2]):
+                continue
+
+            # check if is subspan of something already, or is strict superspan or something already
+            skip_match = False
+            for x in frozenset(span_set):
+                if is_subspan(span, x):
+                    skip_match = True
+                    break
+                elif is_subspan(x, span): 
+                    span_set.remove(x)
+                    rtmatch_list = [z for z in rtmatch_list if z[0].span != x]
+                    break
+                elif (x[0]<=span[0]<x[2]) or (span[0]<=x[0]<span[2]): # otherwise overlapping
+                    scraper.BLOCKED_LOCK.acquire()
+                    raise OverlappingMatchError(f"Overlapping matches found in {title}:\n{text[x[0]:x[2]]}\n\n{text[span[0]:span[2]]}")
+            if skip_match:
+                continue
             span_set.add(span)
 
             ref, initial_rt_id = _find_citation_and_id(title, m, refnames)
             id_set.add(initial_rt_id)
             rtmatch_list.append((RTMatch(span, ref), initial_rt_id))
 
-        # if all_matches:
-        #     return Entry('asdf')
+        # if rtmatch_list:
+        #     return Entry(title)
 
         cand.multiple_movies = len(id_set) > 1
 
@@ -193,7 +217,7 @@ class Recruiter:
 
 
 
-    def find_candidates(self, get_user_input = True):
+    def find_candidates(self, get_user_input = False):
         """
         Given an XmlDump, yields all pages (as a Candidate) in the dump
         which match at least one pattern in patterns.
@@ -210,7 +234,7 @@ class Recruiter:
         # 15 threads is fine, but don't rerun on the same pages immediately
         # after a run, or the caching may result in sending too many
         # requests too fast, and we'll get blocked.
-        with ThreadPoolExecutor(max_workers = 20) as x:
+        with ThreadPoolExecutor(max_workers = 15) as x:
             futures = (x.submit(self.candidate_from_entry, entry.title, entry.text)
                 for entry in xml_entries)
             for future in as_completed(futures, timeout=None):
@@ -302,7 +326,7 @@ def _find_span(match, title):
 
     brackets_re = r'\s+\([^()]+?\)$'
     title = re.sub(brackets_re, '', title)
-    
+
     while i >= text.rfind('\n', 0, matchstart):
         #print(text[i:i+7])
         truncated = text[:i+1]
@@ -310,9 +334,9 @@ def _find_span(match, title):
             i -= len(title) - 1
             continue
 
-        # skip links
+        # jump over links
         if truncated.endswith(']]'):
-            i = text.rfind('[[', 0, i-1) - 1
+            i = text.rfind('[[', 0, i-1)
             continue
 
         # skip comments

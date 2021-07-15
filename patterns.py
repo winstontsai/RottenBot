@@ -2,6 +2,8 @@
 ################################################################################
 import re
 ################################################################################
+def pattern_count(pattern, string, flags=0):
+    return sum(1 for x in re.finditer(pattern, string, flags))
 
 def alternates(l):
     return f'(?:{"|".join(l)})'

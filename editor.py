@@ -61,10 +61,10 @@ def compute_edit_list(cand):
     edits = []
     text = cand.text
     for rtmatch in cand.matches:
-        span, rt_data, flags = rtmatch.span, rtmatch.rt_data, []
-
-        if rt_data is None or rt_data.tomatometer_score is None:
+        if rtmatch.rt_data is None or rtmatch.rt_data.tomatometer_score is None:
             return None
+
+        span, rt_data, flags = rtmatch.span, rtmatch.rt_data, []
         score, count, average = rt_data.tomatometer_score
         rating_prose, consensus_prose = rating_and_consensus_prose(rt_data)
 
@@ -88,10 +88,17 @@ def compute_edit_list(cand):
         if rt_data.consensus and 'consensus' in old_prose:
             y = rt_data.consensus.count('audience')
         if old_prose.count('audience') - y > 0:
-            flags.append("audience")
+            flags.append('audience')
 
         if re.search(r'\busers?\b', old_prose):
-            flags.append("user")
+            flags.append('user')
+
+        y = 0
+        if rt_data.consensus and 'consensus' in old_prose:
+            y = rt_data.consensus.count('viewer')
+        if old_prose.count('viewer') - y > 0:
+            print("asdf")
+            flags.append('viewer')
 
         if 'Metacritic' in old_prose:
             flags.append("Metacritic")

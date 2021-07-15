@@ -3,7 +3,7 @@ certifi==2020.12.5
 chardet==4.0.0
 google==3.0.0
 idna==2.10
-pywikibot==6.3.0
+pywikibot==6.4.0
 readchar==2.0.1
 regex==2021.7.6
 requests==2.25.1

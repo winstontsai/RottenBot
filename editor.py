@@ -68,16 +68,28 @@ def compute_edit_list(cand):
         score, count, average = rt_data.tomatometer_score
         rating_prose, consensus_prose = rating_and_consensus_prose(rt_data)
 
-        old_prose, refs = text[span[0]:span[1]], text[span[1]:span[2]]
+        old_text = text[span[0]:span[2]]
+        old_prose = text[span[0]:span[1]]
 
-        if refs.count('<ref') > 1:
+        if 'Metacritic' in old_text:
+            flags.append("Metacritic")
+
+        if old_text.count('<ref') > 1:
             flags.append("multiple references")
-        if refs[-1] == '.':
+
+        if old_text[-1] == '.':
             flags.append('period after reference')
+
         # check for some suspicious characters
-        if old_prose[0] not in "[{'ABCGIORTW1234567890":
+        if old_prose[0] not in "'{[ABCFGHIORT0123456789":
             flags.append("suspicious start")
-        if old_prose[-1] not in '."}' and refs[-1]!='.' and text[span[2]]!='\n':
+
+        def bad_end():
+            return (not re.match(t_rtprose, old_prose) and
+                old_prose[-1] not in '."' and
+                old_text[-1] != '.' and
+                text[span[2]]!= '\n')
+        if bad_end():
             flags.append("suspicious end")
 
         # audience score?
@@ -100,12 +112,12 @@ def compute_edit_list(cand):
             y = pattern_count(r'\bviewers?\b', rt_data.consensus)
         if pattern_count(r'\bviewers?\b', old_prose) - y > 0:
             flags.append('viewer')
-
-        if 'Metacritic' in old_prose:
-            flags.append("Metacritic")
-
+        #######################################################################
         # we will update/build up new_prose step by step
         new_prose = old_prose
+
+        # delete comments
+        new_prose = re.sub(r'<!--.+?-->', '', new_prose, flags=re.DOTALL)
 
         # First deal with the template {{Rotten Tomatoes prose}}
         if m := re.match(t_rtprose, new_prose):
@@ -159,11 +171,14 @@ def compute_edit_list(cand):
                     flags.append("multiple scores")
                 elif score != all_scores[0]:
                     flags.append("multiple scores")
-            new_prose= re.sub(score_re, score + '%', new_prose)
+            if "multiple scores" in flags:
+                new_prose = rating_prose
+            else:
+                new_prose= re.sub(score_re, score + '%', new_prose)
 
         # add consensus if safe
-        p_start = text.rfind('\n', 0, span[0])
-        p_end = text.find('\n', span[2]) #paragraph end
+        p_start = text.rfind('\n\n', 0, span[0])  #paragraph start
+        p_end = text.find('\n\n', span[2])        #paragraph end
         if (rt_data.consensus and
                 'consensus' not in text[p_start:span[0]]+new_prose+text[span[2]:p_end] and
                 (len(cand.matches)==1 or span[0]>text.find('==') )):
@@ -179,14 +194,18 @@ def compute_edit_list(cand):
         if new_prose == old_prose:
             return None
 
-        # create replacements list
-        replacements = [(old_prose, new_prose)]
+
+        # add reference stuff
         ref = rtmatch.ref
         if ref.list_defined:
-            replacements.append((refs, f'<ref name="{ref.name}" />'))
-            replacements.append((ref.text, citation_replacement(rtmatch)))
+            new_text = new_prose + f'<ref name="{ref.name}" />'
         else:
-            replacements.append((refs, citation_replacement(rtmatch)))
+            new_text = new_prose + citation_replacement(rtmatch)
+
+        # create replacements list
+        replacements = [(old_text, new_text)]
+        if ref.list_defined:
+            replacements.append((ref.text, citation_replacement(rtmatch)))
 
         edits.append(Edit(cand.title, replacements, flags))
 

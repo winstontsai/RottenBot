@@ -54,7 +54,7 @@ def construct_template(name, d):
 
 rt_re = r"[rR]otten [tT]omatoes"
 score_re = r"\b(?P<score>[0-9]|[1-9][0-9]|100)(?:%| percent)"
-count_re = r"\b(?P<count>[5-9]|[1-9][0-9]|[1-9][0-9][0-9]) (?P<count_term>(critic(al)? )?reviews|(surveyed )?critics)"
+count_re = r"\b(?P<count>[5-9]|[1-9][0-9]|[1-9][0-9][0-9]) (?P<count_term>(critic(al)? )?review(er)?s|(surveyed )?critics)"
 average_re = r"\b(?P<average>(?:[0-9]|10)(?:\.\d{1,2})?(?:/| out of )(?:10|ten))"
 
 url_re = r"rottentomatoes.com/(?P<rt_id>m/[-a-z0-9_]+)"

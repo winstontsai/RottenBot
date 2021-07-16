@@ -8,6 +8,7 @@ import re
 import sys
 import webbrowser
 import time
+import string
 import urllib.error # for google search maybe
 import logging
 logger = logging.getLogger(__name__)
@@ -155,8 +156,9 @@ class Recruiter:
 
         # (?!((?!<!--).)*-->) is for not inside comment
         # ((?!</?ref|\n\n).)*? is filler without ref tags or line breaks
-        cand_re1 = fr'{rt_re}(?!((?!<!--).)*-->)((?!</?ref|\n\n).)*?{score_re}((?!\n\n).)*?(?P<refs>{anyrefs_re}{rtref_re}{anyrefs_re})[.]?'
-        cand_re2 = fr'{score_re}(?!((?!<!--).)*-->)((?!</?ref|\n\n).)*?{rt_re}((?!\n\n).)*?(?P<refs>{anyrefs_re}{rtref_re}{anyrefs_re})[.]?'
+        # (?!((?!<ref).)*</ref) is for not inside reference
+        cand_re1 = fr'{rt_re}(?!((?!<ref).)*</ref)(?!((?!<!--).)*-->)((?!</?ref|\n\n).)*?{score_re}((?!\n\n).)*?(?P<refs>{anyrefs_re}{rtref_re}{anyrefs_re})[.]?'
+        cand_re2 = fr'{score_re}(?!((?!<ref).)*</ref)(?!((?!<!--).)*-->)((?!</?ref|\n\n).)*?{rt_re}((?!\n\n).)*?(?P<refs>{anyrefs_re}{rtref_re}{anyrefs_re})[.]?'
         cand_re3 = fr'{t_rtprose}(?!((?!<!--).)*-->)((?!</?ref|\n\n).)*?(?P<refs>{rtref_re})'
         pats = map(re.compile, [cand_re1, cand_re2, cand_re3], [re.DOTALL]*3)
 
@@ -348,10 +350,16 @@ def _find_span(match, title):
             i = text.rfind("<ref", 0, i) - 1
             continue
 
-        if text[i] == '\n' or text[i:i+2] in ('. ', '.<', '"<', '."'):
+        if text[i] == '\n':
+            break
+        if text[i:i+2] in ('. ', '.<', '."', '".') and text[i-1] not in string.ascii_uppercase:
+            break
+        if text[i:i+3] == '."<':
             break
 
-        last, i = i, i-1
+        if text[i] in string.ascii_letters + string.digits + "'{[":
+            last = i
+        i -= 1
 
     i = last
     while text[i] in ' "':

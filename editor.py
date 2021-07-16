@@ -3,6 +3,7 @@
 import re
 import sys
 import webbrowser
+import string
 import logging
 logger = logging.getLogger(__name__)
 print_logger = logging.getLogger('print_logger')
@@ -43,17 +44,28 @@ def citation_replacement(rtmatch):
 class Edit:
     title: str
     replacements: list[tuple[str, str]]
-    flags: list[str]
+    flags: set[str]
+
+def disqualifying(flags):
+    """
+    Return True if the flags disqualify an edit from being made automatically
+    without human review.
+    """
+    if not flags:
+        return False
+    if flags == {'multiple counts'}:
+        return False
+    return True
 
 def compute_edits(candidates, get_user_input = True):
     """
     The candidates parameter should be
     an iterable of candidate objects.
     """
-    all_edits = []
+    all_edits = dict()
     for cand in candidates:
         if e := compute_edit_list(cand):
-            all_edits.append(e)
+            all_edits[cand.title] = e
     return all_edits
 
 
@@ -62,27 +74,31 @@ def compute_edit_list(cand):
     text = cand.text
     for rtmatch in cand.matches:
         if rtmatch.rt_data is None or rtmatch.rt_data.tomatometer_score is None:
-            return None
+            return []
 
-        span, rt_data, flags = rtmatch.span, rtmatch.rt_data, []
+        span, rt_data, flags = rtmatch.span, rtmatch.rt_data, set()
         score, count, average = rt_data.tomatometer_score
         rating_prose, consensus_prose = rating_and_consensus_prose(rt_data)
 
         old_text = text[span[0]:span[2]]
         old_prose = text[span[0]:span[1]]
 
-        if 'Metacritic' in old_text:
-            flags.append("Metacritic")
+        # delete comments
+        old_text = re.sub(r'<!--.+?-->', '', old_text, flags=re.DOTALL)
+        old_prose = re.sub(r'<!--.+?-->', '', old_prose, flags=re.DOTALL)
+
+        if pattern_count(r'[mM]etacritic', old_prose):
+            flags.add("Metacritic")
 
         if old_text.count('<ref') > 1:
-            flags.append("multiple references")
+            flags.add("multiple references")
 
         if old_text[-1] == '.':
-            flags.append('period after reference')
+            flags.add('period after reference')
 
         # check for some suspicious characters
-        if old_prose[0] not in "'{[ABCFGHIORT0123456789":
-            flags.append("suspicious start")
+        if old_prose[0] not in string.ascii_uppercase + string.digits + "'{[":
+            flags.add("suspicious start")
 
         def bad_end():
             return (not re.match(t_rtprose, old_prose) and
@@ -90,34 +106,31 @@ def compute_edit_list(cand):
                 old_text[-1] != '.' and
                 text[span[2]]!= '\n')
         if bad_end():
-            flags.append("suspicious end")
+            flags.add("suspicious end")
 
         # audience score?
         y = 0
         if rt_data.consensus and 'consensus' in old_prose:
             y = rt_data.consensus.count('audience')
         if old_prose.count('audience') - y > 0:
-            flags.append('audience')
+            flags.add('audience')
 
         # ...or user score?
         y = 0
         if rt_data.consensus and 'consensus' in old_prose:
             y = pattern_count(r'\busers?\b', rt_data.consensus)
         if pattern_count(r'\busers?\b', old_prose) - y > 0:
-            flags.append('user')
+            flags.add('user')
 
         # ...or viewer score?
         y = 0
         if rt_data.consensus and 'consensus' in old_prose:
             y = pattern_count(r'\bviewers?\b', rt_data.consensus)
         if pattern_count(r'\bviewers?\b', old_prose) - y > 0:
-            flags.append('viewer')
+            flags.add('viewer')
         #######################################################################
         # we will update/build up new_prose step by step
         new_prose = old_prose
-
-        # delete comments
-        new_prose = re.sub(r'<!--.+?-->', '', new_prose, flags=re.DOTALL)
 
         # First deal with the template {{Rotten Tomatoes prose}}
         if m := re.match(t_rtprose, new_prose):
@@ -131,23 +144,33 @@ def compute_edit_list(cand):
             # NOWHERE DOES IT SAY IT'S A WEIGHTED AVERAGE
             new_prose = re.sub(r'\[\[[wW]eighted.*?\]\]', 'average rating', new_prose)
             new_prose = re.sub(r'weighted average( rating| score)?', 'average rating', new_prose)
-            new_prose = new_prose.replace(' a average', ' an average')
+            new_prose = new_prose.replace(' a average',' an average').replace('rating rating','rating')
             if re.search("[wW]eighted", new_prose):
                 new_prose = rating_prose
 
-            # Update {{As of}} template, if it exists.
-            # Otherwise remove as of prose
-            if m:=re.search(t_asof, new_prose):
+            # Update "As of" template.
+            if m:=re.search(t_asof, new_prose): # As of template
                 old_temp = m.group()
-                temp_dict = parse_template(old_temp)[1]
                 day, month, year = date.today().strftime("%d %m %Y").split()
+                temp_dict = parse_template(old_temp)[1]
                 temp_dict['1'] = year
                 temp_dict['2'] = month
                 if '3' in temp_dict:
                     temp_dict['3'] = day
                 new_temp = construct_template("As of", temp_dict)
                 new_prose = new_prose.replace(old_temp, new_temp)
-            elif re.search("[Aa]s of", new_prose):
+            elif m:=re.search(r"(?<!{)\b[Aa]s of (?=January|February|March|April|May|June|July|August|September|October|November|December|[1-9])[ ,a-zA-Z0-9]{,14}[0-9]{4}(?![0-9])", new_prose):
+                old_asof = m.group()
+                day, month, year = date.today().strftime("%d %B %Y").split()
+                new_date = month + ' ' + year
+                if pattern_count(r'[0-9]', old_asof) > 4: # if includes day
+                    if old_asof[6] in string.digits: # begins with day num
+                        new_date = f'{day} {month} {year}'
+                    else:
+                        new_date = f'{month} {day}, {year}'
+                new_asof = old_asof[:6] + new_date
+                new_prose = new_prose.replace(old_asof, new_asof)
+            elif re.search(r"\b[Aa]s of\b", new_prose):
                 new_prose = rating_prose
 
             # handle average rating     
@@ -155,26 +178,29 @@ def compute_edit_list(cand):
             if k == 0:
                 new_prose = rating_prose
             elif k > 1:
-                flags.append("multiple averages")
+                flags.add("multiple averages")
                 
             # handle review reviewCount
             new_prose, k = re.subn(count_re, f"{count} \g<count_term>", new_prose)
             if k == 0:
                 new_prose = rating_prose
             elif k > 1:
-                flags.append("multiple counts")
+                flags.add("multiple counts")
 
             # handle score
             all_scores = [m.group('score') for m in re.finditer(score_re, old_prose)]
             if len(all_scores) > 1:
                 if set(all_scores) not in ({'0'}, {'100'}):
-                    flags.append("multiple scores")
+                    flags.add("multiple scores")
                 elif score != all_scores[0]:
-                    flags.append("multiple scores")
+                    flags.add("multiple scores")
             if "multiple scores" in flags:
                 new_prose = rating_prose
             else:
                 new_prose= re.sub(score_re, score + '%', new_prose)
+
+        if flags == {'multiple counts'}:
+            new_prose = rating_prose
 
         # add consensus if safe
         p_start = text.rfind('\n\n', 0, span[0])  #paragraph start
@@ -192,7 +218,7 @@ def compute_edit_list(cand):
 
         # if no change, don't produce an edit
         if new_prose == old_prose:
-            return None
+            return []
 
 
         # add reference stuff
@@ -209,7 +235,7 @@ def compute_edit_list(cand):
 
         edits.append(Edit(cand.title, replacements, flags))
 
-    return edits if edits else None
+    return edits
 
 
 def make_replacements(edit_list):

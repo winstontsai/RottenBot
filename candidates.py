@@ -127,8 +127,8 @@ class Candidate:
     """
     title: str                    # article title
     text: str                     # wikitext
-    multiple_movies: bool = False # some articles have RT stuff for more than one movie, e.g. sequels
     matches: list[RTMatch] = field(default_factory=list)
+    multiple_movies: bool = False # some articles have RT stuff for more than one movie, e.g. sequels
 
 
 class Recruiter:
@@ -141,8 +141,6 @@ class Recruiter:
 
         print_logger.info(f"Processing [[{title}]].")
 
-        cand = Candidate(title, text)
-
         # Get allowed refnames. Dictionary maps refname to match object of the citation definition
         refnames = dict()
         for m in re.finditer(fr'(?P<citation><ref +name *= *"?(?P<refname>[^>]+?)"? *>((?!<ref).)*{t_alternates}((?!<ref).)*</ref *>)', text, re.DOTALL):
@@ -150,7 +148,7 @@ class Recruiter:
 
         # pattern for allowed refnames
         allowed_refname = alternates(map(re.escape, refnames))
-
+        rtemplate = ''
         ldref_re = fr'(?P<ldref><ref +name *= *"?(?P<ldrefname>{allowed_refname})"? */>)'
         rtref_re = alternates([citation_re,ldref_re]) if refnames else citation_re
 
@@ -206,8 +204,7 @@ class Recruiter:
         # if rtmatch_list:
         #     return Entry(title)
 
-        cand.multiple_movies = len(id_set) > 1
-
+        cand = Candidate(title, text, multiple_movies=len(id_set) > 1)
         for rtmatch, initial_rt_id in rtmatch_list:
             cand.matches.append(rtmatch)
             if not rtmatch._load_rt_data(initial_rt_id, cand,
@@ -370,8 +367,7 @@ def _find_span(match, title):
 def _find_citation_and_id(title, m, refnames):
     groupdict = m.groupdict()
     if ldrefname := groupdict.get('ldrefname'):
-        ref = Reference(text=refnames[ldrefname].group(),
-            name=ldrefname, list_defined=True)
+        ref = Reference(text=refnames[ldrefname].group(), name=ldrefname, list_defined=True)
         groupdict = refnames[ldrefname].groupdict()
     else:
         ref = Reference(groupdict['citation'], groupdict.get('refname'))

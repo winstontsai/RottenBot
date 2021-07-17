@@ -44,7 +44,7 @@ def citation_replacement(rtmatch):
 class Edit:
     title: str
     replacements: list[tuple[str, str]]
-    flags: set[str]
+    flags: frozenset[str]
 
 def disqualifying(flags):
     """
@@ -74,7 +74,7 @@ def compute_edit_list(cand):
     text = cand.text
     for rtmatch in cand.matches:
         if rtmatch.rt_data is None or rtmatch.rt_data.tomatometer_score is None:
-            return []
+            continue
 
         span, rt_data, flags = rtmatch.span, rtmatch.rt_data, set()
         score, count, average = rt_data.tomatometer_score
@@ -101,33 +101,20 @@ def compute_edit_list(cand):
             flags.add("suspicious start")
 
         def bad_end():
-            return (not re.match(t_rtprose, old_prose) and
+            return (
                 old_prose[-1] not in '."' and
                 old_text[-1] != '.' and
-                text[span[2]]!= '\n')
+                text[span[2]:span[2]+2]!= '\n\n' and
+                not re.match(t_rtprose, old_prose)
+            )
         if bad_end():
             flags.add("suspicious end")
 
         # audience score?
-        y = 0
-        if rt_data.consensus and 'consensus' in old_prose:
-            y = rt_data.consensus.count('audience')
-        if old_prose.count('audience') - y > 0:
-            flags.add('audience')
+        prose_minus_quotes = re.sub(r'".+?"', '', old_prose)
+        if pattern_count(r'\b(?:[aA]udience|[uU]ser)|[vV]iewer', prose_minus_quotes):
+            flags.add('audience|user|viewer')
 
-        # ...or user score?
-        y = 0
-        if rt_data.consensus and 'consensus' in old_prose:
-            y = pattern_count(r'\busers?\b', rt_data.consensus)
-        if pattern_count(r'\busers?\b', old_prose) - y > 0:
-            flags.add('user')
-
-        # ...or viewer score?
-        y = 0
-        if rt_data.consensus and 'consensus' in old_prose:
-            y = pattern_count(r'\bviewers?\b', rt_data.consensus)
-        if pattern_count(r'\bviewers?\b', old_prose) - y > 0:
-            flags.add('viewer')
         #######################################################################
         # we will update/build up new_prose step by step
         new_prose = old_prose
@@ -146,31 +133,6 @@ def compute_edit_list(cand):
             new_prose = re.sub(r'weighted average( rating| score)?', 'average rating', new_prose)
             new_prose = new_prose.replace(' a average',' an average').replace('rating rating','rating')
             if re.search("[wW]eighted", new_prose):
-                new_prose = rating_prose
-
-            # Update "As of" template.
-            if m:=re.search(t_asof, new_prose): # As of template
-                old_temp = m.group()
-                day, month, year = date.today().strftime("%d %m %Y").split()
-                temp_dict = parse_template(old_temp)[1]
-                temp_dict['1'] = year
-                temp_dict['2'] = month
-                if '3' in temp_dict:
-                    temp_dict['3'] = day
-                new_temp = construct_template("As of", temp_dict)
-                new_prose = new_prose.replace(old_temp, new_temp)
-            elif m:=re.search(r"(?<!{)\b[Aa]s of (?=January|February|March|April|May|June|July|August|September|October|November|December|[1-9])[ ,a-zA-Z0-9]{,14}[0-9]{4}(?![0-9])", new_prose):
-                old_asof = m.group()
-                day, month, year = date.today().strftime("%d %B %Y").split()
-                new_date = month + ' ' + year
-                if pattern_count(r'[0-9]', old_asof) > 4: # if includes day
-                    if old_asof[6] in string.digits: # begins with day num
-                        new_date = f'{day} {month} {year}'
-                    else:
-                        new_date = f'{month} {day}, {year}'
-                new_asof = old_asof[:6] + new_date
-                new_prose = new_prose.replace(old_asof, new_asof)
-            elif re.search(r"\b[Aa]s of\b", new_prose):
                 new_prose = rating_prose
 
             # handle average rating     
@@ -202,13 +164,27 @@ def compute_edit_list(cand):
         if flags == {'multiple counts'}:
             new_prose = rating_prose
 
+        if new_prose == rating_prose:
+            flags.add('default replacement')
+
         # add consensus if safe
-        p_start = text.rfind('\n\n', 0, span[0])  #paragraph start
-        p_end = text.find('\n\n', span[2])        #paragraph end
-        if (rt_data.consensus and
-                'consensus' not in text[p_start:span[0]]+new_prose+text[span[2]:p_end] and
-                (len(cand.matches)==1 or span[0]>text.find('==') )):
-            new_prose += " " + consensus_prose
+        def safe_to_add_consensus():
+            p_start = text.rfind('\n\n', 0, span[0])  #paragraph start
+            p_end = text.find('\n\n', span[2])        #paragraph end
+            s = text[p_start:span[0]]+new_prose+text[span[2]:p_end]
+            if not rt_data.consensus:
+                return False
+            if pattern_count('[cC]onsensus', s):
+                return False
+            if len(cand.matches)>1 and span[0]<text.find('=='):
+                return False
+            s_l = ''.join(x for x in s if x in string.ascii_letters)
+            c_l = ''.join(x for x in rt_data.consensus if x in string.ascii_letters)
+            if c_l[:60] in s_l:
+                return False
+            return True
+        if safe_to_add_consensus():
+            new_prose += ' ' + consensus_prose
 
         # fix period/quote situation
         if new_prose.endswith('.".'):
@@ -218,8 +194,31 @@ def compute_edit_list(cand):
 
         # if no change, don't produce an edit
         if new_prose == old_prose:
-            return []
+            continue
 
+        # Update "As of"
+        if m:=re.search(t_asof, new_prose): # As of template
+            old_temp = m.group()
+            day, month, year = date.today().strftime("%d %m %Y").split()
+            temp_dict = parse_template(old_temp)[1]
+            temp_dict['1'], temp_dict['2'] = year, month
+            if '3' in temp_dict:
+                temp_dict['3'] = day
+            new_temp = construct_template("As of", temp_dict)
+            new_prose = new_prose.replace(old_temp, new_temp)
+        elif m:=re.search(r"[Aa]s of (?=January|February|March|April|May|June|July|August|September|October|November|December|[1-9])[ ,a-zA-Z0-9]{,14}[0-9]{4}(?![0-9])", new_prose):
+            old_asof = m.group()
+            day, month, year = date.today().strftime("%d %B %Y").split()
+            new_date = month + ' ' + year
+            if pattern_count(r'[0-9]', old_asof) > 4: # if includes day
+                if old_asof[6] in string.digits: # begins with day num
+                    new_date = f'{day} {month} {year}'
+                else:
+                    new_date = f'{month} {day}, {year}'
+            new_asof = old_asof[:6] + new_date
+            new_prose = new_prose.replace(old_asof, new_asof)
+        elif re.search(r"\b[Aa]s of\b", new_prose):
+            new_prose = rating_prose
 
         # add reference stuff
         ref = rtmatch.ref
@@ -229,14 +228,13 @@ def compute_edit_list(cand):
             new_text = new_prose + citation_replacement(rtmatch)
 
         # create replacements list
-        replacements = [(old_text, new_text)]
+        replacements = [(text[span[0]:span[2]], new_text)]
         if ref.list_defined:
             replacements.append((ref.text, citation_replacement(rtmatch)))
 
-        edits.append(Edit(cand.title, replacements, flags))
+        edits.append(Edit(cand.title, replacements, frozenset(flags)))
 
     return edits
-
 
 def make_replacements(edit_list):
     site = pwb.Site('en', 'wikipedia')

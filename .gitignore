@@ -18,6 +18,8 @@ example_movies/
 outputs/
 notes.txt
 play.py
+compare.py
+findspan.py
 
 
 

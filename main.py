@@ -119,7 +119,7 @@ def main():
     root_logger.addHandler(file_handler)
     root_logger.setLevel(logging.DEBUG)
 
-    stream_handler = logging.StreamHandler(sys.stderr)
+    stream_handler = logging.StreamHandler(sys.stdout)
     formatter = logging.Formatter('%(message)s')
     stream_handler.setLevel(logging.INFO)
     stream_handler.setFormatter(formatter)
@@ -127,6 +127,8 @@ def main():
     print_logger.addHandler(stream_handler)
     print_logger.setLevel(logging.INFO)
     print_logger.propagate = False
+
+    # install_mp_handler(print_logger)
 
 
     # START PROGRAM

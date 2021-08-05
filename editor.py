@@ -36,7 +36,7 @@ def citation_replacement(rtmatch):
         s += f' name="{refname}">'
     else:
         s += '>'
-    s += f"{{{{Cite web|url={url}|title={title} ({year})|website=[[Rotten Tomatoes]]|publisher=[[Fandango Media]]|access-date={access_date}}}}}</ref>"
+    s += f"{{{{Cite web|url={url}|title={title} ({year})|website=[[Rotten Tomatoes]]|publisher=[[Fandango Media|Fandango]]|access-date={access_date}}}}}</ref>"
     #s += f"{{{{Cite Rotten Tomatoes |id={d['id']} |type=movie |title={d['title']} |access-date={d['accessDate']}}}}}</ref>"
     return s
 
@@ -80,15 +80,25 @@ def compute_edit_list(cand):
         score, count, average = rt_data.tomatometer_score
         rating_prose, consensus_prose = rating_and_consensus_prose(rt_data)
 
-        old_text = text[span[0]:span[2]]
+        old_text = text[span[0]:span[1]]
         old_prose = text[span[0]:span[1]]
 
         # delete comments
-        old_text = re.sub(r'<!--.+?-->', '', old_text, flags=re.DOTALL)
-        old_prose = re.sub(r'<!--.+?-->', '', old_prose, flags=re.DOTALL)
+        old_text = re.sub(r'<!--.*?-->', '', old_text, flags=re.DOTALL)
+        old_prose = re.sub(r'<!--.*?-->', '', old_prose, flags=re.DOTALL)
+        # use straight quotes
+        old_prose = old_prose.translate(str.maketrans('“”','""'))
+
+        if len(old_text) > 800:
+            flags.add('long')
 
         if pattern_count(r'[mM]etacritic', old_prose):
             flags.add("Metacritic")
+
+        prose_without_refs = re.sub(r'<ref.+?(/>|/ref)', '', old_text, flags=re.DOTALL)
+        if (pattern_count('Rotten Tomatoes', prose_without_refs)
+                - pattern_count(r'ilms with a (?:100|0)% rating on Rotten', prose_without_refs)) > 1:
+            flags.add('multiple Rotten Tomatoes')
 
         if old_text.count('<ref') > 1:
             flags.add("multiple references")
@@ -104,14 +114,15 @@ def compute_edit_list(cand):
             return (
                 old_prose[-1] not in '."' and
                 old_text[-1] != '.' and
-                text[span[2]:span[2]+2]!= '\n\n' and
+                text[span[1]:span[1]+2] != '\n\n' and
                 not re.match(t_rtprose, old_prose)
             )
+
         if bad_end():
             flags.add("suspicious end")
 
         # audience score?
-        prose_minus_quotes = re.sub(r'".+?"', '', old_prose)
+        prose_minus_quotes = re.sub(r'".+?"', '', old_prose, flags=re.DOTALL)
         if pattern_count(r'\b(?:[aA]udience|[uU]ser)|[vV]iewer', prose_minus_quotes):
             flags.add('audience|user|viewer')
 
@@ -150,7 +161,7 @@ def compute_edit_list(cand):
                 flags.add("multiple counts")
 
             # handle score
-            all_scores = [m.group('score') for m in re.finditer(score_re, old_prose)]
+            all_scores = [m.group(1) for m in re.finditer(score_re, old_prose)]
             if len(all_scores) > 1:
                 if set(all_scores) not in ({'0'}, {'100'}):
                     flags.add("multiple scores")
@@ -164,23 +175,28 @@ def compute_edit_list(cand):
         if flags == {'multiple counts'}:
             new_prose = rating_prose
 
-        if new_prose == rating_prose:
-            flags.add('default replacement')
+        # if new_prose == rating_prose:
+        #     flags.add('default replacement')
 
         # add consensus if safe
         def safe_to_add_consensus():
-            p_start = text.rfind('\n\n', 0, span[0])  #paragraph start
-            p_end = text.find('\n\n', span[2])        #paragraph end
-            s = text[p_start:span[0]]+new_prose+text[span[2]:p_end]
             if not rt_data.consensus:
                 return False
+            p_start = text.index('\n\n', 0, span[0])  #paragraph start
+            p_end = text.index('\n\n', span[1])        #paragraph end
+            s = text[p_start:span[0]]+new_prose+text[span[1]:p_end]
+            s_l = ''.join(x for x in s if x in string.ascii_letters)
+            c_l = ''.join(x for x in rt_data.consensus if x in string.ascii_letters)
+
+            if not pattern_count('[cC]onsensus', s) and c_l in s_l:
+                print("CONTAINS CONSENSUS BUT NO WORD 'CONSENSUS'!!!!!!!!!!!!!!!!!!!!!!!")
+
             if pattern_count('[cC]onsensus', s):
                 return False
             if len(cand.matches)>1 and span[0]<text.find('=='):
                 return False
-            s_l = ''.join(x for x in s if x in string.ascii_letters)
-            c_l = ''.join(x for x in rt_data.consensus if x in string.ascii_letters)
-            if c_l[:60] in s_l:
+
+            if c_l in s_l:
                 return False
             return True
         if safe_to_add_consensus():
@@ -228,7 +244,7 @@ def compute_edit_list(cand):
             new_text = new_prose + citation_replacement(rtmatch)
 
         # create replacements list
-        replacements = [(text[span[0]:span[2]], new_text)]
+        replacements = [(text[span[0]:span[1]], new_text)]
         if ref.list_defined:
             replacements.append((ref.text, citation_replacement(rtmatch)))
 

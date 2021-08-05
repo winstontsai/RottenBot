@@ -1,6 +1,6 @@
 # This module is for scraping rottentomatoes.com.
 ################################################################################
-import requests
+import re
 import sys
 import json
 import logging
@@ -10,6 +10,8 @@ print_logger = logging.getLogger('print_logger')
 from datetime import date
 from dataclasses import dataclass, field
 from threading import Lock
+
+import requests
 
 from bs4 import BeautifulSoup
 ################################################################################
@@ -80,6 +82,7 @@ class RTMovie:
     view_the_collection: str = None
 
     tomatometer_score: tuple[str, str, str] = None
+    audience_score: tuple[str, str, str] = None
     consensus: str = None
 
     def __post_init__(self):
@@ -137,23 +140,29 @@ class RTMovie:
         if (consensus := soup.find('span', attrs={'data-qa': "critics-consensus"}))!=None:
             consensus = str(consensus)
             consensus = consensus[consensus.find('>')+1 : consensus.rfind('<')]
-            consensus = consensus.replace('<em>',"''").replace('</em>',"''").replace("'''", r"''{{'}}")
+            consensus = re.sub(r'</?em>|</?i>', "''").replace("'''", r"''{{'}}")
+            consensus = consensus.replace('"', "'")
             self.consensus = consensus
 
         sd = str(soup.find('script', id='score-details-json'))
         self.score_data = json.loads(sd[sd.find('>')+1 : sd.rfind('<')])["modal"]
         if self.score_data["hasTomatometerScoreAll"]:
             if sd := self.score_data["tomatometerScoreAll"]:
-                score, count, average = sd["score"], str(sd["ratingCount"]), sd["averageRating"]
-                self.tomatometer_score = (score, count, average)
-
+                self.tomatometer_score = (
+                    sd["score"], str(sd["ratingCount"]), sd["averageRating"]
+                )
+        if self.score_data["hasAudienceScoreAll"]:
+            if sd := self.score_data["audienceScoreAll"]:
+                self.audience_score = (
+                    sd["score"], str(sd["ratingCount"]), sd["averageRating"]
+                )
 
 if __name__ == "__main__":
     # r = requests.get(rt_url('m/meadowland'))
     # soup = BeautifulSoup(r.text, "html.parser")
     # d = json.loads(str(soup.find('script', id='score-details-json')).split('>')[1].split('<')[0])
     # print(json.dumps(d, indent=4))
-    print(RTMovie('m/conrack'))
+    print(RTMovie('tv/small_axe/s02'))
 
 
 

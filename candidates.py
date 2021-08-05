@@ -4,17 +4,18 @@
 # and also finds (or at least tries to) the start of the sentence in which
 # the rating info is contained.
 ################################################################################
-import re
+import regex as re
 import sys
 import webbrowser
 import time
 import string
-import urllib.error # for google search maybe
+import urllib.error # for googlesearch maybe
 import logging
 logger = logging.getLogger(__name__)
+
 print_logger = logging.getLogger('print_logger')
 
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_completed
 from threading import Lock
 from dataclasses import dataclass, field
 from itertools import chain
@@ -22,6 +23,7 @@ from collections import defaultdict, namedtuple
 
 import requests
 import pywikibot as pwb
+import wikitextparser as wtp
 
 from pywikibot.xmlreader import XmlDump
 from googlesearch import lucky
@@ -29,9 +31,11 @@ from googlesearch import lucky
 import scraper
 from scraper import RTMovie
 from patterns import *
+from findspan import _find_span333,_find_span222,_find_span
 ################################################################################
 WIKIDATA_LOCK = Lock()
 GOOGLESEARCH_LOCK = Lock()
+WTP_LOCK = Lock()
 
 class OverlappingMatchError(Exception):
     pass
@@ -42,7 +46,7 @@ Entry = namedtuple('Entry',['title'])
 class Reference:
     text: str
     name: str = None
-    list_defined: bool = False
+    list_defined: bool = False # i.e. defined elsewhere
 
 @dataclass
 class RTMatch:
@@ -50,7 +54,7 @@ class RTMatch:
     For use in Candidate class. Represents location in an article
     with Rotten tomatoes prose that may need editing.
     """
-    span: tuple[int, int, int]
+    span: tuple[int, int]
     ref: Reference
     rt_data: RTMovie = None
 
@@ -88,7 +92,7 @@ class RTMatch:
             logger.info(f"[[{title}]] does not have Wikidata property P1258")
 
         logger.info(f"Performing lucky Google search for [[{title}]]")
-        guessid = suggested_id(title)
+        guessid = googled_id(title)
 
         try:
             movie = RTMovie(guessid)
@@ -143,56 +147,62 @@ class Recruiter:
 
         # Get allowed refnames. Dictionary maps refname to match object of the citation definition
         refnames = dict()
-        for m in re.finditer(fr'(?P<citation><ref +name *= *"?(?P<refname>[^>]+?)"? *>((?!<ref).)*{t_alternates}((?!<ref).)*</ref *>)', text, re.DOTALL):
+        for m in re.finditer(fr'<ref +name *= *"?(?P<refname>[^>]+?)"? *>((?!<ref).)*{t_alternates}((?!<ref).)*</ref *>', text, re.DOTALL):
             refnames[m.group('refname')] = m
 
         # pattern for allowed refnames
         allowed_refname = alternates(map(re.escape, refnames))
-        rtemplate = ''
         ldref_re = fr'(?P<ldref><ref +name *= *"?(?P<ldrefname>{allowed_refname})"? */>)'
         rtref_re = alternates([citation_re,ldref_re]) if refnames else citation_re
+        rtref_re = fr'\s*{rtref_re}'
 
         # (?!((?!<!--).)*-->) is for not inside comment
         # ((?!</?ref|\n\n).)*? is filler without ref tags or line breaks
         # (?!((?!<ref).)*</ref) is for not inside reference
-        cand_re1 = fr'{rt_re}(?!((?!<ref).)*</ref)(?!((?!<!--).)*-->)((?!</?ref|\n\n).)*?{score_re}((?!\n\n).)*?(?P<refs>{anyrefs_re}{rtref_re}{anyrefs_re})[.]?'
-        cand_re2 = fr'{score_re}(?!((?!<ref).)*</ref)(?!((?!<!--).)*-->)((?!</?ref|\n\n).)*?{rt_re}((?!\n\n).)*?(?P<refs>{anyrefs_re}{rtref_re}{anyrefs_re})[.]?'
-        cand_re3 = fr'{t_rtprose}(?!((?!<!--).)*-->)((?!</?ref|\n\n).)*?(?P<refs>{rtref_re})'
+        cand_re1 = fr'{rt_re}(?!((?!<ref).)*</ref)(?!((?!<!--).)*-->)((?!</?ref|\n[\n*]|==).)*?{score_re}((?!\n\n|==).)*?(?P<refs>{anyrefs_re}{rtref_re}{anyrefs_re})'
+        cand_re2 = fr'{score_re}(?!((?!<ref).)*</ref)(?!((?!<!--).)*-->)((?!</?ref|\n[\n*]|==).)*?{rt_re}((?!\n\n|==).)*?(?P<refs>{anyrefs_re}{rtref_re}{anyrefs_re})'
+        cand_re3 = fr'{t_rtprose}(?!((?!<!--).)*-->)((?!</?ref|\n\n|==).)*?(?P<refs> ?{rtref_re})'
         pats = map(re.compile, [cand_re1, cand_re2, cand_re3], [re.DOTALL]*3)
 
         all_matches = list(chain(*(p.finditer(text) for p in pats)))
-        # if all_matches:
-        #     return Entry(title)
-        
+
         rtmatch_list = []
         span_set = set()      # different matches may be for the same prose
         id_set = set()
-        def is_subspan(x, y):
-            return y[0]<=x[0] and x[2]<=y[2]
-        for m in all_matches:
-            span = _find_span(m, title)
 
-            # naively check if match is inside a template or table
-            x1, x2 = span[0], text.find('\n\n', span[0])
-            y = text[x1:x2]
-            if y.count('{{') != y.count('}}'):
+        
+        for m in all_matches:
+            if _inside_table_or_template( m.span() , text):
                 continue
-            if y.count('{|') != pattern_count(r'\|}(?!})', y):
-                continue
+
+            if 'rtprose' in m.groupdict():
+                span = m.span()
+            else:
+                span = _find_span333(m, title)
+
+            #naively check if match is inside a template or table
+            # x1, x2 = span[0], text.find('\n\n', span[0])
+            # y = text[x1:x2]
+            # if y.count('{{') != y.count('}}'):
+            #     continue
+            # if y.count('{|') != pattern_count(r'\|}(?!})', y):
+            #     continue
 
             # check if is subspan of something already, or is strict superspan or something already
             skip_match = False
             for x in frozenset(span_set):
                 if is_subspan(span, x):
                     skip_match = True
+                    #print_logger.info('SUBSPAN FOUND\n' +text[span[0]:span[1]] + '\n\nis a subspan of\n\n' + text[x[0]:x[1]])
                     break
                 elif is_subspan(x, span): 
                     span_set.remove(x)
                     rtmatch_list = [z for z in rtmatch_list if z[0].span != x]
+                    #print_logger.info('STRICT SUBSPAN FOUND\n' +text[x[0]:x[1]] + '\n\nis a subspan of\n\n' + text[span[0]:span[1]])
                     break
-                elif (x[0]<=span[0]<x[2]) or (span[0]<=x[0]<span[2]): # otherwise overlapping
+                elif (x[0]<=span[0]<x[1]) or (span[0]<=x[0]<span[1]): # otherwise overlapping
                     scraper.BLOCKED_LOCK.acquire()
-                    raise OverlappingMatchError(f"Overlapping matches found in {title}:\n{text[x[0]:x[2]]}\n\n{text[span[0]:span[2]]}")
+                    raise OverlappingMatchError(f"Overlapping matches found in {title}:\n{text[x[0]:x[1]]}\n\n{text[span[0]:span[1]]}")
             if skip_match:
                 continue
             span_set.add(span)
@@ -201,15 +211,16 @@ class Recruiter:
             id_set.add(initial_rt_id)
             rtmatch_list.append((RTMatch(span, ref), initial_rt_id))
 
-        # if rtmatch_list:
-        #     return Entry(title)
+        if rtmatch_list:
+            return Candidate(title, text, matches=[x[0] for x in rtmatch_list],
+                multiple_movies=len(id_set) > 1)
 
         cand = Candidate(title, text, multiple_movies=len(id_set) > 1)
         for rtmatch, initial_rt_id in rtmatch_list:
             cand.matches.append(rtmatch)
             if not rtmatch._load_rt_data(initial_rt_id, cand,
                 make_guess=not cand.multiple_movies):
-                self._needs_input_list.append( (cand, rtmatch, suggested_id(title)) )
+                self._needs_input_list.append( (cand, rtmatch, googled_id(title)) )
 
         return cand if cand.matches else None
 
@@ -232,16 +243,16 @@ class Recruiter:
         # 15 threads is fine, but don't rerun on the same pages immediately
         # after a run, or the caching may result in sending too many
         # requests too fast, and we'll get blocked.
-        with ThreadPoolExecutor(max_workers = 15) as x:
+        with ProcessPoolExecutor(max_workers = 8) as x:
             futures = (x.submit(self.candidate_from_entry, entry.title, entry.text)
                 for entry in xml_entries)
             for future in as_completed(futures, timeout=None):
                 total += 1
                 try:
                     cand = future.result()
-                except SystemExit:
+                except Exception as e:
                     x.shutdown(wait=True, cancel_futures=True)
-                    logger.error("Exiting program.")
+                    logger.exception("Exiting program.")
                     sys.exit()
                 if cand:
                     return_list.append(cand)
@@ -270,7 +281,7 @@ class Recruiter:
         """
         logger.debug(f"Asking for id for [[{cand.title}]]")
         title, text = cand.title, cand.text
-        i, j = rtmatch.span[0], rtmatch.span[2]
+        i, j = rtmatch.span[0], rtmatch.span[1]
         warning = ''
         if cand.multiple_movies:
             warning = 'WARNING: More than one movie url detected in this article.\n'
@@ -304,66 +315,6 @@ Please select an option:
             sys.exit()                
 
 # ===========================================================================================
-def _find_span(match, title):
-    """
-    This function tries find the beginning of
-    the sentence containing the Rotten Tomatoes rating info.
-
-    NOTE: There are edge cases where the start position found
-    by this function
-    is in fact NOT the start of the desired sentence.
-    For example, if the movie title is 'Mr. Bobby' and it isn't italicized
-    in the Wikitext, then this function might identify the start at 'B'.
-    
-    Args:
-        match: match object which identified this potential candidate
-    """
-    text, matchstart = match.string, match.start()
-    text = text.replace('“', '"').replace('”', '"')
-    i, last = matchstart - 1, matchstart
-
-    brackets_re = r'\s+\([^()]+?\)$'
-    title = re.sub(brackets_re, '', title)
-
-    while i >= text.rfind('\n', 0, matchstart):
-        #print(text[i:i+7])
-        truncated = text[:i+1]
-        if truncated.endswith(title):
-            i -= len(title) - 1
-            continue
-
-        # jump over links
-        if truncated.endswith(']]'):
-            i = text.rfind('[[', 0, i-1)
-            continue
-
-        # skip comments
-        if truncated.endswith('-->'):
-            i = text.rfind('<!--', 0, i-2) - 1
-            continue
-
-        # skip references
-        if truncated.endswith("</ref>") or truncated.endswith("/>"):
-            i = text.rfind("<ref", 0, i) - 1
-            continue
-
-        if text[i] == '\n':
-            break
-        if text[i:i+2] in ('. ', '.<', '."', '".') and text[i-1] not in string.ascii_uppercase:
-            break
-        if text[i:i+3] == '."<':
-            break
-
-        if text[i] in string.ascii_letters + string.digits + "'{[":
-            last = i
-        i -= 1
-
-    i = last
-    while text[i] in ' "':
-        i += 1
-    return (i, match.start('refs'), match.end())
-
-
 def _find_citation_and_id(title, m, refnames):
     groupdict = m.groupdict()
     if ldrefname := groupdict.get('ldrefname'):
@@ -397,7 +348,7 @@ def _p1258(title):
         return item.claims['P1258'][0].getTarget()
     return None
 
-def suggested_id(title):
+def googled_id(title):
     GOOGLESEARCH_LOCK.acquire()
     #time.sleep(1)       # help avoid getting blocked, better safe than sorry
     print_logger.info(f"GETTING SUGGESTED ID for {title}.")
@@ -406,6 +357,30 @@ def suggested_id(title):
     GOOGLESEARCH_LOCK.release()
     suggested_id = url.split('rottentomatoes.com/m/')[1]
     return 'm/' + suggested_id.split('/')[0]
+
+
+
+def _inside_table_or_template(span, text):
+    """
+    Return True if index i of the string s is likely part of a table or template.
+    Not all tables end with '{|' and '|}'. Some use templates for the start/end.
+    So this function is what I came up with as a comrpomise between simplicity
+    and accuracy.
+    """
+    para_start, para_end = paragraph_span(span, text)
+    if '|-' in text[para_start:para_end]:
+        return True
+    # if text[span[0]:para_end].count('{{') != text[span[0]:para_end].count('}}'):
+    #     return True
+    # if text[para_start:para_end].count('{{') != text[para_start:para_end].count('}}'):
+    #     return True
+    wt = wtp.parse(text[para_start:para_end])
+    for t in wt.templates:
+        if t.span[0]+para_start <= span[0] and span[1] <= t.span[1]+para_start:
+            return True
+        elif span[1] <= t.span[0]+para_start:
+            break
+    return False
 
 
 if __name__ == "__main__":

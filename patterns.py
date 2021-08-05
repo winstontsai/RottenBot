@@ -1,16 +1,69 @@
 # This module defines some reusable regexes/patterns, and some helper functions.
 ################################################################################
-import re
+import regex as re
 ################################################################################
-def pattern_count(pattern, string, flags=0):
-    return sum(1 for x in re.finditer(pattern, string, flags))
+def pattern_count(pattern, text, flags=0):
+    return sum(1 for x in re.finditer(pattern, text, flags))
+
+def find_pattern(pattern, text, start=0, end=None, flags=0):
+    if end == None:
+        end = len(text)
+    pattern = re.compile(pattern, flags)
+    if m := pattern.search(text, start, end):
+        return m.start()
+    return -1
+
+def rfind_pattern(pattern, text, start=0, end=None, flags=0):
+    if end == None:
+        end = len(text)
+    pattern = re.compile(pattern, flags=flags|re.REVERSE)
+    if m := pattern.search(text, start, end):
+        return m.start()
+    return -1
+
+def index_pattern(pattern, text, start=0, end=None, flags=0):
+    i = find_pattern(pattern, text, start, end, flags)
+    if i == -1:
+        raise ValueError('substring not found')
+    return i
+
+def rindex_pattern(pattern, text, start=0, end=None, flags=0):
+    i = rfind_pattern(pattern, text, start, end, flags)
+    if i == -1:
+        raise ValueError('substring not found')
+    return i
+
+def paragraph_span(span, text):
+    """
+    Find span of the paragraph that contains a span.
+    """
+    i, j = span[0], span[1]
+    start = rfind_pattern(r'\n(?:\n|==)', text, 0, i)
+    if start == -1:
+        start = 0
+    elif text[start+1] == '\n':
+        start += 2
+    else:
+        start = re.compile(r'\n').search(text, start+3).end()
+    end = index_pattern(r'\n(?:\n|==)', text, j)
+    return (start, end)
+
+def is_subspan(x, y):
+    """
+    Return True if x is a subspan of y.
+    """
+    return y[0]<=x[0] and x[1]<=y[1]
+
+##############################################################################
+# Helper functions for making regular expressions
+##############################################################################
 
 def alternates(l):
     return f'(?:{"|".join(l)})'
 
 def template_re(name):
     """
-    Returns regex matching a the specified template.
+    Returns regex matching the specified template.
     Assumes no nested templates.
     """
     return fr'{{{{{name} *(?:\|.*?)?}}}}'
@@ -25,7 +78,9 @@ def construct_redirects(l):
     redirects = [f"[{x[0] + x[0].lower()}]{x[1:]}" for x in l]
     return alternates(redirects)
 
-
+##############################################################################
+# Helper functions for templates
+##############################################################################
 def parse_template(template):
     """
     Takes the text of a template and
@@ -53,17 +108,21 @@ def construct_template(name, d):
             named += f"|{k}={v}"
     return '{{' + name + positional + named + '}}'
 
-rt_re = r"[rR]otten [tT]omatoes"
-score_re = r"\b(?P<score>[0-9]|[1-9][0-9]|100)(?:%| percent)"
-average_re = r"\b(?P<average>(?:[0-9]|10)(?:\.\d{1,2})?(?:/| out of )(?:10|ten))"
+##############################################################################
+# Regular expressions
+##############################################################################
+
+rt_re = r"\b[rR]otten [tT]omatoes\b"
+score_re = r"\b([0-9]|[1-9][0-9]|100)(?:%| percent)"
+average_re = r"\b(?P<average>(?:[0-9]|10)(?:\.\d{1,2})?(?:/| out of )(?:10|ten))\b"
 
 ones = ["one", "two", "three", "four", "five", "six", "seven", "eight", "nine"]
 teens = ["ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"]
 tens = ["twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"]
 numword_re = alternates([fr"{alternates(tens)}([ -]{alternates(ones)})?"] + teens + ones[4:])
-count_re = fr"\b(?P<count>[5-9]|[1-9][0-9]|[1-9][0-9][0-9]|{numword_re}) (?P<count_term>(critic(al)? )?review(er)?s|(surveyed )?critics)"
+count_re = fr"\b(?P<count>[5-9]|[1-9][0-9]|[1-9][0-9][0-9]|{numword_re}) (?P<count_term>(critic(al)? )?review(er)?s|(surveyed )?critics)\b"
 
-url_re = r"rottentomatoes.com/(?P<rt_id>m/[-a-z0-9_]+)"
+url_re = r"rottentomatoes.com/(?P<rt_id>m/[-A-Za-z0-9_]+)"
 
 # for the {{Cite web}} and {{Cite news}} and {{Citation}} templates
 # citeweb_redirects = [
@@ -106,8 +165,10 @@ citation_re = fr'(?P<citation><ref( +name *= *"?(?P<refname>[^>]+?)"?)? *>((?!<r
 # for list-defined references. 
 # ldref_re = fr'(?P<ldref><ref +name *= *"?(?P<ldrefname>[^>]+?)"? */>)'
 
+someref_re = r'\s*<ref(?:(?!<ref).)+?/(?:ref *)?>'
 # matches zero or more consecutive references (not necessarily for RT), use re.DOTALL
-anyrefs_re = r'(<ref( +name *= *[^>]+?)? *>((?!<ref).)*?</ref *>|<ref +name *= *[^>]+? */>)*'
+anyrefs_re = fr'(?:{someref_re})*'
+
 
 # matches a bulleted list
 # used to find the External Links section

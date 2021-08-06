@@ -103,7 +103,7 @@ class RTMatch:
                 text = cand.text
                 lead = text[:text.find('==')]
                 words_to_check_for = set([' ' + movie.year])
-                names = chain(*(name.split() for name in movie.director+movie.writer))
+                names = chain.from_iterable(name.split() for name in movie.director+movie.writer)
                 words_to_check_for.update(x for x in names if x[-1] != '.')
                 if not all(x in lead for x in words_to_check_for):
                     return False
@@ -148,68 +148,83 @@ class Recruiter:
         # Get allowed refnames. Dictionary maps refname to match object of the citation definition
         refnames = dict()
         for m in re.finditer(fr'<ref +name *= *"?(?P<refname>[^>]+?)"? *>((?!<ref).)*{t_alternates}((?!<ref).)*</ref *>', text, re.DOTALL):
-            refnames[m.group('refname')] = m
+            refnames[m['refname']] = m
 
-        # pattern for allowed refnames
-        allowed_refname = alternates(map(re.escape, refnames))
-        ldref_re = fr'(?P<ldref><ref +name *= *"?(?P<ldrefname>{allowed_refname})"? */>)'
-        rtref_re = alternates([citation_re,ldref_re]) if refnames else citation_re
+        rtref_re = citation_re
+        if refnames:
+            allowed_refname = alternates(map(re.escape, refnames))
+            ldref_re = fr'(?P<ldref><ref +name *= *"?(?P<ldrefname>{allowed_refname})"? */>)'
+            rtref_re = alternates([citation_re,ldref_re])
         rtref_re = fr'\s*{rtref_re}'
 
         # (?!((?!<!--).)*-->) is for not inside comment
         # ((?!</?ref|\n\n).)*? is filler without ref tags or line breaks
         # (?!((?!<ref).)*</ref) is for not inside reference
-        cand_re1 = fr'{rt_re}(?!((?!<ref).)*</ref)(?!((?!<!--).)*-->)((?!</?ref|\n[\n*]|==).)*?{score_re}((?!\n\n|==).)*?(?P<refs>{anyrefs_re}{rtref_re}{anyrefs_re})'
-        cand_re2 = fr'{score_re}(?!((?!<ref).)*</ref)(?!((?!<!--).)*-->)((?!</?ref|\n[\n*]|==).)*?{rt_re}((?!\n\n|==).)*?(?P<refs>{anyrefs_re}{rtref_re}{anyrefs_re})'
-        cand_re3 = fr'{t_rtprose}(?!((?!<!--).)*-->)((?!</?ref|\n\n|==).)*?(?P<refs> ?{rtref_re})'
-        pats = map(re.compile, [cand_re1, cand_re2, cand_re3], [re.DOTALL]*3)
+        notinref = r'(?!((?!<ref).)*</ref)'
+        notincom = r'(?!((?!<!--).)*-->)'
+        #cand_re1 = fr'{rt_re}{notinref}{notincom}((?!</?ref|\n[\n*]|==).)*?{score_re}((?!\n\n|==).)*?(?P<refs>{anyrefs_re}{rtref_re}{anyrefs_re})'
+        #cand_re2 = fr'{score_re}{notinref}{notincom}((?!</?ref|\n[\n*]|==).)*?{rt_re}((?!\n\n|==).)*?(?P<refs>{anyrefs_re}{rtref_re}{anyrefs_re})'
+        cand_re3 = fr'{t_rtprose}{notincom}((?!</?ref|\n\n|==).)*?(?P<refs> ?{rtref_re})'
+        #pats = map(re.compile, [cand_re1, cand_re2, cand_re3], [re.DOTALL]*3)
 
-        all_matches = list(chain(*(p.finditer(text) for p in pats)))
+        cand_re4 = fr'(?:({rt_re})|{score_re}){notinref}{notincom}((?!</?ref|\n[\n*]|==).)*?(?(1){score_re}|{rt_re})((?!\n\n|==).)*?(?P<refs>{anyrefs_re}{rtref_re}{anyrefs_re})|{cand_re3}'
+        #pats = [re.compile(cand_re4, flags=re.DOTALL)]
+
+        #all_matches = list(chain(*(p.finditer(text) for p in pats)))
+        #print(all_matches)
 
         rtmatch_list = []
         span_set = set()      # different matches may be for the same prose
         id_set = set()
 
-        
-        for m in all_matches:
-            if _inside_table_or_template( m.span() , text):
+        previous_end = -666
+        for m in re.finditer(cand_re4, text, flags=re.DOTALL):
+            if _inside_table_or_template( m):
                 continue
-
-            if 'rtprose' in m.groupdict():
+            if m['rtprose']:
                 span = m.span()
             else:
                 span = _find_span333(m, title)
 
-            #naively check if match is inside a template or table
-            # x1, x2 = span[0], text.find('\n\n', span[0])
-            # y = text[x1:x2]
-            # if y.count('{{') != y.count('}}'):
-            #     continue
-            # if y.count('{|') != pattern_count(r'\|}(?!})', y):
-            #     continue
-
-            # check if is subspan of something already, or is strict superspan or something already
-            skip_match = False
-            for x in frozenset(span_set):
-                if is_subspan(span, x):
-                    skip_match = True
-                    #print_logger.info('SUBSPAN FOUND\n' +text[span[0]:span[1]] + '\n\nis a subspan of\n\n' + text[x[0]:x[1]])
-                    break
-                elif is_subspan(x, span): 
-                    span_set.remove(x)
-                    rtmatch_list = [z for z in rtmatch_list if z[0].span != x]
-                    #print_logger.info('STRICT SUBSPAN FOUND\n' +text[x[0]:x[1]] + '\n\nis a subspan of\n\n' + text[span[0]:span[1]])
-                    break
-                elif (x[0]<=span[0]<x[1]) or (span[0]<=x[0]<span[1]): # otherwise overlapping
-                    scraper.BLOCKED_LOCK.acquire()
-                    raise OverlappingMatchError(f"Overlapping matches found in {title}:\n{text[x[0]:x[1]]}\n\n{text[span[0]:span[1]]}")
-            if skip_match:
+            if span[0] < previous_end:
                 continue
-            span_set.add(span)
+            previous_end = span[1]
 
             ref, initial_rt_id = _find_citation_and_id(title, m, refnames)
             id_set.add(initial_rt_id)
             rtmatch_list.append((RTMatch(span, ref), initial_rt_id))
+
+        # for m in all_matches:
+        #     if _inside_table_or_template( m.span() , text):
+        #         continue
+
+        #     if m['rtprose']:
+        #         span = m.span()
+        #     else:
+        #         span = _find_span333(m, title)
+
+        #     # check if is subspan of something already, or is strict superspan or something already
+        #     # skip_match = False
+        #     # for x in frozenset(span_set):
+        #     #     if is_subspan(span, x):
+        #     #         skip_match = True
+        #     #         #print_logger.info('SUBSPAN FOUND\n' +text[span[0]:span[1]] + '\n\nis a subspan of\n\n' + text[x[0]:x[1]])
+        #     #         break
+        #     #     elif is_subspan(x, span):
+        #     #         span_set.remove(x)
+        #     #         rtmatch_list = [z for z in rtmatch_list if z[0].span != x]
+        #     #         #print_logger.info('STRICT SUBSPAN FOUND\n' +text[x[0]:x[1]] + '\n\nis a subspan of\n\n' + text[span[0]:span[1]])
+        #     #         break
+        #     #     elif (x[0]<=span[0]<x[1]) or (span[0]<=x[0]<span[1]): # otherwise overlapping
+        #     #         scraper.BLOCKED_LOCK.acquire()
+        #     #         raise OverlappingMatchError(f"Overlapping matches found in {title}:\n{text[x[0]:x[1]]}\n\n{text[span[0]:span[1]]}")
+        #     # if skip_match:
+        #     #     continue
+        #     # span_set.add(span)
+
+        #     ref, initial_rt_id = _find_citation_and_id(title, m, refnames)
+        #     id_set.add(initial_rt_id)
+        #     rtmatch_list.append((RTMatch(span, ref), initial_rt_id))
 
         if rtmatch_list:
             return Candidate(title, text, matches=[x[0] for x in rtmatch_list],
@@ -318,7 +333,7 @@ Please select an option:
 def _find_citation_and_id(title, m, refnames):
     groupdict = m.groupdict()
     if ldrefname := groupdict.get('ldrefname'):
-        ref = Reference(text=refnames[ldrefname].group(), name=ldrefname, list_defined=True)
+        ref = Reference(text=refnames[ldrefname][0], name=ldrefname, list_defined=True)
         groupdict = refnames[ldrefname].groupdict()
     else:
         ref = Reference(groupdict['citation'], groupdict.get('refname'))
@@ -360,13 +375,14 @@ def googled_id(title):
 
 
 
-def _inside_table_or_template(span, text):
+def _inside_table_or_template(match):
     """
     Return True if index i of the string s is likely part of a table or template.
     Not all tables end with '{|' and '|}'. Some use templates for the start/end.
     So this function is what I came up with as a comrpomise between simplicity
     and accuracy.
     """
+    span, text = match.span(), match.string
     para_start, para_end = paragraph_span(span, text)
     if '|-' in text[para_start:para_end]:
         return True

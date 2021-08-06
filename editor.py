@@ -137,7 +137,7 @@ def compute_edit_list(cand):
                 '2': average,
                 '3': count,
             }
-            new_prose = new_prose.replace(m.group(), construct_template('Rotten Tomatoes prose', temp_dict)) 
+            new_prose = new_prose.replace(m[0], construct_template('Rotten Tomatoes prose', temp_dict)) 
         else:
             # NOWHERE DOES IT SAY IT'S A WEIGHTED AVERAGE
             new_prose = re.sub(r'\[\[[wW]eighted.*?\]\]', 'average rating', new_prose)
@@ -161,7 +161,7 @@ def compute_edit_list(cand):
                 flags.add("multiple counts")
 
             # handle score
-            all_scores = [m.group(1) for m in re.finditer(score_re, old_prose)]
+            all_scores = [m[1] for m in re.finditer(score_re, old_prose)]
             if len(all_scores) > 1:
                 if set(all_scores) not in ({'0'}, {'100'}):
                     flags.add("multiple scores")
@@ -214,7 +214,7 @@ def compute_edit_list(cand):
 
         # Update "As of"
         if m:=re.search(t_asof, new_prose): # As of template
-            old_temp = m.group()
+            old_temp = m[0]
             day, month, year = date.today().strftime("%d %m %Y").split()
             temp_dict = parse_template(old_temp)[1]
             temp_dict['1'], temp_dict['2'] = year, month
@@ -223,7 +223,7 @@ def compute_edit_list(cand):
             new_temp = construct_template("As of", temp_dict)
             new_prose = new_prose.replace(old_temp, new_temp)
         elif m:=re.search(r"[Aa]s of (?=January|February|March|April|May|June|July|August|September|October|November|December|[1-9])[ ,a-zA-Z0-9]{,14}[0-9]{4}(?![0-9])", new_prose):
-            old_asof = m.group()
+            old_asof = m[0]
             day, month, year = date.today().strftime("%d %B %Y").split()
             new_date = month + ' ' + year
             if pattern_count(r'[0-9]', old_asof) > 4: # if includes day

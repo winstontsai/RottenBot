@@ -29,12 +29,11 @@ from pywikibot.xmlreader import XmlDump
 from googlesearch import lucky
 
 import scraper
-from scraper import RTMovie, ROTTENTOMATOES_LOCK
+from scraper import RTMovie
 from patterns import *
 from findspan import _find_span333,_find_span222,_find_span
 ################################################################################
-WIKIDATA_LOCK = multiprocessing.Lock()
-GOOGLESEARCH_LOCK = multiprocessing.Lock()
+
 
 class OverlappingMatchError(Exception):
     pass
@@ -70,9 +69,6 @@ class Candidate:
 
 
 def candidate_from_entry(entry):
-    if ROTTENTOMATOES_LOCK.locked():
-        sys.exit()
-
     title, text = entry.title, entry.text
 
     print_logger.info(f"Processing [[{title}]].")
@@ -114,15 +110,25 @@ def candidate_from_entry(entry):
         id_set.add(initial_rt_id)
         rtmatch_and_initialids.append( (RTMatch(span, ref), initial_rt_id) )
 
+    cand = Candidate(title, text)
     for rtmatch, initial in rtmatch_and_initialids:
         rtmatch.movie = _find_RTMovie(entry, initial, len(id_set)<2)
+        cand.matches.append(rtmatch)
         # print(rtmatch.movie)
 
     if rtmatch_and_initialids:
-        return Candidate(title, text, matches=rtmatch_and_initialids)
+        return cand
     else:
         return None
 
+
+def init(lock1, lock2):
+    """
+    To be used with Executor in find_candidates.
+    """
+    global WIKIDATA_LOCK
+    global GOOGLESEARCH_LOCK
+    WIKIDATA_LOCK, GOOGLESEARCH_LOCK = lock1, lock2
 
 def find_candidates(xmlfile, get_user_input = False):
     """
@@ -132,25 +138,18 @@ def find_candidates(xmlfile, get_user_input = False):
     # if we get blocked (status code 403), acquire the lock
     # to let other threads know
     total, count = 0, 0
-    print_logger.info(f"Found {count} candidates out of {total} pages")
     xml_entries = XmlDump(xmlfile).parse()
 
-
-    return_list = list()
-    # 15 threads is fine, but don't rerun on the same pages immediately
-    # after a run, or the caching may result in sending too many
-    # requests too fast, and we'll get blocked.
-    def init(lock1, lock2, lock3):
-        global WIKIDATA_LOCK
-        global GOOGLESEARCH_LOCK
-        global ROTTENTOMATOES_LOCK
-        WIKIDATA_LOCK, GOOGLESEARCH_LOCK, ROTTENTOMATOES_LOCK = lock1, lock2, lock3
-
-    with ThreadPoolExecutor(max_workers=16,
-            init, (WIKIDATA_LOCK,GOOGLESEARCH_LOCK,ROTTENTOMATOES_LOCK) ) as x:
+    m = multiprocessing.Manager()
+    WIKIDATA_LOCK = m.Lock()
+    GOOGLESEARCH_LOCK = m.Lock()
+    with ProcessPoolExecutor(max_workers=16,
+            initializer=init,
+            initargs=(WIKIDATA_LOCK,GOOGLESEARCH_LOCK) ) as x:
         futures = {x.submit(candidate_from_entry, e) : e.title for e in xml_entries}
         for future in as_completed(futures):
             total += 1
+            # print('hiii')
             try:
                 cand = future.result()
             except Exception as e:
@@ -161,7 +160,7 @@ def find_candidates(xmlfile, get_user_input = False):
                 if get_user_input:
                     _process_needs_input_movies(cand)
                 count += 1
-                #print_logger.info(f"Processed [[{futures[future]}]].")
+                print_logger.info(f"Found candidate [[{futures[future]}]].")
                 yield cand
 
     logger.info(f"Found {count} candidates out of {total} pages")
@@ -172,9 +171,12 @@ def _process_needs_input_movies(cand):
         if not rtm.movie:
             while True:
                 newid = _ask_for_id(cand, rtm)
-                if not newid or rtmatch._load_rt_data(newid, cand):
+                if not newid:
                     break
-                print(f"Problem getting Rotten Tomatoes data with id {newid}\n")
+                if z:=_find_RTMovie(cand, newid):
+                    rtm.movie = z
+                    break
+                print(f"Problem getting Rotten Tomatoes data with id {newid}.\n")
 
 
 def _ask_for_id(cand, rtmatch):
@@ -213,7 +215,7 @@ Please select an option:
         logger.info(f"Skipping article [[{title}]]")
         return None
     elif user_input == '4':
-        print_logger.info("Quitting program.")
+        print("Quitting program.")
         sys.exit()                
 
 # ===========================================================================================
@@ -240,6 +242,7 @@ def _find_citation_and_id(title, m, refnames):
 
 def _p1258(title):
     WIKIDATA_LOCK.acquire()
+    time.sleep(1)       # avoid getting blocked, better safe than sorry
     page = pwb.Page(pwb.Site('en','wikipedia'), title)
     item = pwb.ItemPage.fromPage(page)
     item.get()
@@ -273,24 +276,21 @@ def _inside_table_or_template(match):
 
 def googled_id(title):
     GOOGLESEARCH_LOCK.acquire()
-    #time.sleep(1)       # help avoid getting blocked, better safe than sorry
+    time.sleep(1)       # avoid getting blocked, better safe than sorry
     print_logger.info(f"GOOGLING ID for [[{title}]].")
     try:
-        url = lucky(title + ' movie site:rottentomatoes.com/m/',
-            user_agent=scraper.USER_AGENT)
+        url = lucky(title+' movie site:rottentomatoes.com/m/',user_agent=scraper.USER_AGENT)
     except urllib.error.HTTPError as x:
         logger.exception("Error while using googlesearch.")
         GOOGLESEARCH_LOCK.release()
         raise
-    GOOGLESEARCH_LOCK.release()
+    else:
+        GOOGLESEARCH_LOCK.release()
     suggested_id = url.split('rottentomatoes.com/m/')[1]
     return 'm/' + suggested_id.split('/')[0]
 
 
 def _find_RTMovie(page, initial_id = None, make_guess = False):
-    if ROTTENTOMATOES_LOCK.locked():
-        sys.exit()
-
     try:
         return RTMovie(initial_id)
     except Exception:

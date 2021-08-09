@@ -15,7 +15,7 @@ import requests
 
 from bs4 import BeautifulSoup
 ################################################################################
-USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:89.0) Gecko/20100101 Firefox/89.0'
+USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:90.0) Gecko/20100101 Firefox/90.0'
 RT_HEADERS = {
     'Host': 'www.rottentomatoes.com',
     'User-Agent': USER_AGENT,
@@ -27,8 +27,6 @@ RT_HEADERS = {
     'Upgrade-Insecure-Requests': '1',
     'Sec-GPC': '1',
 }
-
-ROTTENTOMATOES_LOCK = multiprocessing.Lock()
 
 def rt_url(movieid):
     return "https://www.rottentomatoes.com/" + movieid
@@ -95,7 +93,6 @@ class RTMovie:
             html = url_contents(rt_url(self.short_url))
         except requests.exceptions.HTTPError as x:
             if x.response.status_code == 403:
-                BLOCKED_LOCK.acquire(blocking=False)
                 logger.exception("Probably blocked by rottentomatoes.com. Exiting thread")
                 sys.exit()
             elif x.response.status_code == 404:

@@ -3,13 +3,13 @@
 import re
 import sys
 import json
+import multiprocessing
 import logging
 logger = logging.getLogger(__name__)
 print_logger = logging.getLogger('print_logger')
 
 from datetime import date
 from dataclasses import dataclass, field
-from threading import Lock
 
 import requests
 
@@ -28,7 +28,7 @@ RT_HEADERS = {
     'Sec-GPC': '1',
 }
 
-BLOCKED_LOCK = Lock()
+ROTTENTOMATOES_LOCK = multiprocessing.Lock()
 
 def rt_url(movieid):
     return "https://www.rottentomatoes.com/" + movieid
@@ -84,6 +84,7 @@ class RTMovie:
     tomatometer_score: tuple[str, str, str] = None
     audience_score: tuple[str, str, str] = None
     consensus: str = None
+    audience_says: str = None
 
     def __post_init__(self):
         for attr in ('director', 'producer', 'writer', 'production_co',
@@ -137,12 +138,15 @@ class RTMovie:
             else:
                 setattr(self, attr, str(x('div')[1].get_text(strip=True)))
 
-        if (consensus := soup.find('span', attrs={'data-qa': "critics-consensus"}))!=None:
-            consensus = str(consensus)
-            consensus = consensus[consensus.find('>')+1 : consensus.rfind('<')]
-            consensus = re.sub(r'</?em>|</?i>', "''").replace("'''", r"''{{'}}")
-            consensus = consensus.replace('"', "'")
-            self.consensus = consensus
+        x = soup.find_all('p', attrs={'class': "what-to-know__section-body"})
+        if x:
+            consensus = re.search(r'>(.*)</span', str(x[0].span))[1]
+            consensus = re.sub(r'</?em>|</?i>', "''", consensus)
+            self.consensus = consensus.replace("'''", r"''{{'}}").replace('"', "'")
+        if len(x) > 1:
+            audience_says = re.search(r'>(.*)</span', str(x[1].span))[1]
+            audience_says = re.sub(r'</?em>|</?i>', "''", audience_says)
+            self.audience_says = audience_says.replace("'''", r"''{{'}}").replace('"', "'")
 
         sd = str(soup.find('script', id='score-details-json'))
         self.score_data = json.loads(sd[sd.find('>')+1 : sd.rfind('<')])["modal"]
@@ -162,7 +166,7 @@ if __name__ == "__main__":
     # soup = BeautifulSoup(r.text, "html.parser")
     # d = json.loads(str(soup.find('script', id='score-details-json')).split('>')[1].split('<')[0])
     # print(json.dumps(d, indent=4))
-    print(RTMovie('tv/small_axe/s02'))
+    print(RTMovie('m/conrack'))
 
 
 

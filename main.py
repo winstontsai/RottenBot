@@ -17,16 +17,16 @@ import patterns
 ################################################################################
 
 def store_candidates(args):
-    data = candidates.Recruiter(args.file1).find_candidates(get_user_input=args.interactive)
+    data = candidates.find_candidates(args.file1, get_user_input=args.interactive)
     with open(args.file2, 'wb') as f:
-        pickle.dump(data, f)
+        pickle.dump(list(data), f)
 
 def store_edits(args):
     if args.file1.endswith('.cands'):
         with open(args.file1, 'rb') as f:
             cands = pickle.load(f)         
     else:
-        cands = candidates.Recruiter(args.file1).find_candidates(get_user_input=args.interactive)
+        cands = candidates.find_candidates(args.file1, get_user_input=args.interactive)
 
     edits = editor.compute_edits(cands)
     with open(args.file2, 'wb') as f:

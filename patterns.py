@@ -120,7 +120,7 @@ ones = ["one", "two", "three", "four", "five", "six", "seven", "eight", "nine"]
 teens = ["ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"]
 tens = ["twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"]
 numword_re = alternates([fr"{alternates(tens)}([ -]{alternates(ones)})?"] + teens + ones[4:])
-count_re = fr"\b(?P<count>[5-9]|[1-9][0-9]|[1-9][0-9][0-9]|{numword_re}) (?P<count_term>(critic(al)? )?review(er)?s|(surveyed )?critics)\b"
+count_re = fr"\b(?P<count>[5-9]|[1-9][0-9]|[1-9][0-9][0-9]|{numword_re}) (?P<count_term>(critic(al)? )?review(er)?s|(surveyed )?critics)"
 
 url_re = r"rottentomatoes.com/(?P<rt_id>m/[-A-Za-z0-9_]+)"
 
@@ -147,11 +147,7 @@ rt_redirects = [ "Rotten Tomatoes", "Rotten-tomatoes", "Rottentomatoes",
 t_rt = fr"(?P<rt>{template_re(construct_redirects(rt_redirects))})"
 
 # for the {{Rotten Tomatoes prose}} template
-rtprose_redirects = [
-    'Rotten Tomatoes prose',
-    'RT',
-    'RT prose', 
-]
+rtprose_redirects = ['Rotten Tomatoes prose', 'RT prose', 'RT']
 t_rtprose = fr"(?P<rtprose>{template_re(construct_redirects(rtprose_redirects))})"
 
 # for the {{As of}} template
@@ -159,7 +155,6 @@ asof_redirects = ["As of", "Asof"]
 t_asof = fr"(?P<asof>{template_re(construct_redirects(asof_redirects))})"
 
 t_alternates = alternates([t_other,t_citert,t_rt])
-
 citation_re = fr'(?P<citation><ref( +name *= *"?(?P<refname>[^>]+?)"?)? *>((?!<ref).)*?{t_alternates}((?!<ref).)*</ref *>)'
 
 # for list-defined references. 
@@ -170,10 +165,8 @@ someref_re = r'\s*<ref(?:(?!<ref).)+?/(?:ref *)?>'
 anyrefs_re = fr'(?:{someref_re})*'
 
 
-# matches a bulleted list
-# used to find the External Links section
-# list_re = r'([*][^\n]+\n)+'
-
 if __name__ == "__main__":
     print(numword_re)
+
+
 

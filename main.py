@@ -30,7 +30,7 @@ def store_edits(args):
 
     edits = editor.compute_edits(cands)
     with open(args.file2, 'wb') as f:
-        pickle.dump(edits, f)
+        pickle.dump(list(edits), f)
 
 
 # function for upload command
@@ -117,7 +117,7 @@ def main():
         file_handler.doRollover()
 
     root_logger.addHandler(file_handler)
-    root_logger.setLevel(logging.DEBUG)
+    root_logger.setLevel(logging.INFO)
 
     stream_handler = logging.StreamHandler(sys.stdout)
     formatter = logging.Formatter('%(message)s')

@@ -25,13 +25,14 @@ import requests
 import pywikibot as pwb
 import wikitextparser as wtp
 
+from pywikibot import Page, Site, ItemPage
+
 from pywikibot.xmlreader import XmlDump
 from googlesearch import lucky
 
 import scraper
 from scraper import RTMovie
 from patterns import *
-from findspan import _find_span333,_find_span222,_find_span
 ################################################################################
 
 
@@ -81,22 +82,34 @@ def candidate_from_entry(entry):
     rtref_re = citation_re
     if refnames:
         allowed_refname = alternates(map(re.escape, refnames))
-        ldref_re = fr'(?P<ldref><ref +name *= *"?(?P<ldrefname>{allowed_refname})"? */>)'
+        ldref_re = fr'(?P<ldref><ref +name *= *"?(?P<ldrefname>{allowed_refname})"? */>|{{{{ *[rR] *\| *(?P<ldrefname>{allowed_refname}) *}}}})'
         rtref_re = alternates([citation_re,ldref_re])
-    rtref_re = fr'\s*{rtref_re}'
+    rtref_re = fr'(?P<rtref>\s*{rtref_re})'
 
     #notinref = r'(?!((?!<ref).)*</ref)'
     notincom = r'(?!((?!<!--).)*-->)'
     notinreforcom = r'(?!((?!<ref).)*</ref)(?!((?!<!--).)*-->)'
+    notintemplate = r'(?![^{{]*}})'
     #cand_re1 = fr'{rt_re}{notinref}{notincom}((?!</?ref|\n[\n*]|==).)*?{score_re}((?!\n\n|==).)*?(?P<refs>{anyrefs_re}{rtref_re}{anyrefs_re})'
     #cand_re2 = fr'{score_re}{notinref}{notincom}((?!</?ref|\n[\n*]|==).)*?{rt_re}((?!\n\n|==).)*?(?P<refs>{anyrefs_re}{rtref_re}{anyrefs_re})'
     #cand_re3 = fr'{t_rtprose}{notincom}((?!</?ref|\n\n|==).)*?(?P<refs>{rtref_re})'
-    final_re = fr'(?:(?:({rt_re})|{score_re}){notinreforcom}((?!</?ref|\n\n|==).)*?(?(1){score_re}|{rt_re})|{t_rtprose}){notincom}((?!\n\n|==).)*?(?P<refs>{anyrefs_re}{rtref_re}{anyrefs_re})'
+    final_re = fr'(?:(?:({rt_re})(?![^{{]*}})|{score_re}){notinreforcom}((?!</?ref|\n\n|==).)*?(?(1){score_re}|{rt_re}(?![^{{]*}}))|{t_rtprose}){notincom}(?:((?!\n\n|==).)*?(?P<refs>{anyrefs_re}{rtref_re}{anyrefs_re}))?'
+
+    banned_sections = []
+    for sec in wtp.parse(text).get_sections(include_subsections=False):
+        if re.search('(external links|references|see also|notes)', str(sec.title), re.IGNORECASE):
+            banned_sections.append(sec.span)
 
     rtmatch_and_initialids, id_set, previous_end = [], set(), -333
     for m in re.finditer(final_re, text, flags=re.DOTALL):
+        if any(is_subspan(m.span(), y) for y in banned_sections):
+            continue
         if _inside_table_or_template(m):
             continue
+
+        # if m['rtref']:
+        #     continue
+
         if m['rtprose']:
             span = m.span()
         else:
@@ -112,17 +125,17 @@ def candidate_from_entry(entry):
 
     cand = Candidate(title, text)
     for rtmatch, initial in rtmatch_and_initialids:
-        rtmatch.movie = _find_RTMovie(entry, initial, len(id_set)<2)
+        safe_to_guess = len(id_set)<2 or rtmatch.span[0]<text.index('\n==')
+        rtmatch.movie = _find_RTMovie(entry, initial, safe_to_guess)
         cand.matches.append(rtmatch)
-        # print(rtmatch.movie)
 
-    if rtmatch_and_initialids:
+    if cand.matches:
         return cand
     else:
         return None
 
 
-def init(lock1, lock2):
+def _init(lock1, lock2):
     """
     To be used with Executor in find_candidates.
     """
@@ -140,16 +153,14 @@ def find_candidates(xmlfile, get_user_input = False):
     total, count = 0, 0
     xml_entries = XmlDump(xmlfile).parse()
 
-    m = multiprocessing.Manager()
-    WIKIDATA_LOCK = m.Lock()
-    GOOGLESEARCH_LOCK = m.Lock()
+    WIKIDATA_LOCK = multiprocessing.Lock()
+    GOOGLESEARCH_LOCK = multiprocessing.Lock()
     with ProcessPoolExecutor(max_workers=16,
-            initializer=init,
+            initializer=_init,
             initargs=(WIKIDATA_LOCK,GOOGLESEARCH_LOCK) ) as x:
         futures = {x.submit(candidate_from_entry, e) : e.title for e in xml_entries}
         for future in as_completed(futures):
             total += 1
-            # print('hiii')
             try:
                 cand = future.result()
             except Exception as e:
@@ -159,8 +170,8 @@ def find_candidates(xmlfile, get_user_input = False):
             if cand:
                 if get_user_input:
                     _process_needs_input_movies(cand)
-                count += 1
                 print_logger.info(f"Found candidate [[{futures[future]}]].")
+                count += 1
                 yield cand
 
     logger.info(f"Found {count} candidates out of {total} pages")
@@ -173,7 +184,7 @@ def _process_needs_input_movies(cand):
                 newid = _ask_for_id(cand, rtm)
                 if not newid:
                     break
-                if z:=_find_RTMovie(cand, newid):
+                if z := _find_RTMovie(cand, newid):
                     rtm.movie = z
                     break
                 print(f"Problem getting Rotten Tomatoes data with id {newid}.\n")
@@ -187,11 +198,11 @@ def _ask_for_id(cand, rtmatch):
     title, text = cand.title, cand.text
     i, j = rtmatch.span[0], rtmatch.span[1]
     warning = ''
-    if cand.multiple_movies:
-        warning = 'WARNING: More than one movie url detected in this article.\n'
+    if len(cand.matches) > 1:
+        warning = 'WARNING: More than one match found in this article.\n'
     prompt = f"""\033[96mNo working id found for a match in [[{title}]].\033[0m
 \033[93m{warning}Context------------------------------------------------------------------------\033[0m
-{text[i-60: i]}\033[1m{text[i: j]}\033[0m{text[j: j+50]}
+{text[i-70: i]}\033[1m{text[i: j]}\033[0m{text[j: j+70]}
 \033[93m-------------------------------------------------------------------------------\033[0m
 Please select an option:
 1) enter id
@@ -201,7 +212,7 @@ Please select an option:
     print(prompt)
     while (user_input:=input("Your selection: ")) not in ('1','3','4'):
         if user_input == '2':
-            webbrowser.open(pwb.Page(pwb.Site('en', 'wikipedia'), title).full_url())
+            webbrowser.open(Page(Site('en','wikipedia'), title).full_url())
         else:
             print("Not a valid selection.")
 
@@ -219,12 +230,76 @@ Please select an option:
         sys.exit()                
 
 # ===========================================================================================
+def _find_span333(match, title):
+    matchstart = match.start()
+    para_start, para_end = paragraph_span(match.span(), match.string)
+
+    wikitext = wtp.parse(match.string[para_start:para_end])
+    # reversed to avoid possible edge cases
+    for x in reversed(wikitext.get_bolds_and_italics(recursive=False)):
+        x.string = len(x.string) * "'"
+    for x in reversed(wikitext.wikilinks):
+        x.string = len(x.string) * ']'
+    for x in reversed(wikitext.external_links):
+        x.string = len(x.string) * ']'
+    for x in reversed(wikitext.templates):
+        x.string = len(x.string) * '}'
+    for x in reversed(wikitext.comments):
+        x.string = len(x.string) * '`'
+    for x in reversed(wikitext.get_tags()):
+        x.string = len(x.string) * '@'
+
+    text = str(wikitext).translate(str.maketrans('“”‘’','""\'\''))
+    text = re.sub(r"(?<!')'(?!')", ' ', text)
+
+    brackets_re = r'\s+\([^()]+?\)$'
+    title = re.sub(brackets_re, '', title)
+    rep = 'T' + 't'*(len(title)-1)
+    text = re.sub(re.escape(title), rep, text)
+    #print(text)
+    text = match.string[:para_start] + text + match.string[para_end:]
+    text = text[:match.start()] + text[match.start():para_end].replace('\n',' ') + text[para_end:]
+
+    p2 = re.compile(r'([.!] ?"|(?<=[^A-Z])[.!])(( *[@`]+)+|(?= +[^a-z]|\n))')
+    p3 = re.compile(r'}} *@')
+    i, potential_starts = matchstart, [matchstart]
+    while i > para_start:
+        #print(text[i:i+7])
+        if text[i] in ' `@':
+            i -=1; continue
+
+        if text[i] in '\n':
+            i = potential_starts[-1]
+            break
+
+        if (m:=p2.match(text, i)) or (m:=p3.match(text, i)):
+            i = next(j for j in reversed(potential_starts) if j >= m.end())
+            break
+        potential_starts.append(i)
+        i -= 1
+
+    if match['refs']:
+        search_start = rfind_pattern(r'\w', text, 0, match.start('refs'))
+    else:
+        search_start = rfind_pattern(r'\w', text, 0, match.end())
+
+    if m := p2.search(text, search_start):
+        j = min(m.end(), para_end)
+    else:
+        j = para_end
+
+    #print(match.string[i:j])
+    return (i, j)
+
+
 def _find_citation_and_id(title, m, refnames):
     if ldrefname := m.groupdict().get('ldrefname'):
         m = refnames[ldrefname]
         ref = Reference(text=m[0], name=ldrefname, list_defined=True)
-    else:
+    elif m['citation']:
         ref = Reference(m['citation'], m['refname'])
+    else:
+        return None, None
 
     if x := m['rt_id']:
         movieid = x
@@ -243,8 +318,7 @@ def _find_citation_and_id(title, m, refnames):
 def _p1258(title):
     WIKIDATA_LOCK.acquire()
     time.sleep(1)       # avoid getting blocked, better safe than sorry
-    page = pwb.Page(pwb.Site('en','wikipedia'), title)
-    item = pwb.ItemPage.fromPage(page)
+    item = ItemPage.fromPage(Page(Site('en','wikipedia'), title))
     item.get()
     WIKIDATA_LOCK.release()
     if 'P1258' in item.claims:
@@ -268,7 +342,7 @@ def _inside_table_or_template(match):
     #     return True
     wt = wtp.parse(text[para_start:para_end])
     for t in wt.templates:
-        if t.span[0]+para_start <= span[0] and span[1] <= t.span[1]+para_start:
+        if is_subspan(span, (t.span[0]+para_start, t.span[1]+para_start) ):
             return True
         elif span[1] <= t.span[0]+para_start:
             break
@@ -281,7 +355,6 @@ def googled_id(title):
     try:
         url = lucky(title+' movie site:rottentomatoes.com/m/',user_agent=scraper.USER_AGENT)
     except urllib.error.HTTPError as x:
-        logger.exception("Error while using googlesearch.")
         GOOGLESEARCH_LOCK.release()
         raise
     else:
@@ -290,9 +363,10 @@ def googled_id(title):
     return 'm/' + suggested_id.split('/')[0]
 
 
-def _find_RTMovie(page, initial_id = None, make_guess = False):
+def _find_RTMovie(page, initial_id, make_guess = False):
     try:
-        return RTMovie(initial_id)
+        if initial_id:
+            return RTMovie(initial_id)
     except Exception:
         pass
 
@@ -306,40 +380,23 @@ def _find_RTMovie(page, initial_id = None, make_guess = False):
             pass
 
     def probably_correct():
-        lead = page.text[:page.text.find('==')]
+        lead = page.text[:page.text.index('\n==')]
         words_to_check_for = {' ' + movie.year}
         names = chain.from_iterable(name.split() for name in movie.director+movie.writer)
         words_to_check_for.update(x for x in names if x[-1] != '.')
         if not all(x in lead for x in words_to_check_for):
             return False
-        if f"'''''{movie.title}'''''" in lead:
-            return True
-        hrs, mins = map(int, movie.runtime[:-1].split('h '))
-        runtime = 60 * hrs * mins
-        if f"''{movie.title}''" in lead and f"{runtime} minutes" in lead:
+        if f"''{movie.title}''" in lead:
             return True
         return False
 
-    movieid = None
-    for section in wtp.parse(page.text).sections[-3:]:
-        if re.search(r'[eE]xternal [lL]inks', section.title):
-            l = list(re.finditer(url_re, section.string))
-            if len(l) == 1:
-                movieid = l[0]['rt_id']
-            break
-    if movieid not in (initial_id, p):
-        try:
-            movie = RTMovie(movieid)
-            if probably_correct():
-                return movie
-        except Exception:
-            pass
     try:
         movie = RTMovie(googled_id(page.title))
-        if probably_correct():
-            return movie
     except Exception:
         pass
+    else:
+        if probably_correct():
+            return movie
     return None
 
 

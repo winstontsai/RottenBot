@@ -158,12 +158,9 @@ class RTMovie:
                     sd["score"], str(sd["ratingCount"]), sd["averageRating"]
                 )
 
+
 if __name__ == "__main__":
-    # r = requests.get(rt_url('m/meadowland'))
-    # soup = BeautifulSoup(r.text, "html.parser")
-    # d = json.loads(str(soup.find('script', id='score-details-json')).split('>')[1].split('<')[0])
-    # print(json.dumps(d, indent=4))
-    print(RTMovie('m/conrack'))
+    print(RTMovie('m/the_emoji_movie'))
 
 
 

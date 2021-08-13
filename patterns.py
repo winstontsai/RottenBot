@@ -66,7 +66,7 @@ def template_re(name):
     Returns regex matching the specified template.
     Assumes no nested templates.
     """
-    return fr'{{{{{name} *(?:\|.*?)?}}}}'
+    return fr'{{{{ *{name} *(?:\|.*?)?}}}}'
 
 def construct_redirects(l):
     """
@@ -112,15 +112,19 @@ def construct_template(name, d):
 # Regular expressions
 ##############################################################################
 
-rt_re = r"\b[rR]otten [tT]omatoes\b"
+rt_re = r"\b[rR]otten [tT]omatoe?s\b"
 score_re = r"\b([0-9]|[1-9][0-9]|100)(?:%| percent)"
-average_re = r"\b(?P<average>(?:[0-9]|10)(?:\.\d{1,2})?(?:/| out of )(?:10|ten))\b"
 
 ones = ["one", "two", "three", "four", "five", "six", "seven", "eight", "nine"]
 teens = ["ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"]
 tens = ["twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"]
-numword_re = alternates([fr"{alternates(tens)}([ -]{alternates(ones)})?"] + teens + ones[4:])
-count_re = fr"\b(?P<count>[5-9]|[1-9][0-9]|[1-9][0-9][0-9]|{numword_re}) (?P<count_term>(critic(al)? )?review(er)?s|(surveyed )?critics)"
+# 5 <= x <= 99
+numword_re1 = alternates([fr"{alternates(tens)}([ -]{alternates(ones)})?"] + teens + ones[4:])
+
+count_re = fr"\b(?P<count>[5-9]|[1-9][0-9]|[1-9][0-9][0-9]|{numword_re1}) (?P<count_term>(critic(al)? )?review(er)?s|(surveyed )?critics)"
+average_re = fr"\b(?:(?:[0-9]|10)(?:\.\d{1,2})?|{alternates(['zero']+ones)})(?:/| out of )(?:10|ten)\b"
+score_re = fr"\b([0-9]|[1-9][0-9]|100)(?:%| percent)"
+
 
 url_re = r"rottentomatoes.com/(?P<rt_id>m/[-A-Za-z0-9_]+)"
 
@@ -134,39 +138,40 @@ url_re = r"rottentomatoes.com/(?P<rt_id>m/[-A-Za-z0-9_]+)"
 
 # This will be used to match any reference which includes the RT url pattern.
 # This is a generalization of the Cite web, Cite news, and Citation templates.
-# Can handle a lot of edge cases, such as where a template is not used.
+# Can handle edge cases, such as where a template is not used.
 t_other = fr'(?P<citeweb>{url_re})'
 
-# for the {{Cite Rotten Tomatoes}} template
+# {{Cite Rotten Tomatoes}} template
 citert_redirects = ["Cite Rotten Tomatoes", "Cite rotten tomatoes", "Cite rt", "Cite RT"]
 t_citert = fr"(?P<citert>{template_re(construct_redirects(citert_redirects))})"
 
-# for the {{Rotten Tomatoes}} template
+# {{Rotten Tomatoes}} template
 rt_redirects = [ "Rotten Tomatoes", "Rotten-tomatoes", "Rottentomatoes",
                 "Rotten tomatoes", "Rotten", "Rottentomatoes.com"]
 t_rt = fr"(?P<rt>{template_re(construct_redirects(rt_redirects))})"
 
-# for the {{Rotten Tomatoes prose}} template
+# {{Rotten Tomatoes prose}} template
 rtprose_redirects = ['Rotten Tomatoes prose', 'RT prose', 'RT']
 t_rtprose = fr"(?P<rtprose>{template_re(construct_redirects(rtprose_redirects))})"
 
-# for the {{As of}} template
+# {{As of}} template
 asof_redirects = ["As of", "Asof"]
 t_asof = fr"(?P<asof>{template_re(construct_redirects(asof_redirects))})"
 
 t_alternates = alternates([t_other,t_citert,t_rt])
 citation_re = fr'(?P<citation><ref( +name *= *"?(?P<refname>[^>]+?)"?)? *>((?!<ref).)*?{t_alternates}((?!<ref).)*</ref *>)'
 
-# for list-defined references. 
+# for list-defined references.
 # ldref_re = fr'(?P<ldref><ref +name *= *"?(?P<ldrefname>[^>]+?)"? */>)'
 
-someref_re = r'\s*<ref(?:(?!<ref).)+?/(?:ref *)?>'
+someref_re = fr'\s*(?:<ref(?:(?!<ref).)+?/(?:ref *)?>|{template_re(r"[rR]")})'
 # matches zero or more consecutive references (not necessarily for RT), use re.DOTALL
 anyrefs_re = fr'(?:{someref_re})*'
 
+cutoff_sections_re = re.compile(fr"[^=]== *{alternates(['References( and notes)?','External links', 'See also', 'Notes and references'])} *==[^=]", flags=re.IGNORECASE)
 
 if __name__ == "__main__":
-    print(numword_re)
+    print(numword_re2)
 
 
 

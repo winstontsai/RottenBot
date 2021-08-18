@@ -6,7 +6,7 @@ def pattern_count(pattern, text, flags=0):
     return sum(1 for x in re.finditer(pattern, text, flags))
 
 def find_pattern(pattern, text, start=0, end=None, flags=0):
-    if end == None:
+    if end is None:
         end = len(text)
     pattern = re.compile(pattern, flags)
     if m := pattern.search(text, start, end):
@@ -122,8 +122,8 @@ tens = ["twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "nin
 numword_re1 = alternates([fr"{alternates(tens)}([ -]{alternates(ones)})?"] + teens + ones[4:])
 
 count_re = fr"\b(?P<count>[5-9]|[1-9][0-9]|[1-9][0-9][0-9]|{numword_re1}) (?P<count_term>(critic(al)? )?review(er)?s|(surveyed )?critics)"
-average_re = fr"\b(?:(?:[0-9]|10)(?:\.\d{1,2})?|{alternates(['zero']+ones)})(?:/| out of )(?:10|ten)\b"
-score_re = fr"\b([0-9]|[1-9][0-9]|100)(?:%| percent)"
+average_re = fr"\b(?:([0-9]|10)(\.\d\d?)?|{alternates(['zero']+ones)})(?:/| out of )(?:10|ten)\b"
+score_re = fr"\b(?:[0-9]|[1-9][0-9]|100)(?:%| percent)"
 
 
 url_re = r"rottentomatoes.com/(?P<rt_id>m/[-A-Za-z0-9_]+)"
@@ -171,7 +171,7 @@ anyrefs_re = fr'(?:{someref_re})*'
 cutoff_sections_re = re.compile(fr"[^=]== *{alternates(['References( and notes)?','External links', 'See also', 'Notes and references'])} *==[^=]", flags=re.IGNORECASE)
 
 if __name__ == "__main__":
-    print(numword_re2)
+    print(re.search(average_re, """5 reviews, and a weighted average rating of 5.6/10"""))
 
 
 

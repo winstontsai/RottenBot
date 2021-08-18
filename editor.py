@@ -10,8 +10,14 @@ print_logger = logging.getLogger('print_logger')
 
 from dataclasses import dataclass, field
 from datetime import date
+from concurrent.futures import ProcessPoolExecutor
+from difflib import SequenceMatcher
+from functools import partial
 
 import pywikibot as pwb
+import wikitextparser as wtp
+
+from rapidfuzz.fuzz import partial_ratio
 
 from patterns import *
 ################################################################################
@@ -32,12 +38,25 @@ def citation_replacement(rtmatch):
     m = rtmatch.movie
     url, title, year, access_date = m.url, m.title, m.year, m.access_date
     s = "<ref"
-    if refname:
-        s += f' name="{refname}">'
-    else:
-        s += '>'
-    s += f"{{{{Cite web|url={url}|title={title} ({year})|website=[[Rotten Tomatoes]]|publisher=[[Fandango Media|Fandango]]|access-date={access_date}}}}}</ref>"
-    #s += f"{{{{Cite Rotten Tomatoes |id={d['id']} |type=movie |title={d['title']} |access-date={d['accessDate']}}}}}</ref>"
+    s += f' name="{refname}">' if refname else '>'
+    template_dict = {
+        'url': url,
+        'title': f'{title} ({year})',
+        'website': '[[Rotten Tomatoes]]',
+        'publisher': '[[Fandango Media|Fandango]]',
+        'access-date': access_date
+    }
+    if rtmatch.ref:
+        wikitext = wtp.parse(ref.text)
+        if wikitext.templates:
+            t = wikitext.templates[0]
+            if (x:= t.get_arg('archive-url') or t.get_arg('archiveurl')):
+                template_dict['archive-url'] = x
+                template_dict['url-status'] = 'live'
+                if (x:= t.get_arg('archive-date') or t.get_arg('archivedate')):
+                    template_dict['archive-date'] = x
+    s += construct_template('Cite web', template_dict)
+    s += "</ref>"
     return s
 
 def metacritic_prose():
@@ -59,193 +78,279 @@ def compute_edits(candidates, get_user_input = True):
     The candidates parameter should be
     an iterable of candidate objects.
     """
-    for cand in candidates:
-        if e := compute_edit(cand):
-            yield e
+    with ProcessPoolExecutor() as x:
+        for e in x.map(fulledit_from_candidate, candidates):
+            if e:
+                yield e
 
-def compute_edit(cand):
-    fulledit = FullEdit(cand.title, [])
-    text = cand.text
-    for rtmatch in cand.matches:
-        if rtmatch.movie is None or rtmatch.movie.tomatometer_score is None:
-            continue
+def fulledit_from_candidate(cand):
+    pass
 
-        span, rt_data, flags = rtmatch.span, rtmatch.movie, set()
-        score, count, average = rt_data.tomatometer_score
-        rating_prose, consensus_prose = rating_and_consensus_prose(rt_data)
+def _compute_flags(rtmatch, cand, safe_templates_and_wikilinks):
+    span = rtmatch.span
+    text = cand.text[span[0]:span[1]]
+    flags = set()
+    
+    # Flags related to the film's title
+    if re.search(score_re, cand.title):
+        flags.add('score pattern in title')
+    if re.search(average_re, cand.title):
+        flags.add('average pattern in title')
 
-        old_text = text[span[0]:span[1]]
-        # delete references
-        old_no_refs = re.sub(r'<ref(?:(?!<ref).)+?/(?:ref *)?>',
-            '', old_text, flags=re.DOTALL)
-        # delete comments
-        old_no_refs = re.sub(r'<!--.*?-->', '', old_no_refs, flags=re.DOTALL)
-        # use straight quotes
-        old_no_refs = old_no_refs.translate(str.maketrans('“”‘’','""\'\''))
+    # Brackets/quotes matched correctly?
+    if not balanced_brackets(text):
+        flags.add('mismatched brackets/quotes')
 
-        # hide title
-        brackets_re = r'\s+\([^()]+?\)$'
-        title = re.sub(brackets_re, '', cand.title)
-        title_rep = '@' * len(title)
-        old_no_refs = re.sub(re.escape(title), title_rep, old_no_refs)
+    # Other suspicious activity
+    if re.search(r'[mM]etacritic', text):
+        flags.add("Metacritic")
 
-        # Preliminary flags
-        # ----------------------------------------------------------------------
-        if len(old_text) > 800:
-            flags.add('long')
+    if (k:=pattern_count(fr'<ref|{template_re("[rR]")}', text) - bool(rtmatch.ref)):
+        flags.add(f"non-RT references ({k})")
 
-        if re.search(r'[mM]etacritic|[mM]C film', old_no_refs):
-            flags.add("Metacritic")
+    # hide refs
+    text_no_refs = re.sub(someref_re, '', text, flags=re.DOTALL)
+    if len(text_no_refs) > 700:
+        flags.add('long')
 
-        if re.search(r'[fF]ile:]', old_no_refs):
-            flags.add('File')
+    if (k:=pattern_count(rt_re, text_no_refs)) != 1:
+        flags.add(f'Rotten Tomatoes count ({k})')
 
-        if re.search('{{[aA]nchor', old_no_refs):
-            flags.add('Anchor')
+    # no quotes or refs
+    text_no_quotes = re.sub(r'".+?"', lambda m:len(m.group())*'"', text_no_refs, flags=re.DOTALL)
+    # audience score?
+    if pattern_count(r'\b(audience|user|viewer)', text_no_quotes, re.IGNORECASE):
+        flags.add('audience/user/viewer')
 
-        if pattern_count('Rotten Tomatoe?s',
-                re.sub(r'ilms with a (100|0)% rating on Rotten Tom', '', old_no_refs)) > 1:
-            flags.add('multiple Rotten Tomatoes')
+    if text_no_quotes[-1] not in '."':
+        flags.add("suspicious end")
+    if not re.match(r"['{[A-Z0-9]", text[0]):
+        flags.add("suspicious start")
 
-        if pattern_count(fr'<ref|{template_re("[rR]")}', old_text) - bool(rtmatch.ref):
-            flags.add("non-RT ref")
+    wikitext = wtp.parse(text)
 
-        # check for some suspicious characters
-        if old_text[0] not in string.ascii_uppercase+string.digits + "'{[":
-            flags.add("suspicious start")
+    # for x in reversed(wikitext.get_bolds_and_italics(recursive=False)):
+    #     x.string = len(x.string) * "'"
 
-        def bad_end():
-            return (
-                (old_no_refs[-1] not in '."' and text[span[1]:span[1]+2]!='\n\n') or
-                (re.match(t_rtprose, old_text) and old_no_refs[-1]!='}')
-            )
-        if bad_end():
-            flags.add("suspicious end")
+    for x in reversed(wikitext.comments):
+        x.string = len(x.string) * 'Ξ'
 
-        # audience score?
-        if pattern_count(r'\b([aA]udience|[uU]ser|[vV]iewer)',
-                re.sub(r'".+?"', '', old_no_refs, flags=re.DOTALL)):
-            flags.add('audience/user/viewer')
+    if wikitext.external_links:
+        flags.add('external link')
+    for x in reversed(wikitext.external_links):
+        x.url = len(x.url) * 'Ξ'
 
-        # ----------------------------------------------------------------------
-        # we will update/build up new_prose step by step
-        new_prose = old_no_refs
+    for x in reversed(wikitext.wikilinks):
+        if f'[[{x.title.strip()}]]' not in safe_templates_and_wikilinks:
+            flags.add(f'suspicious wikilink ({x.title.strip()})')
+        if x.text:
+            x.target = 'Ξ'*len(x.target)
 
-        # First deal with the template {{Rotten Tomatoes prose}}
-        if m := re.match(t_rtprose, new_prose):
+    for x in reversed(wikitext.templates):
+        if f'Template:{x.normal_name()}' not in  safe_templates_and_wikilinks:
+            flags.add(f'suspicious template ({x.normal_name()})')
+
+    for x in reversed(wikitext.get_tags()):
+        if tag.name != 'ref':
+            flags.append(f'non-ref tag ({tag.name})')
+        x.string = len(x.string) * 'Ξ'
+
+    wikitext = str(wikitext)
+    # wikitext = re.sub(r'".+?"', lambda m:len(m.group())*'"', wikitext, flags=re.DOTALL)
+
+    k1 = pattern_count(average_re, wikitext)
+    if k1 > 1:
+        flags.add(f"multiple averages ({k1})")
+
+    k2 = pattern_count(count_re, wikitext)
+    if k2 > 1:
+        flags.add(f"multiple counts ({k2})")
+
+    k3 = pattern_count(score_re, wikitext)
+    if k3 > 1:
+        flags.add(f"multiple scores ({k3})")
+    elif k3 == 0:
+        flags.add("missing score")
+
+    return sorted(flags)
+
+def _suggested_replacements(rtmatch, cand):
+    """Assuming no flags, compute suggested replacement."""
+    span = rtmatch.span
+    text = cand.text[span[0]:span[1]]
+    score, count, average = rtmatch.movie.tomatometer_score
+
+    new_prose = text
+
+    if m := re.match(t_rtprose, new_prose):
             temp_dict = {
                 '1': score,
                 '2': average,
                 '3': count,
             }
             new_prose = new_prose.replace(m[0], construct_template('Rotten Tomatoes prose', temp_dict)) 
+    else:
+        if not pattern_count(average_re, text) or not pattern_count(count_re, text):
+            return _complete_replacement(rtmatch, cand)
+        elif (m:=re.search(r'ilms with a (100|0)% rating on Rotten Tom', new_prose)) and m[1] != score:
+            return _complete_replacement(rtmatch, cand)
         else:
-            # handle average rating     
-            new_prose, k = re.subn(average_re, f'{average}/10', new_prose)
-            if k == 0:
-                new_prose = rating_prose
-            elif k > 1:
-                flags.add("multiple averages")
-                
-            # handle review reviewCount
-            new_prose, k = re.subn(count_re, f"{count} \g<count_term>", new_prose)
-            if k == 0:
-                new_prose = rating_prose
-            elif k > 1:
-                flags.add("multiple counts")
+            def repl(m):
+                if m['a']:
+                    return f'{average}/10'
+                if m['c']:
+                    return f'{count} {m['count_term']}'
+                if m['s']:
+                    return score+'%'
+            new_prose = re.sub(fr'(?P<a>{average_re})|(?P<c>{count_re})|(?P<s>{score_re})', repl, new_prose)
 
-            # handle score
-            if m:=re.search('ilms with a (100|0)% rating on Rotten Tom', old_no_refs):
-                if score not in ['100', '0']:
-                    new_prose = rating_prose
+        # Update "As of"
+        if m:=re.search(t_asof, new_prose): # As of template
+            old_temp = m[0]
+            temp_dict = parse_template(old_temp)[1]
+            day, month, year = date.today().strftime("%d %m %Y").split()
+            temp_dict['1'], temp_dict['2'] = year, month
+            if '3' in temp_dict:
+                temp_dict['3'] = day
+            new_prose = new_prose.replace(old_temp, construct_template("As of", temp_dict))
+        elif m:=re.search(r"[Aa]s of (?=January|February|March|April|May|June|July|August|September|October|November|December|[1-9])[ ,a-zA-Z0-9]{,14}[0-9]{4}(?![0-9])", new_prose):
+            old_asof = m[0]
+            day, month, year = date.today().strftime("%d %B %Y").split()
+            new_date = month + ' ' + year
+            if pattern_count(r'[0-9]', old_asof) > 4: # if includes day
+                if old_asof[6].isdecimal(): # day before month
+                    new_date = f'{day} {month} {year}'
+                else:                       # day after month
+                    new_date = f'{month} {day}, {year}'
+            new_prose = new_prose.replace(old_asof, old_asof[:6] + new_date)
+        elif re.search(r"\b[Aa]s of\b", new_prose):
+            return _complete_replacement(rtmatch, cand)
+
+        # Not a weighted average???
+        new_prose = re.sub(r'\[\[[wW]eighted.*?\]\]( rating| score)?', 'average rating', new_prose)
+        new_prose = re.sub(r'weighted average( rating| score)?', 'average rating', new_prose)
+        new_prose = new_prose.replace(' a average',' an average')
+        if re.search("[wW]eighted", new_prose):
+            return _complete_replacement(rtmatch, cand)
+
+    if safe_to_add_consensus1(rtmatch, cand):
+        new_prose += ' ' + consensus_prose
+
+    # add reference stuff
+    ref = rtmatch.ref
+    if not ref:
+        new_prose += citation_replacement(rtmatch)
+
+    replacements = [(text, new_prose)]
+    if ref:
+        replacements.append((ref.text, citation_replacement(rtmatch)))
+
+    return replacements
+
+def _complete_replacement(rtmatch, cand):
+    rating, consensus = rating_and_consensus_prose(rtmatch)
+    new_text = rating
+    ref = rtmatch.ref
+    if safe_to_add_consensus1(rtmatch, cand):
+        new_text += ' ' + consensus
+    if not ref:
+        new_text += citation_replacement(rtmatch)
+
+    span = rtmatch.span
+    replacements = [(cand.text[span[0]:span[1]], new_text)]
+    if ref:
+        replacements.append((ref.text, citation_replacement(rtmatch)))
+
+    return replacements
+
+def safe_to_add_consensus1(rtmatch, cand):
+    consensus = rtmatch.movie.consensus
+    text = cand.text
+    if not consensus:
+        return False
+    p_start, p_end = paragraph_span(rtmatch.span, text)
+    s = text[p_start:p_end]    # the paragraph
+    if re.search(r'[cC]onsensus', s):
+        return False
+    if len(cand.matches) > 1 and rtmatch.span[0] < text.index('\n=='):
+        return False
+    # create sequence of lowercase letters for similarity comparison
+    s_lower = ''.join(x for x in s         if x.islower())
+    c_lower = ''.join(x for x in consensus if x.islower())
+    # in some edge cases, there are no lowercase
+    if not c_lower:
+        return False
+    if c_lower in s_lower:
+        return False
+    return True
+
+# def safe_to_add_consensus2(rtmatch, cand):
+#     consensus = rtmatch.movie.consensus
+#     text = cand.text
+#     if not consensus:
+#         return False
+#     if len(cand.matches) > 1 and rtmatch.span[0] < text.index('\n=='):
+#         return False
+#     p_start, p_end = paragraph_span(rtmatch.span, text)
+
+#     paragraph = text[p_start: p_end]
+#     paragraph = re.sub(r'{[^}]*}|\[[^]]*\]|<ref(?:(?!<ref).)+?/(?:ref *)?>|<!--.*?-->', '', paragraph)
+
+#     # if re.search(r'[cC]onsensus', paragraph):
+#     #     return False
+#     #quotations = ''.join(re.findall('"[^"]+"', paragraph))
+#     s_lower = ''.join(x for x in paragraph if x in 'aeiou')
+#     c_lower = ''.join(x for x in consensus if x in 'aeiou')
+
+#     # in some edge cases, c_lower will be empty
+#     if not c_lower:
+#         return False
+
+#     max_errors = int(0.2 * len(c_lower))
+#     # print(max_errors)
+#     # Use fuzzy matching
+#     if m:=re.search(fr'({c_lower}){{i,d,e<={max_errors}}}', s_lower):
+#         #print(m.group())
+#         return False
+#     return True
+
+def safe_to_add_consensus3(rtmatch, cand):
+    consensus = rtmatch.movie.consensus
+    text = cand.text
+    if not consensus:
+        return False
+    if len(cand.matches) > 1 and rtmatch.span[0] < text.index('\n=='):
+        return False
+    p_start, p_end = paragraph_span(rtmatch.span, text)
+
+    paragraph = text[p_start: p_end]
+    paragraph = re.sub(r'{.*?}|\[.*?\]|<!--.*?-->', '', paragraph, re.DOTALL)
+    paragraph = re.sub(someref_re, '', paragraph)
+    return partial_ratio(consensus,paragraph,processor=True,score_cutoff=None)
+
+
+def balanced_brackets(text):
+    rbrackets = {
+        "]" : "[",
+        "}" : "{",
+        ")" : "(",
+        ">" : "<",
+        '"' : '"'
+        }
+    lbrackets = rbrackets.values()
+    stack= []
+    for i in text:
+        if i in lbrackets:
+            stack.append(i)
+        elif i in rbrackets:
+            if stack and stack[-1]==rbrackets[i]:
+                stack.pop()
             else:
-                new_prose, k = re.subn(score_re, score + '%', new_prose)
-                if k > 1:
-                    flags.add('multiple scores')
-                    
-            # Update "As of"
-            if m:=re.search(t_asof, new_prose): # As of template
-                old_temp = m[0]
-                day, month, year = date.today().strftime("%d %m %Y").split()
-                temp_dict = parse_template(old_temp)[1]
-                temp_dict['1'], temp_dict['2'] = year, month
-                if '3' in temp_dict:
-                    temp_dict['3'] = day
-                new_temp = construct_template("As of", temp_dict)
-                new_prose = new_prose.replace(old_temp, new_temp)
-            elif m:=re.search(r"[Aa]s of (?=January|February|March|April|May|June|July|August|September|October|November|December|[1-9])[ ,a-zA-Z0-9]{,14}[0-9]{4}(?![0-9])", new_prose):
-                old_asof = m[0]
-                day, month, year = date.today().strftime("%d %B %Y").split()
-                new_date = month + ' ' + year
-                if pattern_count(r'[0-9]', old_asof) > 4: # if includes day
-                    if old_asof[6] in string.digits: # begins with day num
-                        new_date = f'{day} {month} {year}'
-                    else:
-                        new_date = f'{month} {day}, {year}'
-                new_asof = old_asof[:6] + new_date
-                new_prose = new_prose.replace(old_asof, new_asof)
-            elif re.search(r"\b[Aa]s of\b", new_prose):
-                new_prose = rating_prose
-
-            # Not a weighted average???
-            new_prose = re.sub(r'\[\[[wW]eighted.*?\]\]', 'average rating', new_prose)
-            new_prose = re.sub(r'weighted average( rating| score)?', 'average rating', new_prose)
-            new_prose = new_prose.replace(' a average',' an average').replace('rating rating','rating')
-            if re.search("[wW]eighted", new_prose):
-                new_prose = rating_prose
-
-        # fix period/quote ending
-        if new_prose.endswith('.".'):
-            new_prose = new_prose[:-1]
-        elif new_prose.endswith('".'):
-            new_prose = new_prose[:-2] + '."'
-
-        # add consensus if safe
-        def safe_to_add_consensus():
-            consensus = rt_data.consensus
-            if not consensus:
                 return False
-            p_start, p_end = paragraph_span(span, text)
-            s = text[p_start:span[0]] + new_prose + text[span[1]:p_end]
-            s_l = ''.join(x for x in s if x in string.ascii_lowercase)
-            consensus = re.sub(re.escape(title), title_rep, consensus)
-            c_l = ''.join(x for x in consensus if x in string.ascii_lowercase)
-
-            if re.search('[cC]onsensus', s):
-                return False
-            if len(cand.matches)>1 and span[0]<text.index('\n=='):
-                return False
-            if c_l in s_l:
-                return False
-            return True
-
-        if safe_to_add_consensus():
-            new_prose += ' ' + consensus_prose
-
-        # if no change, don't produce an edit
-        if new_prose == old_no_refs:
-            continue
-
-        # add reference stuff
-        ref = rtmatch.ref
-        if ref and ref.list_defined:
-            new_text = new_prose + f'<ref name="{ref.name}" />'
-        else:
-            new_text = new_prose + citation_replacement(rtmatch)
-
-        # create replacements list
-        replacements = [(text[span[0]:span[1]], new_text)]
-        if ref and ref.list_defined:
-            replacements.append((ref.text, citation_replacement(rtmatch)))
-
-        fulledit.edits.append( Edit(replacements, sorted(flags)) )
-
-    return fulledit if fulledit.edits else None
-
-
+    return not stack
 
 if __name__ == "__main__":
-    pass
+    print(balanced_brackets('{[()](){}}"'))
 
 
 

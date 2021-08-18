@@ -160,7 +160,10 @@ class RTMovie:
 
 
 if __name__ == "__main__":
-    print(RTMovie('m/the_emoji_movie'))
+    movie = RTMovie('m/the_place_beyond_the_pines_2012')
+    if movie.consensus:
+        print(len(movie.consensus))
+
 
 
 

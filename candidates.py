@@ -260,6 +260,7 @@ def _find_span333(match, title):
     text = match.string[:para_start] + text + match.string[para_end:]
     text = text[:match.start()] + text[match.start():para_end].replace('\n',' ') + text[para_end:]
 
+    # TODO ' *' vs '\s*'
     p2 = re.compile(r'([.!] ?"|(?<=[^A-Z])[.!])(( *[@`]+)+|(?= +[^a-z]|\n))')
     p3 = re.compile(r'}} *@')
     i, potential_starts = matchstart, [matchstart]
@@ -336,10 +337,6 @@ def _inside_table_or_template(match):
     para_start, para_end = paragraph_span(span, text)
     if '|-' in text[para_start:para_end]:
         return True
-    # if text[span[0]:para_end].count('{{') != text[span[0]:para_end].count('}}'):
-    #     return True
-    # if text[para_start:para_end].count('{{') != text[para_start:para_end].count('}}'):
-    #     return True
     wt = wtp.parse(text[para_start:para_end])
     for t in wt.templates:
         if is_subspan(span, (t.span[0]+para_start, t.span[1]+para_start) ):

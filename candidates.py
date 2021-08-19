@@ -4,7 +4,6 @@
 # and also finds (or at least tries to) the start of the sentence in which
 # the rating info is contained.
 ################################################################################
-import regex as re
 import sys
 import webbrowser
 import time
@@ -16,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 print_logger = logging.getLogger('print_logger')
 
-from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from itertools import chain
 from collections import defaultdict, namedtuple
@@ -24,6 +23,7 @@ from collections import defaultdict, namedtuple
 import requests
 import pywikibot as pwb
 import wikitextparser as wtp
+import regex as re
 
 from pywikibot import Page, Site, ItemPage
 
@@ -126,7 +126,7 @@ def candidate_from_entry(entry):
     cand = Candidate(title, text)
     for rtmatch, initial in rtmatch_and_initialids:
         safe_to_guess = len(id_set)<2 or rtmatch.span[0]<text.index('\n==')
-        rtmatch.movie = _find_RTMovie(entry, initial, safe_to_guess)
+        rtmatch.movie = None#_find_RTMovie(entry, initial, safe_to_guess)
         cand.matches.append(rtmatch)
 
     if cand.matches:
@@ -167,27 +167,29 @@ def find_candidates(xmlfile, get_user_input = False):
                 x.shutdown(wait=True, cancel_futures=True)
                 logger.exception("Exiting program.")
                 sys.exit()
-            if cand:
-                if get_user_input:
-                    _process_needs_input_movies(cand)
-                print_logger.info(f"Found candidate [[{futures[future]}]].")
-                count += 1
-                yield cand
+            if not cand:
+                continue
+            if get_user_input:
+                _process_needs_input_movies(cand)
+            print_logger.info(f"Found candidate [[{futures[future]}]].")
+            count += 1
+            yield cand
 
     logger.info(f"Found {count} candidates out of {total} pages")
     print_logger.info(f"Found {count} candidates out of {total} pages")
 
 def _process_needs_input_movies(cand):
     for rtm in cand.matches:
-        if not rtm.movie:
-            while True:
-                newid = _ask_for_id(cand, rtm)
-                if not newid:
-                    break
-                if z := _find_RTMovie(cand, newid):
-                    rtm.movie = z
-                    break
-                print(f"Problem getting Rotten Tomatoes data with id {newid}.\n")
+        if rtm.movie:
+            continue
+        while True:
+            newid = _ask_for_id(cand, rtm)
+            if not newid:
+                break
+            if z := _find_RTMovie(cand, newid):
+                rtm.movie = z
+                break
+            print(f"Problem getting Rotten Tomatoes data with id {newid}.\n")
 
 
 def _ask_for_id(cand, rtmatch):

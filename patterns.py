@@ -112,18 +112,19 @@ def construct_template(name, d):
 # Regular expressions
 ##############################################################################
 
-rt_re = r"\b[rR]otten [tT]omatoe?s\b"
-score_re = r"\b([0-9]|[1-9][0-9]|100)(?:%| percent)"
+rt_re = r"\b[rR]otten ?[tT]omatoe?s\b"
 
 ones = ["one", "two", "three", "four", "five", "six", "seven", "eight", "nine"]
 teens = ["ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"]
 tens = ["twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"]
 # 5 <= x <= 99
-numword_re1 = alternates([fr"{alternates(tens)}([ -]{alternates(ones)})?"] + teens + ones[4:])
+numword_re1 = alternates([fr"{alternates(tens)}([ -]{alternates(ones)})?"]+teens+ones[4:])
+# 0 <= x <= 100
+numword_re2 = alternates([fr"{alternates(tens)}([ -]{alternates(ones)})?"]+teens+ones+['zero','one[ -]hundred'])
 
 count_re = fr"\b(?P<count>[5-9]|[1-9][0-9]|[1-9][0-9][0-9]|{numword_re1}) (?P<count_term>(critic(al)? )?review(er)?s|(surveyed )?critics)"
-average_re = fr"\b(?:([0-9]|10)(\.\d\d?)?|{alternates(['zero']+ones)})(?:/| out of )(?:10|ten)\b"
-score_re = fr"\b(?:[0-9]|[1-9][0-9]|100)(?:%| percent)"
+average_re = fr"\b(([0-9]|10)(\.\d\d?)?|{alternates(ones+['zero','ten'])})(?:/| out of )(?:10|ten)\b"
+score_re = fr"\b(?:[0-9]|[1-9][0-9]|100|{numword_re2})(?:%| percent)"
 
 
 url_re = r"rottentomatoes.com/(?P<rt_id>m/[-A-Za-z0-9_]+)"

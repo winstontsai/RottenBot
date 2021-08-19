@@ -1,25 +1,29 @@
 # This module takes Candidates and computes replacement text.
 ################################################################################
-import re
+import string
 import sys
 import webbrowser
-import string
+import subprocess
+import tempfile
+
 import logging
 logger = logging.getLogger(__name__)
 print_logger = logging.getLogger('print_logger')
 
 from dataclasses import dataclass, field
 from datetime import date
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from difflib import SequenceMatcher
 from functools import partial
 
+import regex as re
 import pywikibot as pwb
 import wikitextparser as wtp
 
 from rapidfuzz.fuzz import partial_ratio
 
 from patterns import *
+from cndidates import Candidate
 ################################################################################
 
 def rating_and_consensus_prose(rt_data):
@@ -78,13 +82,39 @@ def compute_edits(candidates, get_user_input = True):
     The candidates parameter should be
     an iterable of candidate objects.
     """
-    with ProcessPoolExecutor() as x:
-        for e in x.map(fulledit_from_candidate, candidates):
-            if e:
-                yield e
+    safe_templates_and_wikilinks = set()
+    with open('safe-templates-and-wikilinks.txt', 'r') as f:
+        safe_templates_and_wikilinks = set(x[:-1] for x in f)
 
-def fulledit_from_candidate(cand):
-    pass
+    with ProcessPoolExecutor() as x:
+        futures = {x.submit(fulledit_from_candidate, c) : c for c in candidates}
+        for future in as_completed(futures):
+            fe = future.result()
+            if not fe:
+                continue
+            if get_user_input:
+                _process_manual_reviews(futures[future], fe)
+            yield fe
+
+def _process_manual_reviews(cand, fe):
+    for i, edit in enumerate(fe.edits):
+        if not edit.flags:
+            continue
+        span = cand.matches[i].span
+        context = cand.text[span[0]-70 : span[1] + 70]
+        review_edit(cand.title, context, edit)
+
+def fulledit_from_candidate(cand, safe_templates_and_wikilinks):
+    editlist = []
+    for match in cand.matches:
+        flags = _compute_flags(match, cand, safe_templates_and_wikilinks)
+        if flags:
+            replacements = _complete_replacements(match, cand)
+        else:
+            replacements = _suggested_replacements(match, cand)
+        editlist.append(Edit(replacements, flags))
+    return FullEdit(cand.title, editlist)
+
 
 def _compute_flags(rtmatch, cand, safe_templates_and_wikilinks):
     span = rtmatch.span
@@ -191,15 +221,15 @@ def _suggested_replacements(rtmatch, cand):
             new_prose = new_prose.replace(m[0], construct_template('Rotten Tomatoes prose', temp_dict)) 
     else:
         if not pattern_count(average_re, text) or not pattern_count(count_re, text):
-            return _complete_replacement(rtmatch, cand)
+            return _complete_replacements(rtmatch, cand)
         elif (m:=re.search(r'ilms with a (100|0)% rating on Rotten Tom', new_prose)) and m[1] != score:
-            return _complete_replacement(rtmatch, cand)
+            return _complete_replacements(rtmatch, cand)
         else:
             def repl(m):
                 if m['a']:
                     return f'{average}/10'
                 if m['c']:
-                    return f'{count} {m['count_term']}'
+                    return f'{count} {m["count_term"]}'
                 if m['s']:
                     return score+'%'
             new_prose = re.sub(fr'(?P<a>{average_re})|(?P<c>{count_re})|(?P<s>{score_re})', repl, new_prose)
@@ -224,14 +254,14 @@ def _suggested_replacements(rtmatch, cand):
                     new_date = f'{month} {day}, {year}'
             new_prose = new_prose.replace(old_asof, old_asof[:6] + new_date)
         elif re.search(r"\b[Aa]s of\b", new_prose):
-            return _complete_replacement(rtmatch, cand)
+            return _complete_replacements(rtmatch, cand)
 
         # Not a weighted average???
         new_prose = re.sub(r'\[\[[wW]eighted.*?\]\]( rating| score)?', 'average rating', new_prose)
         new_prose = re.sub(r'weighted average( rating| score)?', 'average rating', new_prose)
         new_prose = new_prose.replace(' a average',' an average')
         if re.search("[wW]eighted", new_prose):
-            return _complete_replacement(rtmatch, cand)
+            return _complete_replacements(rtmatch, cand)
 
     if safe_to_add_consensus1(rtmatch, cand):
         new_prose += ' ' + consensus_prose
@@ -247,14 +277,17 @@ def _suggested_replacements(rtmatch, cand):
 
     return replacements
 
-def _complete_replacement(rtmatch, cand):
+def _complete_replacements(rtmatch, cand):
     rating, consensus = rating_and_consensus_prose(rtmatch)
     new_text = rating
     ref = rtmatch.ref
+
     if safe_to_add_consensus1(rtmatch, cand):
         new_text += ' ' + consensus
     if not ref:
         new_text += citation_replacement(rtmatch)
+    elif ref.list_defined:
+        new_text += f'<ref name="{ref.name}" />'
 
     span = rtmatch.span
     replacements = [(cand.text[span[0]:span[1]], new_text)]
@@ -324,7 +357,7 @@ def safe_to_add_consensus3(rtmatch, cand):
     p_start, p_end = paragraph_span(rtmatch.span, text)
 
     paragraph = text[p_start: p_end]
-    paragraph = re.sub(r'{.*?}|\[.*?\]|<!--.*?-->', '', paragraph, re.DOTALL)
+    paragraph = re.sub(r'{.*?}|\[[^]]*\||<!--.*?-->', '', paragraph, re.DOTALL)
     paragraph = re.sub(someref_re, '', paragraph)
     return partial_ratio(consensus,paragraph,processor=True,score_cutoff=None)
 
@@ -348,6 +381,50 @@ def balanced_brackets(text):
             else:
                 return False
     return not stack
+
+###############################################################################
+# text editor functions
+###############################################################################
+def sublime_edit(contents=''):
+    args = ['subl', '--wait', '--new-window']
+    with tempfile.NamedTemporaryFile(suffix='.txt') as tmp:
+        tmp.write(contents.encode())
+        tmp.flush()
+        subprocess.Popen(args + [tmp.name]).wait()
+        tmp.seek(0)
+        return tmp.read().decode()
+
+def review_edit(title, context, edit):
+    initial_text = f"""Reviewing edit for [[{title}]].
+
+Remember not to remove a list-defined Rotten Tomatoes reference since the
+reference definition will still be replaced.
+
+Leaving the "NEW WIKITEXT" section empty (without a newline between the
+dashed lines) will skip the edit.
+
+CONTEXT:
+--------------------------------------
+{context}
+--------------------------------------
+OLD WIKITEXT:
+--------------------------------------
+{edit.replacements[0][0]}
+--------------------------------------
+NEW WIKITEXT:
+--------------------------------------
+{edit.replacements[0][1]}
+--------------------------------------
+"""
+    x = sublime_edit(initial_text)
+    x = x.split('--------------------------------------\n')
+
+    if x[-2][:-1]:
+        edit.flags = []
+    elif edit.flags:
+        print('This edit will be skipped.')
+        
+    edit.replacements[0] = (x[-4][:-1], x[-2][:-1])
 
 if __name__ == "__main__":
     print(balanced_brackets('{[()](){}}"'))

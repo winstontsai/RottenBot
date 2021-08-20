@@ -1,11 +1,5 @@
 # This module takes Candidates and computes replacement text.
 ################################################################################
-import string
-import sys
-import webbrowser
-import subprocess
-import tempfile
-
 import logging
 logger = logging.getLogger(__name__)
 print_logger = logging.getLogger('print_logger')
@@ -13,8 +7,6 @@ print_logger = logging.getLogger('print_logger')
 from dataclasses import dataclass, field
 from datetime import date
 from concurrent.futures import ProcessPoolExecutor, as_completed
-from difflib import SequenceMatcher
-from functools import partial
 
 import editor
 import regex as re
@@ -25,47 +17,6 @@ from rapidfuzz.fuzz import partial_ratio
 
 from patterns import *
 ################################################################################
-
-def rating_and_consensus_prose(movie):
-    title = movie.title
-    score, count, average = movie.tomatometer_score
-    consensus = movie.consensus
-    s = (f"On [[Rotten Tomatoes]], ''{title}'' holds an approval rating " +
-f"of {score}% based on {count} reviews, with an average rating of {average}/10.")
-    if consensus or int(count)>=20:
-        s = s.replace('approval rating of 100%', '[[List of films with a 100% rating on Rotten Tomatoes|approval rating of 100%]]')
-        s = s.replace('approval rating of 0%', '[[List of films with a 0% rating on Rotten Tomatoes|approval rating of 0%]]')
-    return s, f'The site\'s critical consensus reads, "{consensus}"'
-
-def citation_replacement(rtmatch):
-    refname = rtmatch.ref.name if rtmatch.ref else None
-    m = rtmatch.movie
-    url, title, year, access_date = m.url, m.title, m.year, m.access_date
-    s = "<ref"
-    s += f' name="{refname}">' if refname else '>'
-    template_dict = {
-        'url': url,
-        'title': f'{title} ({year})',
-        'website': '[[Rotten Tomatoes]]',
-        'publisher': '[[Fandango Media|Fandango]]',
-        'access-date': access_date
-    }
-    if rtmatch.ref:
-        wikitext = wtp.parse(ref.text)
-        if wikitext.templates:
-            t = wikitext.templates[0]
-            if (x:= t.get_arg('archive-url') or t.get_arg('archiveurl')):
-                template_dict['archive-url'] = x
-                template_dict['url-status'] = 'live'
-                if (x:= t.get_arg('archive-date') or t.get_arg('archivedate')):
-                    template_dict['archive-date'] = x
-    s += construct_template('Cite web', template_dict)
-    s += "</ref>"
-    return s
-
-def metacritic_prose():
-    s = 'On [[Metacritic]], the film has a weighted average score of 33 out of 100 based on 22 critics, indicating "generally favorable reviews".'
-
 @dataclass
 class Edit:
     replacements: list[tuple[str, str]]
@@ -117,6 +68,11 @@ def _process_manual_reviews(cand, fe):
 
 
 def _compute_flags(rtmatch, cand, safe_templates_and_wikilinks):
+    """
+    Return list of all flags for a match. Flags indicate that a
+    human needs to review the edit. An edit should never be made to
+    the live wiki if it its flags attribute is nonempty.
+    """
     span = rtmatch.span
     text = cand.text[span[0]:span[1]]
     flags = set()
@@ -204,6 +160,66 @@ def _compute_flags(rtmatch, cand, safe_templates_and_wikilinks):
 
     return sorted(flags)
 
+def safe_to_add_consensus1(rtmatch, cand):
+    consensus = rtmatch.movie.consensus
+    text = cand.text
+    if not consensus:
+        return False
+    p_start, p_end = paragraph_span(rtmatch.span, text)
+    s = text[p_start:p_end]    # the paragraph
+    if re.search(r'[cC]onsensus', s):
+        return False
+    if len(cand.matches) > 1 and rtmatch.span[0] < text.index('\n=='):
+        return False
+    # create sequence of lowercase letters for similarity comparison
+    s_lower = ''.join(x for x in s         if x.islower())
+    c_lower = ''.join(x for x in consensus if x.islower())
+    # in some edge cases, there are no lowercase
+    if not c_lower:
+        return False
+    if c_lower in s_lower:
+        return False
+    return True
+
+def safe_to_add_consensus3(rtmatch, cand):
+    consensus = rtmatch.movie.consensus
+    text = cand.text
+    if not consensus:
+        return False
+    if len(cand.matches) > 1 and rtmatch.span[0] < text.index('\n=='):
+        return False
+    p_start, p_end = paragraph_span(rtmatch.span, text)
+
+    paragraph = text[p_start: p_end]
+    paragraph = re.sub(r'{.*?}|\[[^]]*\||<!--.*?-->', '', paragraph, re.DOTALL)
+    paragraph = re.sub(someref_re, '', paragraph)
+    return partial_ratio(consensus,paragraph,processor=True,score_cutoff=None)
+
+
+def balanced_brackets(text):
+    rbrackets = {
+        "]" : "[",
+        "}" : "{",
+        ")" : "(",
+        ">" : "<",
+        '"' : '"'
+        }
+    lbrackets = rbrackets.values()
+    stack= []
+    for i in text:
+        if i in lbrackets:
+            stack.append(i)
+        elif i in rbrackets:
+            if stack and stack[-1]==rbrackets[i]:
+                stack.pop()
+            else:
+                return False
+    return not stack
+
+
+#################################################################################
+# Functions for creating replacement text.
+#################################################################################
 def _suggested_replacements(rtmatch, cand):
     """Assuming no flags, compute suggested replacement."""
     span = rtmatch.span
@@ -296,96 +312,51 @@ def _complete_replacements(rtmatch, cand):
 
     return replacements
 
-def safe_to_add_consensus1(rtmatch, cand):
-    consensus = rtmatch.movie.consensus
-    text = cand.text
-    if not consensus:
-        return False
-    p_start, p_end = paragraph_span(rtmatch.span, text)
-    s = text[p_start:p_end]    # the paragraph
-    if re.search(r'[cC]onsensus', s):
-        return False
-    if len(cand.matches) > 1 and rtmatch.span[0] < text.index('\n=='):
-        return False
-    # create sequence of lowercase letters for similarity comparison
-    s_lower = ''.join(x for x in s         if x.islower())
-    c_lower = ''.join(x for x in consensus if x.islower())
-    # in some edge cases, there are no lowercase
-    if not c_lower:
-        return False
-    if c_lower in s_lower:
-        return False
-    return True
+def rating_and_consensus_prose(movie):
+    title = movie.title
+    score, count, average = movie.tomatometer_score
+    consensus = movie.consensus
+    s = (f"On [[Rotten Tomatoes]], ''{title}'' holds an approval rating " +
+f"of {score}% based on {count} reviews, with an average rating of {average}/10.")
+    if consensus or int(count)>=20:
+        s = s.replace('approval rating of 100%', '[[List of films with a 100% rating on Rotten Tomatoes|approval rating of 100%]]')
+        s = s.replace('approval rating of 0%', '[[List of films with a 0% rating on Rotten Tomatoes|approval rating of 0%]]')
+    return s, f'The site\'s critical consensus reads, "{consensus}"'
 
-# def safe_to_add_consensus2(rtmatch, cand):
-#     consensus = rtmatch.movie.consensus
-#     text = cand.text
-#     if not consensus:
-#         return False
-#     if len(cand.matches) > 1 and rtmatch.span[0] < text.index('\n=='):
-#         return False
-#     p_start, p_end = paragraph_span(rtmatch.span, text)
+def citation_replacement(rtmatch):
+    refname = rtmatch.ref.name if rtmatch.ref else None
+    m = rtmatch.movie
+    url, title, year, access_date = m.url, m.title, m.year, m.access_date
+    s = "<ref"
+    s += f' name="{refname}">' if refname else '>'
+    template_dict = {
+        'url': url,
+        'title': f'{title} ({year})',
+        'website': '[[Rotten Tomatoes]]',
+        'publisher': '[[Fandango Media|Fandango]]',
+        'access-date': access_date
+    }
+    if rtmatch.ref:
+        wikitext = wtp.parse(ref.text)
+        if wikitext.templates:
+            t = wikitext.templates[0]
+            if (x:= t.get_arg('archive-url') or t.get_arg('archiveurl')):
+                template_dict['archive-url'] = x
+                template_dict['url-status'] = 'live'
+                if (x:= t.get_arg('archive-date') or t.get_arg('archivedate')):
+                    template_dict['archive-date'] = x
+    s += construct_template('Cite web', template_dict)
+    s += "</ref>"
+    return s
 
-#     paragraph = text[p_start: p_end]
-#     paragraph = re.sub(r'{[^}]*}|\[[^]]*\]|<ref(?:(?!<ref).)+?/(?:ref *)?>|<!--.*?-->', '', paragraph)
-
-#     # if re.search(r'[cC]onsensus', paragraph):
-#     #     return False
-#     #quotations = ''.join(re.findall('"[^"]+"', paragraph))
-#     s_lower = ''.join(x for x in paragraph if x in 'aeiou')
-#     c_lower = ''.join(x for x in consensus if x in 'aeiou')
-
-#     # in some edge cases, c_lower will be empty
-#     if not c_lower:
-#         return False
-
-#     max_errors = int(0.2 * len(c_lower))
-#     # print(max_errors)
-#     # Use fuzzy matching
-#     if m:=re.search(fr'({c_lower}){{i,d,e<={max_errors}}}', s_lower):
-#         #print(m.group())
-#         return False
-#     return True
-
-def safe_to_add_consensus3(rtmatch, cand):
-    consensus = rtmatch.movie.consensus
-    text = cand.text
-    if not consensus:
-        return False
-    if len(cand.matches) > 1 and rtmatch.span[0] < text.index('\n=='):
-        return False
-    p_start, p_end = paragraph_span(rtmatch.span, text)
-
-    paragraph = text[p_start: p_end]
-    paragraph = re.sub(r'{.*?}|\[[^]]*\||<!--.*?-->', '', paragraph, re.DOTALL)
-    paragraph = re.sub(someref_re, '', paragraph)
-    return partial_ratio(consensus,paragraph,processor=True,score_cutoff=None)
+def metacritic_prose():
+    s = 'On [[Metacritic]], the film has a weighted average score of 33 out of 100 based on 22 critics, indicating "generally favorable reviews".'
 
 
-def balanced_brackets(text):
-    rbrackets = {
-        "]" : "[",
-        "}" : "{",
-        ")" : "(",
-        ">" : "<",
-        '"' : '"'
-        }
-    lbrackets = rbrackets.values()
-    stack= []
-    for i in text:
-        if i in lbrackets:
-            stack.append(i)
-        elif i in rbrackets:
-            if stack and stack[-1]==rbrackets[i]:
-                stack.pop()
-            else:
-                return False
-    return not stack
-
-###############################################################################
-# text editor functions
-###############################################################################
 def review_edit(title, context, edit):
+    """
+    Opens text editor for user to review edit.
+    """
     initial_text = f"""Reviewing edit for [[{title}]].
 
 Remember not to remove a list-defined Rotten Tomatoes reference since the

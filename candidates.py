@@ -24,12 +24,11 @@ import requests
 import pywikibot as pwb
 import wikitextparser as wtp
 import regex as re
-import colorama
-colorama.init()
 
 from pywikibot import Page, Site, ItemPage
 from pywikibot.xmlreader import XmlDump
 from googlesearch import lucky
+from colorama import Fore, Style
 
 import scraper
 from scraper import RTMovie
@@ -201,10 +200,10 @@ def _ask_for_id(cand, rtmatch):
     title, text = cand.title, cand.text
     i, j = rtmatch.span[0], rtmatch.span[1]
     pspan = paragraph_span((i,j), text)
-    prompt = f"""\033[96mNo working id found for a match in [[{title}]].\033[0m
-\033[93mContext------------------------------------------\033[0m
-{text[pspan[0]: i]}\033[1m{text[i: j]}\033[0m{text[j: pspan[1]]}
-\033[93m-------------------------------------------------\033[0m
+    prompt = f"""{FORE.CYAN}No working id found for a match in [[{title}]].{STYLE.RESET_ALL}
+{FORE.GREEN}Context------------------------------------------{STYLE.RESET_ALL}
+{text[pspan[0]: i] + STYLE.BRIGHT + text[i: j] + STYLE.RESET_ALL + text[j: pspan[1]]}
+{FORE.GREEN}-------------------------------------------------{STYLE.RESET_ALL}
 Please select an option:
 1) enter id
 2) open [[{title}]] in the browser
@@ -266,7 +265,6 @@ def _find_span333(match, title):
     p3 = re.compile(r'}} *@')
     i, potential_starts = matchstart, [matchstart]
     while i > para_start:
-        #print(text[i:i+7])
         if text[i] in ' `@':
             i -=1; continue
 

@@ -60,7 +60,7 @@ class RTMovie:
     short_url: str
     url: str = None
     access_date: str = None
-    rtid: str = None
+    movieid: str = None
     title: str = None
     year: str = None
     synopsis: str = None
@@ -110,16 +110,12 @@ class RTMovie:
 
         soup = BeautifulSoup(html, "html.parser")
         self.url = str(soup.find('link', rel='canonical')['href'])
-        j = html.find(') - Rotten Tomatoes</title>')
-        self.year = html[j-4 :j]
+        self.short_url = self.url.split('rottentomatoes.com/')[-1]
         self.access_date = date.today().strftime("%B %d, %Y")
 
-        indicator = 'root.RottenTomatoes.context.movieDetails = '
-        terminator = ';'
-        d = json.loads(find_substring(html, indicator, terminator))
-        self.short_url = d["movieDetailsURL"]
-        self.title = d["movieTitle"]
-        self.rtid = d["id"]
+        d = json.loads(find_substring(html, 'root.BK = ', ';'))
+        self.title = d["MovieTitle"]
+        self.movieid = d["MovieId"]
         self.synopsis = str(soup.find('div', id="movieSynopsis").string.strip())
 
         for x in soup.find_all('li', attrs={'data-qa': "movie-info-item"}):
@@ -146,23 +142,23 @@ class RTMovie:
             self.audience_says = audience_says.replace("'''", r"''{{'}}").replace('"', "'")
 
         sd = str(soup.find('script', id='score-details-json'))
-        self.score_data = json.loads(sd[sd.find('>')+1 : sd.rfind('<')])["modal"]
-        if self.score_data["hasTomatometerScoreAll"]:
-            if sd := self.score_data["tomatometerScoreAll"]:
+        self.score_data = json.loads(sd[sd.find('>')+1 : sd.rfind('</scr')])
+        self.year = self.score_data["scoreboard"]["info"].split(',')[0]
+        if self.score_data['modal']["hasTomatometerScoreAll"]:
+            if sd := self.score_data['modal']["tomatometerScoreAll"]:
                 self.tomatometer_score = (
                     sd["score"], str(sd["ratingCount"]), sd["averageRating"]
                 )
-        if self.score_data["hasAudienceScoreAll"]:
-            if sd := self.score_data["audienceScoreAll"]:
+        if self.score_data['modal']["hasAudienceScoreAll"]:
+            if sd := self.score_data['modal']["audienceScoreAll"]:
                 self.audience_score = (
                     sd["score"], str(sd["ratingCount"]), sd["averageRating"]
                 )
 
 
 if __name__ == "__main__":
-    movie = RTMovie('m/the_place_beyond_the_pines_2012')
-    if movie.consensus:
-        print(len(movie.consensus))
+    movie = RTMovie('m/free_guy')
+    print(movie)
 
 
 

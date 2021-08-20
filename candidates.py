@@ -24,9 +24,10 @@ import requests
 import pywikibot as pwb
 import wikitextparser as wtp
 import regex as re
+import colorama
+colorama.init()
 
 from pywikibot import Page, Site, ItemPage
-
 from pywikibot.xmlreader import XmlDump
 from googlesearch import lucky
 
@@ -199,13 +200,11 @@ def _ask_for_id(cand, rtmatch):
     logger.debug(f"Asking for id for [[{cand.title}]]")
     title, text = cand.title, cand.text
     i, j = rtmatch.span[0], rtmatch.span[1]
-    warning = ''
-    if len(cand.matches) > 1:
-        warning = 'WARNING: More than one match found in this article.\n'
+    pspan = paragraph_span((i,j), text)
     prompt = f"""\033[96mNo working id found for a match in [[{title}]].\033[0m
-\033[93m{warning}Context------------------------------------------------------------------------\033[0m
-{text[i-70: i]}\033[1m{text[i: j]}\033[0m{text[j: j+70]}
-\033[93m-------------------------------------------------------------------------------\033[0m
+\033[93mContext------------------------------------------\033[0m
+{text[pspan[0]: i]}\033[1m{text[i: j]}\033[0m{text[j: pspan[1]]}
+\033[93m-------------------------------------------------\033[0m
 Please select an option:
 1) enter id
 2) open [[{title}]] in the browser

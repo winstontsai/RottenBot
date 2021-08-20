@@ -16,6 +16,7 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 from difflib import SequenceMatcher
 from functools import partial
 
+import editor
 import regex as re
 import pywikibot as pwb
 import wikitextparser as wtp
@@ -23,13 +24,12 @@ import wikitextparser as wtp
 from rapidfuzz.fuzz import partial_ratio
 
 from patterns import *
-from cndidates import Candidate
 ################################################################################
 
-def rating_and_consensus_prose(rt_data):
-    title = rt_data.title
-    score, count, average = rt_data.tomatometer_score
-    consensus = rt_data.consensus
+def rating_and_consensus_prose(movie):
+    title = movie.title
+    score, count, average = movie.tomatometer_score
+    consensus = movie.consensus
     s = (f"On [[Rotten Tomatoes]], ''{title}'' holds an approval rating " +
 f"of {score}% based on {count} reviews, with an average rating of {average}/10.")
     if consensus or int(count)>=20:
@@ -64,7 +64,7 @@ def citation_replacement(rtmatch):
     return s
 
 def metacritic_prose():
-    s = '[[Metacritic]], which uses a weighted average, assigned the film a score of @@ out of 100 based on reviews from @@ critics, indicating "@@@@@@@@@".'
+    s = 'On [[Metacritic]], the film has a weighted average score of 33 out of 100 based on 22 critics, indicating "generally favorable reviews".'
 
 @dataclass
 class Edit:
@@ -76,6 +76,16 @@ class FullEdit:
     title: str
     edits: list[Edit]
 
+def fulledit_from_candidate(cand, safe_templates_and_wikilinks):
+    editlist = []
+    for match in cand.matches:
+        flags = _compute_flags(match, cand, safe_templates_and_wikilinks)
+        if flags:
+            replacements = _complete_replacements(match, cand)
+        else:
+            replacements = _suggested_replacements(match, cand)
+        editlist.append(Edit(replacements, flags))
+    return FullEdit(cand.title, editlist)
 
 def compute_edits(candidates, get_user_input = True):
     """
@@ -101,19 +111,9 @@ def _process_manual_reviews(cand, fe):
         if not edit.flags:
             continue
         span = cand.matches[i].span
-        context = cand.text[span[0]-70 : span[1] + 70]
+        pspan = paragraph_span(span, cand.text)
+        context = cand.text[pspan[0] : pspan[1]]
         review_edit(cand.title, context, edit)
-
-def fulledit_from_candidate(cand, safe_templates_and_wikilinks):
-    editlist = []
-    for match in cand.matches:
-        flags = _compute_flags(match, cand, safe_templates_and_wikilinks)
-        if flags:
-            replacements = _complete_replacements(match, cand)
-        else:
-            replacements = _suggested_replacements(match, cand)
-        editlist.append(Edit(replacements, flags))
-    return FullEdit(cand.title, editlist)
 
 
 def _compute_flags(rtmatch, cand, safe_templates_and_wikilinks):
@@ -385,46 +385,32 @@ def balanced_brackets(text):
 ###############################################################################
 # text editor functions
 ###############################################################################
-def sublime_edit(contents=''):
-    args = ['subl', '--wait', '--new-window']
-    with tempfile.NamedTemporaryFile(suffix='.txt') as tmp:
-        tmp.write(contents.encode())
-        tmp.flush()
-        subprocess.Popen(args + [tmp.name]).wait()
-        tmp.seek(0)
-        return tmp.read().decode()
-
 def review_edit(title, context, edit):
     initial_text = f"""Reviewing edit for [[{title}]].
 
 Remember not to remove a list-defined Rotten Tomatoes reference since the
 reference definition will still be replaced.
 
-Leaving the "NEW WIKITEXT" section empty (without a newline between the
-dashed lines) will skip the edit.
+Leaving NEW WIKITEXT empty will skip this edit.
 
 CONTEXT:
---------------------------------------
 {context}
---------------------------------------
+-------------------------------------------------------------------------------
 OLD WIKITEXT:
---------------------------------------
-{edit.replacements[0][0]}
---------------------------------------
-NEW WIKITEXT:
---------------------------------------
-{edit.replacements[0][1]}
---------------------------------------
-"""
-    x = sublime_edit(initial_text)
-    x = x.split('--------------------------------------\n')
+===>{edit.replacements[0][0]}<===
 
-    if x[-2][:-1]:
+NEW WIKITEXT:
+===>{edit.replacements[0][1]}<===
+"""
+    x = editor.edit(initial_text).decode()
+    y = [m[1] for m in re.findall(r'===>(.*)<===', x, re.DOTALL)]
+
+    if y[-1]:
         edit.flags = []
     elif edit.flags:
         print('This edit will be skipped.')
         
-    edit.replacements[0] = (x[-4][:-1], x[-2][:-1])
+    edit.replacements[0] = (y[-2], y[-1])
 
 if __name__ == "__main__":
     print(balanced_brackets('{[()](){}}"'))

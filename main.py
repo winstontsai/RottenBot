@@ -12,7 +12,7 @@ print_logger = logging.getLogger('print_logger')
 import pywikibot as pwb
 
 import candidates
-import editor
+import wikieditor
 import patterns
 ################################################################################
 
@@ -28,7 +28,7 @@ def store_edits(args):
     else:
         cands = candidates.find_candidates(args.file1, get_user_input=args.interactive)
 
-    edits = editor.compute_edits(cands)
+    edits = wikieditor.compute_edits(cands)
     with open(args.file2, 'wb') as f:
         pickle.dump(list(edits), f)
 

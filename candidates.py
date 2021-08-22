@@ -124,7 +124,7 @@ def candidate_from_entry(entry):
         rtref_re = alternates([citation_re,ldref_re])
     rtref_re = fr'(?P<rtref>\s*{rtref_re})'
     
-    final_re = fr'{template_re}(?:{t_rtprose}|(?:{rt_re+notincurly}|{score_re}){notinreforcom}((?!</?ref|\n\n|==).)*?(?(rot){score_re}|{rt_re+notincurly})){notincom+notinbadsection}(?:((?!\n\n|==).)*?(?P<refs>{anyrefs_re}{rtref_re}{anyrefs_re}))?'
+    final_re = fr'{template_re}(?:{t_rtprose}|(?:{rt_re+notincurly}|{score_re}){notinref+notincom}((?!</?ref|\n\n|==).)*?(?(rot){score_re}|{rt_re+notincurly})){notincom+notinbadsection}(?:((?!\n\n|==).)*?(?P<refs>{anyrefs_re}{rtref_re}{anyrefs_re}))?'
 
     rtmatch_and_initialids, id_set, previous_end = [], set(), -333
     for m in re.finditer(final_re, text, flags=re.S):
@@ -160,7 +160,7 @@ def _process_needs_input_movies(cand):
             continue
         while True:
             newid = _ask_for_id(cand, rtm)
-            if not newid:
+            if newid is None:
                 break
             if z := _find_RTMovie(cand, newid):
                 rtm.movie = z
@@ -172,36 +172,33 @@ def _ask_for_id(cand, rtmatch):
     """
     Asks for a user decision regarding the Rotten Tomatoes id for a film.
     """
-    logger.debug(f"Asking for id for [[{cand.title}]]")
     title, text = cand.title, cand.text
     i, j = rtmatch.span[0], rtmatch.span[1]
     pspan = paragraph_span((i,j), text)
-    prompt = f"""{FORE.CYAN}No working id found for a match in [[{title}]].{STYLE.RESET_ALL}
+    prompt = f"""{FORE.CYAN}Need id for a match in [[{title}]].{STYLE.RESET_ALL}
 {FORE.GREEN}Context------------------------------------------{STYLE.RESET_ALL}
 {text[pspan[0]: i] + STYLE.BRIGHT + text[i: j] + STYLE.RESET_ALL + text[j: pspan[1]]}
 {FORE.GREEN}-------------------------------------------------{STYLE.RESET_ALL}
-Please select an option:
+Please select an option (s to skip, q to quit):
 1) enter id
 2) open [[{title}]] in the browser
-3) skip this candidate
-4) quit the program"""
+"""
     print(prompt)
-    while (user_input:=input("Your selection: ")) not in ('1','3','4'):
+    while (user_input:=input("Your selection: ")) not in ('1','s','q'):
         if user_input == '2':
             webbrowser.open(Page(Site('en','wikipedia'), title).full_url())
         else:
-            print("Not a valid selection.")
-
-    print()
+            print("Invalid option.")
+    # print()
     if user_input == '1':
         while not (newid := input("Enter id here: ")).startswith('m/'):
-            print('A valid id must begin with "m/".')
-        logger.info(f"Entered id '{newid}' for [[{title}]]")
+            print('Id must begin with \'m/\', e.g. m/titanic.')
+        logger.info(f"Entered id '{newid}' for [[{title}]].")
         return newid
-    elif user_input == '3':
-        logger.info(f"Skipping article [[{title}]]")
+    elif user_input == 's':
+        print(f"Skipping match.")
         return None
-    elif user_input == '4':
+    elif user_input == 'q':
         print("Quitting program.")
         sys.exit()                
 
@@ -312,14 +309,6 @@ def _inside_table(match):
     pstart, pend = paragraph_span(span, text)
     if '|-' in text[pstart:pend]:
         return True
-    # if match['rot']:
-    #     span = match.span('rot')
-    # wt = wtp.parse(text[pstart:pend])
-    # for t in wt.templates:
-    #     if is_subspan(span, (t.span[0]+pstart, t.span[1]+pstart) ):
-    #         return True
-    #     elif span[1] <= t.span[0]+pstart:
-    #         break
     return False
 
 def googled_id(title):

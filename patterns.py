@@ -177,9 +177,9 @@ def section(name):
 notinbadsection = fr"(?<!{section('(external links|references( and notes)?|see also|notes( and references)?|further reading)')}((?!\n==).)*)"
 
 template_re = r'(?(DEFINE)(?P<template>\{(?:[^}{]|(?&template))*\}))'
-notincurly = r'(?!((?!\n\n)[^}{]|(?&template))*\})'
+notincurly = r'(?!((?!\n\n)[^}{]|(?&template))*\})' # i.e. not in template
 notincom = r'(?!((?!<!--|\n\n).)*-->)'
-notinreforcom = r'(?!((?!<ref|\n\n).)*</ref)(?!((?!<!--|\n\n).)*-->)'
+notinref = r'(?!((?!<ref|\n\n).)*</ref)'
 
 refbegin_redirects = ['Ref ?begin', 'Sources?start', 'Beginref', 'Reftop']
 refbegin_re = fr'{template_pattern(construct_redirects(refbegin_redirects))}'

@@ -15,7 +15,7 @@ import requests
 
 from bs4 import BeautifulSoup
 ################################################################################
-USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:90.0) Gecko/20100101 Firefox/90.0'
+USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:91.0) Gecko/20100101 Firefox/91.0'
 RT_HEADERS = {
     'Host': 'www.rottentomatoes.com',
     'User-Agent': USER_AGENT,
@@ -157,7 +157,7 @@ class RTMovie:
 
 
 if __name__ == "__main__":
-    movie = RTMovie('m/free_guy')
+    movie = RTMovie('m/red')
     print(movie)
 
 

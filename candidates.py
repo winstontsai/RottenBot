@@ -68,73 +68,6 @@ class Candidate:
     text: str            # wikitext
     matches: list[RTMatch] = field(default_factory=list)
 
-
-def candidate_from_entry(entry):
-    title, text = entry.title, entry.text
-
-    print_logger.info(f"Processing [[{title}]].")
-
-    # Get allowed refnames. Dictionary maps refname to match object of the citation definition
-    refnames = dict()
-    for m in re.finditer(fr'<ref +name *= *"?(?P<refname>[^>]+?)"? *>((?!<ref).)*{t_alternates}((?!<ref).)*</ref *>', text, re.DOTALL):
-        refnames[m['refname']] = m
-
-    rtref_re = citation_re
-    if refnames:
-        allowed_refname = alternates(map(re.escape, refnames))
-        ldref_re = fr'(?P<ldref><ref +name *= *"?(?P<ldrefname>{allowed_refname})"? */>|{{{{ *[rR] *\| *(?P<ldrefname>{allowed_refname}) *}}}})'
-        rtref_re = alternates([citation_re,ldref_re])
-    rtref_re = fr'(?P<rtref>\s*{rtref_re})'
-
-    #notinref = r'(?!((?!<ref).)*</ref)'
-    notincom = r'(?!((?!<!--).)*-->)'
-    notinreforcom = r'(?!((?!<ref).)*</ref)(?!((?!<!--).)*-->)'
-    notintemplate = r'(?![^{{]*}})'
-    #cand_re1 = fr'{rt_re}{notinref}{notincom}((?!</?ref|\n[\n*]|==).)*?{score_re}((?!\n\n|==).)*?(?P<refs>{anyrefs_re}{rtref_re}{anyrefs_re})'
-    #cand_re2 = fr'{score_re}{notinref}{notincom}((?!</?ref|\n[\n*]|==).)*?{rt_re}((?!\n\n|==).)*?(?P<refs>{anyrefs_re}{rtref_re}{anyrefs_re})'
-    #cand_re3 = fr'{t_rtprose}{notincom}((?!</?ref|\n\n|==).)*?(?P<refs>{rtref_re})'
-    final_re = fr'(?:(?:({rt_re})(?![^{{]*}})|{score_re}){notinreforcom}((?!</?ref|\n\n|==).)*?(?(1){score_re}|{rt_re}(?![^{{]*}}))|{t_rtprose}){notincom}(?:((?!\n\n|==).)*?(?P<refs>{anyrefs_re}{rtref_re}{anyrefs_re}))?'
-
-    banned_sections = []
-    for sec in wtp.parse(text).get_sections(include_subsections=False):
-        if re.search('(external links|references|see also|notes)', str(sec.title), re.IGNORECASE):
-            banned_sections.append(sec.span)
-
-    rtmatch_and_initialids, id_set, previous_end = [], set(), -333
-    for m in re.finditer(final_re, text, flags=re.DOTALL):
-        if any(is_subspan(m.span(), y) for y in banned_sections):
-            continue
-        if _inside_table_or_template(m):
-            continue
-
-        # if m['rtref']:
-        #     continue
-
-        if m['rtprose']:
-            span = m.span()
-        else:
-            span = _find_span333(m, title)
-
-        if span[0] < previous_end:
-            continue
-        previous_end = span[1]
-
-        ref, initial_rt_id = _find_citation_and_id(title, m, refnames)
-        id_set.add(initial_rt_id)
-        rtmatch_and_initialids.append( (RTMatch(span, ref), initial_rt_id) )
-
-    cand = Candidate(title, text)
-    for rtmatch, initial in rtmatch_and_initialids:
-        safe_to_guess = len(id_set)<2 or rtmatch.span[0]<text.index('\n==')
-        rtmatch.movie = None#_find_RTMovie(entry, initial, safe_to_guess)
-        cand.matches.append(rtmatch)
-
-    if cand.matches:
-        return cand
-    else:
-        return None
-
-
 def _init(lock1, lock2):
     """
     To be used with Executor in find_candidates.
@@ -148,16 +81,13 @@ def find_candidates(xmlfile, get_user_input = False):
     Given an XmlDump, yields all pages (as a Candidate) in the dump
     which match at least one pattern in patterns.
     """
-    # if we get blocked (status code 403), acquire the lock
-    # to let other threads know
     total, count = 0, 0
     xml_entries = XmlDump(xmlfile).parse()
 
     WIKIDATA_LOCK = multiprocessing.Lock()
     GOOGLESEARCH_LOCK = multiprocessing.Lock()
     with ProcessPoolExecutor(max_workers=16,
-            initializer=_init,
-            initargs=(WIKIDATA_LOCK,GOOGLESEARCH_LOCK) ) as x:
+            initializer=_init, initargs=(WIKIDATA_LOCK,GOOGLESEARCH_LOCK) ) as x:
         futures = {x.submit(candidate_from_entry, e) : e.title for e in xml_entries}
         for future in as_completed(futures):
             total += 1
@@ -177,6 +107,52 @@ def find_candidates(xmlfile, get_user_input = False):
 
     logger.info(f"Found {count} candidates out of {total} pages")
     print_logger.info(f"Found {count} candidates out of {total} pages")
+
+
+def candidate_from_entry(entry):
+    title, text = entry.title, entry.text
+    # Get allowed refnames.
+    # Dictionary maps refname to match object of the citation definition.
+    refnames = dict()
+    for m in re.finditer(fr'<ref +name *= *"?(?P<refname>[^>]+?)"? *>((?!<ref).)*{t_alternates}((?!<ref).)*</ref *>', text, re.S):
+        refnames[m['refname']] = m
+
+    rtref_re = citation_re
+    if refnames:
+        allowed_refname = alternates(map(re.escape, refnames))
+        ldref_re = fr'<ref +name *= *"?(?P<ldrefname>{allowed_refname})"? */>|{{{{ *[rR] *\| *(?P<ldrefname>{allowed_refname}) *}}}}'
+        rtref_re = alternates([citation_re,ldref_re])
+    rtref_re = fr'(?P<rtref>\s*{rtref_re})'
+    
+    final_re = fr'{template_re}(?:{t_rtprose}|(?:{rt_re+notincurly}|{score_re}){notinreforcom}((?!</?ref|\n\n|==).)*?(?(rot){score_re}|{rt_re+notincurly})){notincom+notinbadsection}(?:((?!\n\n|==).)*?(?P<refs>{anyrefs_re}{rtref_re}{anyrefs_re}))?'
+
+    rtmatch_and_initialids, id_set, previous_end = [], set(), -333
+    for m in re.finditer(final_re, text, flags=re.S):
+        #print(m)
+        if _inside_table(m):
+            continue
+
+        if m['rtprose']:
+            span = m.span()
+        else:
+            span = _find_span333(m, title)
+
+        if span[0] < previous_end:
+            continue
+        previous_end = span[1]
+
+        ref, initial_rt_id = _find_citation_and_id(title, m, refnames)
+        id_set.add(initial_rt_id)
+        rtmatch_and_initialids.append( (RTMatch(span, ref), initial_rt_id) )
+
+    cand = Candidate(title, text)
+    for rtmatch, initial in rtmatch_and_initialids:
+        safe_to_guess = len(id_set)<2 or rtmatch.span[0]<text.index('\n==')
+        rtmatch.movie = None  #_find_RTMovie(entry, initial, safe_to_guess)
+        cand.matches.append(rtmatch)
+
+    if cand.matches:
+        return cand
 
 def _process_needs_input_movies(cand):
     for rtm in cand.matches:
@@ -268,7 +244,7 @@ def _find_span333(match, title):
         if text[i] in ' `@':
             i -=1; continue
 
-        if text[i] in '\n':
+        if text[i] == '\n':
             i = potential_starts[-1]
             break
 
@@ -325,7 +301,7 @@ def _p1258(title):
         return item.claims['P1258'][0].getTarget()
     return None
 
-def _inside_table_or_template(match):
+def _inside_table(match):
     """
     Return True if index i of the string s is likely part of a table or template.
     Not all tables end with '{|' and '|}'. Some use templates for the start/end.
@@ -333,15 +309,17 @@ def _inside_table_or_template(match):
     and accuracy.
     """
     span, text = match.span(), match.string
-    para_start, para_end = paragraph_span(span, text)
-    if '|-' in text[para_start:para_end]:
+    pstart, pend = paragraph_span(span, text)
+    if '|-' in text[pstart:pend]:
         return True
-    wt = wtp.parse(text[para_start:para_end])
-    for t in wt.templates:
-        if is_subspan(span, (t.span[0]+para_start, t.span[1]+para_start) ):
-            return True
-        elif span[1] <= t.span[0]+para_start:
-            break
+    # if match['rot']:
+    #     span = match.span('rot')
+    # wt = wtp.parse(text[pstart:pend])
+    # for t in wt.templates:
+    #     if is_subspan(span, (t.span[0]+pstart, t.span[1]+pstart) ):
+    #         return True
+    #     elif span[1] <= t.span[0]+pstart:
+    #         break
     return False
 
 def googled_id(title):

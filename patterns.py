@@ -61,7 +61,7 @@ def is_subspan(x, y):
 def alternates(l):
     return f'(?:{"|".join(l)})'
 
-def template_re(name):
+def template_pattern(name):
     """
     Returns regex matching the specified template.
     Assumes no nested templates.
@@ -75,7 +75,7 @@ def construct_redirects(l):
     For example, if we want to match both "Rotten Tomatoes" and "RottenTomatoes",
     use this function with l = ["Rotten Tomatoes", "RottenTomatoes"]
     """
-    redirects = [f"[{x[0] + x[0].lower()}]{x[1:]}" for x in l]
+    redirects = [fr"[{x[0].upper() + x[0].lower()}]{x[1:]}" for x in l]
     return alternates(redirects)
 
 ##############################################################################
@@ -112,7 +112,7 @@ def construct_template(name, d):
 # Regular expressions
 ##############################################################################
 
-rt_re = r"\b[rR]otten ?[tT]omatoe?s\b"
+rt_re = r"\b(?P<rot>[rR]otten ?[tT]omatoe?s)\b"
 
 ones = ["one", "two", "three", "four", "five", "six", "seven", "eight", "nine"]
 teens = ["ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"]
@@ -144,20 +144,19 @@ t_other = fr'(?P<citeweb>{url_re})'
 
 # {{Cite Rotten Tomatoes}} template
 citert_redirects = ["Cite Rotten Tomatoes", "Cite rotten tomatoes", "Cite rt", "Cite RT"]
-t_citert = fr"(?P<citert>{template_re(construct_redirects(citert_redirects))})"
+t_citert = fr"(?P<citert>{template_pattern(construct_redirects(citert_redirects))})"
 
 # {{Rotten Tomatoes}} template
-rt_redirects = [ "Rotten Tomatoes", "Rotten-tomatoes", "Rottentomatoes",
-                "Rotten tomatoes", "Rotten", "Rottentomatoes.com"]
-t_rt = fr"(?P<rt>{template_re(construct_redirects(rt_redirects))})"
+rt_redirects = [ "Rotten [tT]omatoes", "Rotten-?tomatoes", "Rotten(?:tomatoes.com)?"]
+t_rt = fr"(?P<rt>{template_pattern(construct_redirects(rt_redirects))})"
 
 # {{Rotten Tomatoes prose}} template
 rtprose_redirects = ['Rotten Tomatoes prose', 'RT prose', 'RT']
-t_rtprose = fr"(?P<rtprose>{template_re(construct_redirects(rtprose_redirects))})"
+t_rtprose = fr"(?P<rtprose>{template_pattern(construct_redirects(rtprose_redirects))})"
 
 # {{As of}} template
 asof_redirects = ["As of", "Asof"]
-t_asof = fr"(?P<asof>{template_re(construct_redirects(asof_redirects))})"
+t_asof = fr"(?P<asof>{template_pattern(construct_redirects(asof_redirects))})"
 
 t_alternates = alternates([t_other,t_citert,t_rt])
 citation_re = fr'(?P<citation><ref( +name *= *"?(?P<refname>[^>]+?)"?)? *>((?!<ref).)*?{t_alternates}((?!<ref).)*</ref *>)'
@@ -165,14 +164,28 @@ citation_re = fr'(?P<citation><ref( +name *= *"?(?P<refname>[^>]+?)"?)? *>((?!<r
 # for list-defined references.
 # ldref_re = fr'(?P<ldref><ref +name *= *"?(?P<ldrefname>[^>]+?)"? */>)'
 
-someref_re = fr'\s*(?:<ref(?:(?!<ref).)+?/(?:ref *)?>|{template_re(r"[rR]")})'
+someref_re = fr'\s*(?:<ref(?:(?!<ref).)+?/(?:ref *)?>|{template_pattern(r"[rR]")})'
 # matches zero or more consecutive references (not necessarily for RT), use re.DOTALL
 anyrefs_re = fr'(?:{someref_re})*'
 
-cutoff_sections_re = re.compile(fr"[^=]== *{alternates(['References( and notes)?','External links', 'See also', 'Notes and references'])} *==[^=]", flags=re.IGNORECASE)
+
+def section(name):
+    """
+    Returns regex matching the specified section. Case is ignored in name.
+    """
+    return r'(?<=\n)={2,} *' + fr'(?i:{name})' + r' *={2,}'
+notinbadsection = fr"(?<!{section('(external links|references( and notes)?|see also|notes( and references)?|further reading)')}((?!\n==).)*)"
+
+template_re = r'(?(DEFINE)(?P<template>\{(?:[^}{]|(?&template))*\}))'
+notincurly = r'(?!((?!\n\n)[^}{]|(?&template))*\})'
+notincom = r'(?!((?!<!--|\n\n).)*-->)'
+notinreforcom = r'(?!((?!<ref|\n\n).)*</ref)(?!((?!<!--|\n\n).)*-->)'
+
+refbegin_redirects = ['Ref ?begin', 'Sources?start', 'Beginref', 'Reftop']
+refbegin_re = fr'{template_pattern(construct_redirects(refbegin_redirects))}'
 
 if __name__ == "__main__":
-    print(re.search(average_re, """5 reviews, and a weighted average rating of 5.6/10"""))
+    print(t_rtprose)
 
 
 

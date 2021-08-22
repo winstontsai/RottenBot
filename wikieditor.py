@@ -5,15 +5,15 @@ import logging
 logger = logging.getLogger(__name__)
 print_logger = logging.getLogger('print_logger')
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import date
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import editor
 import regex as re
-import pywikibot as pwb
 import wikitextparser as wtp
 
+from pywikibot import Page, Site
 from rapidfuzz.fuzz import partial_ratio
 
 from patterns import *
@@ -28,6 +28,24 @@ class FullEdit:
     title: str
     edits: list[Edit]
 
+def compute_edits(candidates, get_user_input = True):
+    """
+    The candidates parameter should be
+    an iterable of candidate objects.
+    """
+    with open('safe-templates-and-wikilinks.txt', 'r') as f:
+        safe_templates_and_wikilinks = set(line[:-1] for line in f)
+
+    with ProcessPoolExecutor() as x:
+        futures = {x.submit(fulledit_from_candidate, c) : c for c in candidates}
+        for future in as_completed(futures):
+            fe = future.result()
+            if not fe:
+                continue
+            if get_user_input:
+                _process_manual_reviews(futures[future], fe, safe_templates_and_wikilinks)
+
+
 def fulledit_from_candidate(cand):
     editlist = []
     for match in cand.matches:
@@ -36,39 +54,110 @@ def fulledit_from_candidate(cand):
         editlist.append(Edit(replacements, flags))
     return FullEdit(cand.title, editlist)
 
-def compute_edits(candidates, get_user_input = True):
-    """
-    The candidates parameter should be
-    an iterable of candidate objects.
-    """
-    cand_and_fulledits = []
-    with ProcessPoolExecutor() as x:
-        futures = {x.submit(fulledit_from_candidate, c) : c for c in candidates}
-        for future in as_completed(futures):
-            fe = future.result()
-            if not fe:
-                continue
-            cand_and_fulledits.append((futures[future], future.result))
-
-
-    safe_templates_and_wikilinks = set()
-    with open('safe-templates-and-wikilinks.txt', 'r') as f:
-        safe_templates_and_wikilinks = set(line[:-1] for line in f)
-
-    for cand, fe in cand_and_fulledits:
-
-
-
 
 def _process_manual_reviews(cand, fe, safe_templates_and_wikilinks):
     for i, edit in enumerate(fe.edits):
+        edit.flags -= safe_templates_and_wikilinks
         if not edit.flags:
             continue
+
+        while True:
+            pass
+
         span = cand.matches[i].span
         pspan = paragraph_span(span, cand.text)
         context = cand.text[pspan[0] : pspan[1]]
-        review_edit(cand.title, context, edit)
+    
+    with open('safe-templates-and-wikilinks.txt', 'w') as f:
+        f.write('\n'.join(sorted(safe_templates_and_wikilinks)) + '\n')
 
+def _ask_for_review(cand, edit, safe_templates_and_wikilinks):
+    title, text = cand.title, cand.text
+    i, j = rtmatch.span[0], rtmatch.span[1]
+    pspan = paragraph_span((i,j), text)
+    oldtext, newtext = edit.replacements[0]
+    prompt = f"""{FORE.CYAN}An edit in [[{title}]] has been flagged for review.{STYLE.RESET_ALL}
+{FORE.YELLOW}Flags = {sorted(edit.flags)}{STYLE.RESET_ALL}
+{FORE.GREEN}Old Wikitext------------------------------------------{STYLE.RESET_ALL}
+{text[pspan[0]: i] + STYLE.BRIGHT + oldtext + STYLE.RESET_ALL + text[j: pspan[1]]}
+{FORE.GREEN}New Wikitext------------------------------------------{STYLE.RESET_ALL}
+{STYLE.BRIGHT + newtext + STYLE.RESET_ALL}
+{FORE.GREEN}---------------------------------------------{STYLE.RESET_ALL}
+Please select an option (s to skip, q to quit):
+1) keep edit
+2) open text editor for manual edit
+3) open [[{title}]] in the browser
+4) add/remove safe templates and wikilinks
+"""
+    print(prompt)
+    while (user_input:=input("Your selection: ")) not in ('1','2'):
+        if user_input == '3':
+            webbrowser.open(Page(Site('en','wikipedia'), title).full_url())
+        elif user_input == '4':
+            while (user_input:=input('Template/Wikilink to add/remove (Press Enter to finish): ')):
+                remove = False
+                if user_input[0] == '-':
+                    user_input = user_input[1:]
+                    remove = True
+                if not re.fullmatch(r'Template:.+|\[\[.+\]\]', user_input):
+                    print("Use format Template:X or [[X]] to add. Prepend '-' to remove.")
+                    continue
+                if remove:
+                    safe_templates_and_wikilinks.remove(user_input)
+                else:
+                    safe_templates_and_wikilinks.add(user_input)
+        else:
+            print("Not a valid selection.")
+
+    print()
+    if user_input == '1':
+        edit.flags.clear()
+    elif user_input == '2':
+        new_edit = review_edit(title, text[pspan[0]:pspan[1]], edit)
+
+    elif user_input == 's':
+        print(f"Skipping edit.")
+    elif user_input == 'q':
+        print("Quitting program.")
+        sys.exit()  
+
+def review_edit(title, context, edit):
+    """
+    Opens text editor for user to review edit.
+    """
+    if not edit.flags: # only review flagged edits
+        return
+    initial_text = f"""Reviewing edit for [[{title}]].
+
+Remember not to remove a list-defined Rotten Tomatoes reference
+since the reference definition will still be replaced.
+Leave NEW WIKITEXT empty to skip this edit.
+Leave the entire file empty to quit the program.
+-------------------------------------------------------------------------------
+Old Wikitext:
+{context}
+-------------------------------------------------------------------------------
+TO BE REPLACED   (put wikitext between the arrows):
+🡺🡺🡺{edit.replacements[0][0]}🡸🡸🡸
+-------------------------------------------------------------------------------
+REPLACEMENT TEXT (put wikitext between the arrows):
+🡺🡺🡺{edit.replacements[0][1]}🡸🡸🡸
+"""
+    x = editor.edit(initial_text).decode()
+    if x == '':
+        print_logger.info('Quitting program.')
+        sys.exit()
+
+    old, new = [m[1] for m in re.finditer(r'🡺🡺🡺(.*)🡸🡸🡸', x, re.S)]
+
+    if new:
+        # Clear flags so that edit goes through
+        edit.flags.clear()
+    else:
+        # edit should have flags, so it will be skipped
+        print('Skipping edit.')
+        
+    edit.replacements[0] = (old, new)
 
 def _compute_flags(rtmatch, cand):
     """
@@ -95,11 +184,11 @@ def _compute_flags(rtmatch, cand):
     if re.search(r'[mM]etacritic', text):
         flags.add("Metacritic")
 
-    if (k:=pattern_count(fr'<ref|{template_re("[rR]")}', text) - bool(rtmatch.ref)):
+    if (k:=pattern_count(fr'<ref|{template_pattern("[rR]")}', text) - bool(rtmatch.ref)):
         flags.add(f"non-RT references ({k})")
 
     # hide refs
-    text_no_refs = re.sub(someref_re, '', text, flags=re.DOTALL)
+    text_no_refs = re.sub(someref_re, '', text, flags=re.S)
     if len(text_no_refs) > 700:
         flags.add('long')
 
@@ -107,7 +196,7 @@ def _compute_flags(rtmatch, cand):
         flags.add(f'Rotten Tomatoes count ({k})')
 
     # no quotes or refs
-    text_no_quotes = re.sub(r'".+?"', lambda m:len(m.group())*'"', text_no_refs, flags=re.DOTALL)
+    text_no_quotes = re.sub(r'".+?"', lambda m:len(m.group())*'"', text_no_refs, flags=re.S)
     # audience score?
     if pattern_count(r'\b(audience|user|viewer)', text_no_quotes, re.IGNORECASE):
         flags.add('audience/user/viewer')
@@ -144,7 +233,7 @@ def _compute_flags(rtmatch, cand):
         x.string = len(x.string) * 'Ξ'
 
     wikitext = str(wikitext)
-    # wikitext = re.sub(r'".+?"', lambda m:len(m.group())*'"', wikitext, flags=re.DOTALL)
+    # wikitext = re.sub(r'".+?"', lambda m:len(m.group())*'"', wikitext, flags=re.S)
 
     k1 = pattern_count(average_re, wikitext)
     if k1 > 1:
@@ -183,7 +272,7 @@ def safe_to_add_consensus1(rtmatch, cand):
         return False
     return True
 
-def safe_to_add_consensus3(rtmatch, cand):
+def safe_to_add_consensus2(rtmatch, cand):
     consensus = rtmatch.movie.consensus
     text = cand.text
     if not consensus:
@@ -193,7 +282,7 @@ def safe_to_add_consensus3(rtmatch, cand):
     p_start, p_end = paragraph_span(rtmatch.span, text)
 
     paragraph = text[p_start: p_end]
-    paragraph = re.sub(r'{.*?}|\[[^]]*\||<!--.*?-->', '', paragraph, re.DOTALL)
+    paragraph = re.sub(r'{.*?}|\[[^]]*\||<!--.*?-->', '', paragraph, re.S)
     paragraph = re.sub(someref_re, '', paragraph)
     return partial_ratio(consensus,paragraph,processor=True,score_cutoff=None)
 
@@ -222,8 +311,13 @@ def balanced_brackets(text):
 #################################################################################
 # Functions for creating replacement text.
 #################################################################################
-def _suggested_replacements(rtmatch, cand):
-    """Assuming no flags, compute suggested replacement."""
+def _suggested_edit(rtmatch, cand):
+    flags = _compute_flags(rtmatch, cand)
+
+    use_complete_replacement = False
+    flags = set(x for x in _compute_flags(rtmatch, cand) if not re.match(r'\[\[|Template:', x))
+
+
     span = rtmatch.span
     text = cand.text[span[0]:span[1]]
     score, count, average = rtmatch.movie.tomatometer_score
@@ -302,7 +396,7 @@ def _complete_replacements(rtmatch, cand):
 
     if safe_to_add_consensus1(rtmatch, cand):
         new_text += ' ' + consensus
-    if not ref:
+    if not ref and not re.search(refbegin_re, cand.text, re.S):
         new_text += citation_replacement(rtmatch)
     elif ref.list_defined:
         new_text += f'<ref name="{ref.name}" />'
@@ -333,7 +427,7 @@ def citation_replacement(rtmatch):
     s += f' name="{refname}">' if refname else '>'
     template_dict = {
         'url': url,
-        'title': f'{title} ({year})',
+        'title': title,
         'website': '[[Rotten Tomatoes]]',
         'publisher': '[[Fandango Media|Fandango]]',
         'access-date': access_date
@@ -355,43 +449,8 @@ def metacritic_prose():
     s = 'On [[Metacritic]], the film has a weighted average score of 33 out of 100 based on 22 critics, indicating "generally favorable reviews".'
 
 
-def review_edit(title, context, edit):
-    """
-    Opens text editor for user to review edit.
-    """
-    initial_text = f"""Reviewing edit for [[{title}]].
-
-Remember not to remove a list-defined Rotten Tomatoes reference since the
-reference definition will still be replaced.
-
-Leave NEW WIKITEXT empty to skip this edit.
-Leave the entire file empty to quit the program.
--------------------------------------------------------------------------------
-CONTEXT:
-{context}
--------------------------------------------------------------------------------
-OLD WIKITEXT:
-===>{edit.replacements[0][0]}<===
--------------------------------------------------------------------------------
-NEW WIKITEXT:
-===>{edit.replacements[0][1]}<===
-"""
-    x = editor.edit(initial_text).decode()
-    if not x:
-        print_logger.info('Quitting program.')
-        sys.exit()
-
-    old, new = [m[1] for m in re.finditer(r'===>(.*)<===', x, re.DOTALL)]
-
-    if new:
-        edit.flags = []
-    elif edit.flags:
-        print('This edit will be skipped.')
-        
-    edit.replacements[0] = (old, new)
-
 if __name__ == "__main__":
-    print(balanced_brackets('{[()](){}}"'))
+    pass
 
 
 

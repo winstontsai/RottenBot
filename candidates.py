@@ -122,21 +122,18 @@ def candidate_from_entry(entry):
         allowed_refname = alternates(map(re.escape, refnames))
         ldref_re = fr'<ref +name *= *"?(?P<ldrefname>{allowed_refname})"? */>|{{{{ *[rR] *\| *(?P<ldrefname>{allowed_refname}) *}}}}'
         rtref_re = alternates([citation_re,ldref_re])
-    rtref_re = fr'(?P<rtref>\s*{rtref_re})'
+    rtref_re = fr'\s*{rtref_re}'
     
     final_re = fr'{template_re}(?:{t_rtprose}|(?:{rt_re+notincurly}|{score_re}){notinref+notincom}((?!</?ref|\n\n|==).)*?(?(rot){score_re}|{rt_re+notincurly})){notincom+notinbadsection}(?:((?!\n\n|==).)*?(?P<refs>{anyrefs_re}{rtref_re}{anyrefs_re}))?'
 
     rtmatch_and_initialids, id_set, previous_end = [], set(), -333
     for m in re.finditer(final_re, text, flags=re.S):
         #print(m)
-        if _inside_table(m):
-            continue
 
-        if m['rtprose']:
-            span = m.span()
-        else:
-            span = _find_span333(m, title)
+        # if _inside_table(m):
+        #     continue
 
+        span = _find_span333(m, title)
         if span[0] < previous_end:
             continue
         previous_end = span[1]
@@ -238,6 +235,7 @@ def _find_span333(match, title):
     p3 = re.compile(r'}} *@')
     i, potential_starts = matchstart, [matchstart]
     while i > para_start:
+        #print(text[i:i+7])
         if text[i] in ' `@':
             i -=1; continue
 
@@ -251,10 +249,10 @@ def _find_span333(match, title):
         potential_starts.append(i)
         i -= 1
 
-    if match['refs']:
-        search_start = rfind_pattern(r'\w', text, 0, match.start('refs'))
-    else:
-        search_start = rfind_pattern(r'\w', text, 0, match.end())
+    # if match['refs']:
+    #     search_start = rfind_pattern(r'\w', text, 0, match.start('refs'))
+    # else:
+    search_start = rfind_pattern(r'[}\w]', text, 0, match.end())
 
     if m := p2.search(text, search_start):
         j = min(m.end(), para_end)

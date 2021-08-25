@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 print_logger = logging.getLogger('print_logger')
 
-from concurrent.futures import ProcessPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor, as_completed, ThreadPoolExecutor
 from dataclasses import dataclass, field
 from itertools import chain
 from collections import defaultdict, namedtuple
@@ -145,7 +145,7 @@ def candidate_from_entry(entry):
     cand = Candidate(title, text)
     for rtmatch, initial in rtmatch_and_initialids:
         safe_to_guess = len(id_set)<2 or rtmatch.span[0]<text.index('\n==')
-        rtmatch.movie = None  #_find_RTMovie(entry, initial, safe_to_guess)
+        rtmatch.movie = _find_RTMovie(entry, initial, safe_to_guess)
         cand.matches.append(rtmatch)
 
     if cand.matches:
@@ -172,35 +172,28 @@ def _ask_for_id(cand, rtmatch):
     title, text = cand.title, cand.text
     i, j = rtmatch.span[0], rtmatch.span[1]
     pspan = paragraph_span((i,j), text)
-    prompt = f"""{FORE.CYAN}Need id for a match in [[{title}]].{STYLE.RESET_ALL}
-{FORE.GREEN}Context------------------------------------------{STYLE.RESET_ALL}
-{text[pspan[0]: i] + STYLE.BRIGHT + text[i: j] + STYLE.RESET_ALL + text[j: pspan[1]]}
-{FORE.GREEN}-------------------------------------------------{STYLE.RESET_ALL}
-Please select an option (s to skip, q to quit):
-1) enter id
-2) open [[{title}]] in the browser
+    prompt = f"""{Fore.CYAN+Style.BRIGHT}Need id for a match in [[{title}]].{Style.RESET_ALL}
+{Fore.GREEN+Style.BRIGHT}Context------------------------------------------{Style.RESET_ALL}
+{text[pspan[0]: i] + Style.BRIGHT + text[i: j] + Style.RESET_ALL + text[j: pspan[1]]}
+{Fore.GREEN+Style.BRIGHT}-------------------------------------------------{Style.RESET_ALL}
 """
     print(prompt)
-    while (user_input:=input("Your selection: ")) not in ('1','s','q'):
-        if user_input == '2':
+    while not re.fullmatch(r'm/[-a-z0-9_]+',
+        (user_input:=input("Enter id (or open in [b]rowser, [s]kip, or [q]uit): "))):
+        if user_input == 'b':
             webbrowser.open(Page(Site('en','wikipedia'), title).full_url())
+        elif user_input == 's':
+            print(f"Skipping match."); return None
+        elif user_input == 'q':
+            print("Quitting program."); sys.exit()
         else:
-            print("Invalid option.")
-    # print()
-    if user_input == '1':
-        while not (newid := input("Enter id here: ")).startswith('m/'):
-            print('Id must begin with \'m/\', e.g. m/titanic.')
-        logger.info(f"Entered id '{newid}' for [[{title}]].")
-        return newid
-    elif user_input == 's':
-        print(f"Skipping match.")
-        return None
-    elif user_input == 'q':
-        print("Quitting program.")
-        sys.exit()                
+            print("Invalid id. Must begin with 'm/', e.g. 'm/titanic'.")
 
 # ===========================================================================================
 def _find_span333(match, title):
+    if match['refs'] and match['rtprose']:
+        return match.span()
+
     matchstart = match.start()
     para_start, para_end = paragraph_span(match.span(), match.string)
 
@@ -209,55 +202,32 @@ def _find_span333(match, title):
     for x in reversed(wikitext.get_bolds_and_italics(recursive=False)):
         x.string = len(x.string) * "'"
     for x in reversed(wikitext.wikilinks):
-        x.string = len(x.string) * ']'
+        x.string = '[[' + (len(x.string)-4)*'a' + ']]'
     for x in reversed(wikitext.external_links):
-        x.string = len(x.string) * ']'
+        x.string = '[' + (len(x.string)-2)*'a' + ']'
     for x in reversed(wikitext.templates):
-        x.string = len(x.string) * '}'
+        x.string = '{{' + (len(x.string)-4)*'a' + '}}'
     for x in reversed(wikitext.comments):
         x.string = len(x.string) * '`'
     for x in reversed(wikitext.get_tags()):
         x.string = len(x.string) * '@'
 
     text = str(wikitext).translate(str.maketrans('“”‘’','""\'\''))
-    text = re.sub(r"(?<!')'(?!')", ' ', text)
+    #text = re.sub(r"(?<!')'(?!')", ' ', text)
 
     brackets_re = r'\s+\([^()]+?\)$'
     title = re.sub(brackets_re, '', title)
     rep = 'T' + 't'*(len(title)-1)
     text = re.sub(re.escape(title), rep, text)
-    #print(text)
+    
     text = match.string[:para_start] + text + match.string[para_end:]
-    text = text[:match.start()] + text[match.start():para_end].replace('\n',' ') + text[para_end:]
+    #text = text[:matchstart] + text[matchstart: para_end].replace('\n',' ') + text[para_end:]
 
-    # TODO ' *' vs '\s*'
-    p2 = re.compile(r'([.!] ?"|(?<=[^A-Z])[.!])(( *[@`]+)+|(?= +[^a-z]|\n))')
-    p3 = re.compile(r'}} *@')
-    i, potential_starts = matchstart, [matchstart]
-    while i > para_start:
-        #print(text[i:i+7])
-        if text[i] in ' `@':
-            i -=1; continue
+    p4 = re.compile(r'(?:([.!][ \']?"|(?<![A-Z])[.!])((\s*[@`]+)+|(?=\s+[^a-z]))|}}\s*@+|\n)\s*', flags=re.REVERSE)
+    i = p4.search(text, 0, matchstart+1).end()
 
-        if text[i] == '\n':
-            i = potential_starts[-1]
-            break
-
-        if (m:=p2.match(text, i)) or (m:=p3.match(text, i)):
-            i = next(j for j in reversed(potential_starts) if j >= m.end())
-            break
-        potential_starts.append(i)
-        i -= 1
-
-    # if match['refs']:
-    #     search_start = rfind_pattern(r'\w', text, 0, match.start('refs'))
-    # else:
-    search_start = rfind_pattern(r'[}\w]', text, 0, match.end())
-
-    if m := p2.search(text, search_start):
-        j = min(m.end(), para_end)
-    else:
-        j = para_end
+    p5 = re.compile(r'([.!][ \']?"|(?<![A-Z])[.!])((\s*[@`]+)+|(?=\s+[^a-z]))|}}\s*@+|(?=\n\n|\n==)')
+    j = p5.search(text, pos=rindex_pattern(r'\w', text, 0, match.end())).end()
 
     #print(match.string[i:j])
     return (i, j)
@@ -314,7 +284,8 @@ def googled_id(title):
     time.sleep(1)       # avoid getting blocked, better safe than sorry
     print_logger.info(f"GOOGLING ID for [[{title}]].")
     try:
-        url = lucky(title+' movie site:rottentomatoes.com/m/',user_agent=scraper.USER_AGENT)
+        url = lucky(title+' movie site:rottentomatoes.com/m/',
+            user_agent=scraper.USER_AGENT)
     except urllib.error.HTTPError as x:
         GOOGLESEARCH_LOCK.release()
         raise
@@ -322,7 +293,6 @@ def googled_id(title):
         GOOGLESEARCH_LOCK.release()
     suggested_id = url.split('rottentomatoes.com/m/')[1]
     return 'm/' + suggested_id.split('/')[0]
-
 
 def _find_RTMovie(page, initial_id, make_guess = False):
     try:
@@ -342,14 +312,20 @@ def _find_RTMovie(page, initial_id, make_guess = False):
 
     def probably_correct():
         lead = page.text[:page.text.index('\n==')]
-        words_to_check_for = {' ' + movie.year}
         names = chain.from_iterable(name.split() for name in movie.director+movie.writer)
-        words_to_check_for.update(x for x in names if x[-1] != '.')
-        if not all(x in lead for x in words_to_check_for):
+        checkwords = [x for x in names if x[-1] != '.']+[' '+movie.year]
+        if any(x not in lead for x in checkwords):
             return False
-        if f"''{movie.title}''" in lead:
+        if f"'''''{movie.title}'''''" in lead:
             return True
-        return False
+        if not f"''{movie.title}''" in lead:
+            return False
+        z = re.findall(r'\d+', movie.runtime)
+        if len(z) == 1:
+            minutes = int(z[0])
+        else:
+            hours, minutes = map(int, z)
+        return f'{60*hours + minutes} minutes' in lead
 
     try:
         movie = RTMovie(googled_id(page.title))
@@ -363,7 +339,5 @@ def _find_RTMovie(page, initial_id, make_guess = False):
 
 if __name__ == "__main__":
     pass
-
-
 
 

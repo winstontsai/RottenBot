@@ -60,7 +60,6 @@ class RTMovie:
     short_url: str
     url: str = None
     access_date: str = None
-    movieid: str = None
     title: str = None
     year: str = None
     synopsis: str = None
@@ -113,9 +112,6 @@ class RTMovie:
         self.short_url = self.url.split('rottentomatoes.com/')[-1]
         self.access_date = date.today().strftime("%B %d, %Y")
 
-        d = json.loads(find_substring(html, 'root.BK = ', ';'))
-        self.title = d["MovieTitle"]
-        self.movieid = d["MovieId"]
         self.synopsis = str(soup.find('div', id="movieSynopsis").string.strip())
 
         for x in soup.find_all('li', attrs={'data-qa': "movie-info-item"}):
@@ -144,6 +140,7 @@ class RTMovie:
         sd = str(soup.find('script', id='score-details-json'))
         self.score_data = json.loads(sd[sd.find('>')+1 : sd.rfind('</scr')])
         self.year = self.score_data["scoreboard"]["info"].split(',')[0]
+        self.title = self.score_data["scoreboard"]["title"]
         if self.score_data['modal']["hasTomatometerScoreAll"]:
             if sd := self.score_data['modal']["tomatometerScoreAll"]:
                 self.tomatometer_score = (
@@ -157,7 +154,7 @@ class RTMovie:
 
 
 if __name__ == "__main__":
-    movie = RTMovie('m/red')
+    movie = RTMovie('m/mike_wallace_is_here')
     print(movie)
 
 

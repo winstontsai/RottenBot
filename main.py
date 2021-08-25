@@ -73,7 +73,7 @@ See 'https://github.com/winstontsai/RottenBot' for source code and more info."""
     parser_store.add_argument('file1', help="The XML dump of Wikipedia pages to work on.")
     parser_store.add_argument('file2', help='The file in which to store edits.')
     parser_store.add_argument('-i', '--interactive', action='store_true',
-        help='In interactive mode, the user will be asked for their input edits which otherwise would be skipped.')
+        help='In interactive mode, the user will be asked for their input for certain articles.')
     
 
     # parser for uploading

@@ -174,7 +174,7 @@ def section(name):
     Returns regex matching the specified section. Case is ignored in name.
     """
     return r'(?<=\n)={2,} *' + fr'(?i:{name})' + r' *={2,}'
-notinbadsection = fr"(?<!{section('(external links|references( and notes)?|see also|notes( and references)?|further reading)')}((?!\n==).)*)"
+notinbadsection = fr"(?<!{section('(references( and notes)?|notes( and references)?|external links|see also|further reading)')}((?!\n==).)*)"
 
 template_re = r'(?(DEFINE)(?P<template>\{(?:[^}{]|(?&template))*\}))'
 notincurly = r'(?!((?!\n\n)[^}{]|(?&template))*\})' # i.e. not in template

@@ -10,3 +10,30 @@ WL:Review aggregator
 WL:Rotten Tomatoes
 WL:Weighted arithmetic mean
 WL:Weighted average
+WL:Average score
+WL:Rating average
+WL:Arithmetic mean
+T:Cn
+T:Nowrap
+T:Asof
+T:RT prose
+T:RT
+T:Citation needed
+T:Snd
+T:Zero width joiner em dash zero width non joiner
+T:Nsmdns
+T:No space em dash no space
+T:No space emdash no space
+T:Nsmdashns
+T:No wrap
+T:No break
+T:Nobreak
+T:Needs citation
+T:No-wrap
+T:Nobr
+T:Nowr
+T:Apostrophe
+T:Citationneeded
+T:CN
+T:Cite-needed
+T:Cite needed

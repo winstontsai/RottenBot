@@ -2,10 +2,10 @@ import time
 import sys
 import os
 import pickle
-import json
 import argparse
-import logging.handlers
+
 import logging
+import logging.handlers
 logger = logging.getLogger(__name__)
 print_logger = logging.getLogger('print_logger')
 
@@ -13,7 +13,6 @@ import pywikibot as pwb
 
 import candidates
 import wikieditor
-import patterns
 ################################################################################
 
 def store_candidates(args):
@@ -63,7 +62,7 @@ See 'https://github.com/winstontsai/RottenBot' for source code and more info."""
         required=True,
         metavar='command',)
 
-    # parser for shelving
+    # parser for storing
     parser_store = subparsers.add_parser('store',
         help = 'Store edits in a file.')
     parser_store.set_defaults(func=store_edits)

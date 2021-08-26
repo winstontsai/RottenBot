@@ -15,15 +15,13 @@ logger = logging.getLogger(__name__)
 
 print_logger = logging.getLogger('print_logger')
 
-from concurrent.futures import ProcessPoolExecutor, as_completed, ThreadPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from itertools import chain
-from collections import defaultdict, namedtuple
 
-import requests
+import regex as re
 import pywikibot as pwb
 import wikitextparser as wtp
-import regex as re
 
 from pywikibot import Page, Site, ItemPage
 from pywikibot.xmlreader import XmlDump
@@ -31,7 +29,6 @@ from googlesearch import lucky
 from colorama import Fore, Style
 
 import scraper
-from scraper import RTMovie
 from patterns import *
 ################################################################################
 
@@ -39,7 +36,6 @@ from patterns import *
 class OverlappingMatchError(Exception):
     pass
 
-Entry = namedtuple('Entry', ['title', 'text'])
 
 @dataclass
 class Reference:
@@ -55,7 +51,7 @@ class RTMatch:
     """
     span: tuple[int, int]
     ref: Reference
-    movie: RTMovie = None
+    movie: scraper.RTMovie = None
 
 @dataclass
 class Candidate:
@@ -296,7 +292,7 @@ def googled_id(title):
 def _find_RTMovie(page, initial_id, make_guess = False):
     try:
         if initial_id:
-            return RTMovie(initial_id)
+            return scraper.RTMovie(initial_id)
     except Exception:
         pass
 
@@ -305,7 +301,7 @@ def _find_RTMovie(page, initial_id, make_guess = False):
 
     if (p := _p1258(page.title)) and p != initial_id:
         try:
-            return RTMovie(p)
+            return scraper.RTMovie(p)
         except Exception:
             pass
 
@@ -313,6 +309,7 @@ def _find_RTMovie(page, initial_id, make_guess = False):
         lead = page.text[:page.text.index('\n==')]
         names = chain.from_iterable(name.split() for name in movie.director+movie.writer)
         checkwords = [x for x in names if x[-1] != '.']+[' '+movie.year]
+        # print(checkwords)
         if any(x not in lead for x in checkwords):
             return False
         if f"'''''{movie.title}'''''" in lead:
@@ -327,7 +324,7 @@ def _find_RTMovie(page, initial_id, make_guess = False):
         return f'{60*hours + minutes} minutes' in lead
 
     try:
-        movie = RTMovie(googled_id(page.title))
+        movie = scraper.RTMovie(googled_id(page.title))
     except Exception:
         pass
     else:

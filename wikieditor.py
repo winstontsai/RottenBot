@@ -51,7 +51,8 @@ def fulledit_from_candidate(cand):
         if not match.movie or not match.movie.tomatometer_score:
             continue
         editlist.append(_suggested_edit(match, cand, safe_templates_and_wikilinks))
-    return FullEdit(cand.title, editlist)
+    if editlist:
+        return FullEdit(cand.title, editlist)
 
 
 def _process_manual_reviews(cand, fe):
@@ -161,18 +162,17 @@ def _compute_flags(rtmatch, cand, safe_templates_and_wikilinks):
     text = cand.text[span[0]:span[1]]
     movie = rtmatch.movie
     flags = set()
-    
-    if not rtmatch.ref:
-        flags.add('no RT citation')
+
+    # Remove comments from text
+    text = re.sub(r'<!--.*?-->', '', text, flags=re.S)
+    # Fix quote style
+    text = text.translate(str.maketrans('“”‘’','""\'\''))
 
     # Flags related to the film's title
     if re.search(score_re, cand.title+movie.title):
         flags.add('score pattern in title')
     if re.search(average_re, cand.title+movie.title):
         flags.add('average pattern in title')
-
-    # Remove comments from text
-    text = re.sub(r'<!--.*?-->', '', text, flags=re.S)
 
     # Brackets/quotes matched correctly?
     if not balanced_brackets(text):
@@ -194,8 +194,8 @@ def _compute_flags(rtmatch, cand, safe_templates_and_wikilinks):
     # hide refs (comments already deleted)
     text_no_refs = re.sub(someref_re, '', text, flags=re.S)
 
-    if text_no_refs[-1] not in '."':
-        flags.add("suspicious end")
+    # if text_no_refs[-1] not in '."':
+    #     flags.add("suspicious end")
     if not re.match(r"['{[A-Z0-9]", text[0]):
         flags.add("suspicious start")
 
@@ -206,6 +206,10 @@ def _compute_flags(rtmatch, cand, safe_templates_and_wikilinks):
         if x.text:
             x.target = 'Ξ'*len(x.target)
 
+    k3 = pattern_count(score_re, str(wikitext_no_refs))
+    if k3 > 1:
+        flags.add(f"multiple scores")
+
     k1 = pattern_count(average_re, str(text_no_refs))
     if k1 > 1:
         flags.add(f"multiple averages")
@@ -213,15 +217,6 @@ def _compute_flags(rtmatch, cand, safe_templates_and_wikilinks):
     k2 = pattern_count(count_re, str(text_no_refs))
     if k2 > 1:
         flags.add(f"multiple counts")
-
-    k3 = pattern_count(score_re, str(wikitext_no_refs))
-    if k3 > 1:
-        flags.add(f"multiple scores")
-    elif k3 == 0 and not re.match(t_rtprose, text_no_refs):
-        flags.add("missing score?")
-
-    if pattern_count(rt_re, str(wikitext_no_refs)) != 1:
-        flags.add(f'Rotten Tomatoes count != 1')
 
     # hide quotes (comments already deleted, refs already hidden per above)
     text_no_quotes = re.sub(r'".+?"', lambda m:len(m.group())*'"', text_no_refs, flags=re.S)
@@ -246,19 +241,20 @@ def _compute_flags(rtmatch, cand, safe_templates_and_wikilinks):
 
 def _suggested_edit(rtmatch, cand, safe_templates_and_wikilinks):
     flags = _compute_flags(rtmatch, cand, safe_templates_and_wikilinks)
-
     backup = Edit(_complete_replacements(rtmatch, cand), flags)
+
     reduced_flags = set(x for x in flags if not re.match(r'(T|WL):', x))
-    reduced_flags -= {'no RT citation'}
     if reduced_flags:
         return backup
-
 
     span, ref = rtmatch.span, rtmatch.ref
     text = cand.text[span[0]:span[1]]
     score, count, average = rtmatch.movie.tomatometer_score
 
-    new_prose = text
+    new_prose = re.sub(r'<!--.*?-->', '', text, flags=re.S)
+    # Fix quote style
+    new_prose = new_prose.translate(str.maketrans('“”‘’','""\'\''))
+
     # first replace citation if not list-defined
     if ref and not ref.list_defined:
         new_prose = new_prose.replace(ref.text, citation_replacement(rtmatch))
@@ -385,9 +381,9 @@ def citation_replacement(rtmatch):
     s = "<ref"
     s += f' name="{refname}">' if refname else '>'
     template_dict = {
-        'id': m.short_url[2:],
         'title': m.title,
-        'type': 'movie',
+        'id': m.short_url[2:],
+        'type': 'm',
         'access-date': m.access_date
     }
     if ref:
@@ -444,12 +440,7 @@ def safe_to_add_consensus2(rtmatch, cand, new_text = ''):
     return not any(map(consensus_likely_in_text, [after, new_text, before]))
 
 def balanced_brackets(text):
-    rbrackets = {
-        "]" : "[",
-        "}" : "{",
-        ")" : "(",
-        ">" : "<",
-        }
+    rbrackets = {']':'[', '}':'{', ')':'(', '>':'<'}
     lbrackets = rbrackets.values()
     stack= []
     for i in text:

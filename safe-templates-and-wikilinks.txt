@@ -1,0 +1,12 @@
+T:'
+T:'s
+T:As of
+T:Rotten Tomatoes prose
+WL:Approval rating
+WL:Average rating
+WL:List of films with a 100% rating on Rotten Tomatoes
+WL:Review aggregation
+WL:Review aggregator
+WL:Rotten Tomatoes
+WL:Weighted arithmetic mean
+WL:Weighted average

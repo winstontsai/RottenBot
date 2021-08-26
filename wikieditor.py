@@ -7,7 +7,6 @@ print_logger = logging.getLogger('print_logger')
 
 from dataclasses import dataclass
 from datetime import date
-from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import editor
 import regex as re
@@ -15,6 +14,7 @@ import wikitextparser as wtp
 
 from pywikibot import Page, Site
 from rapidfuzz.fuzz import partial_ratio
+from colorama import Fore, Style
 
 from patterns import *
 ################################################################################
@@ -33,70 +33,65 @@ def compute_edits(candidates, get_user_input = True):
     The candidates parameter should be
     an iterable of candidate objects.
     """
+
+    for cand in candidates:
+        fe = fulledit_from_candidate(cand)
+        if not fe:
+            continue
+        if get_user_input:
+            _process_manual_reviews(cand, fe)
+        yield fe
+
+def fulledit_from_candidate(cand):
     with open('safe-templates-and-wikilinks.txt', 'r') as f:
         safe_templates_and_wikilinks = set(line[:-1] for line in f)
 
-    with ProcessPoolExecutor() as x:
-        futures = {x.submit(fulledit_from_candidate, c) : c for c in candidates}
-        for future in as_completed(futures):
-            fe = future.result()
-            if not fe:
-                continue
-            if get_user_input:
-                _process_manual_reviews(futures[future], fe, safe_templates_and_wikilinks)
-            yield fe
-
-
-def fulledit_from_candidate(cand):
     editlist = []
     for match in cand.matches:
         if not match.movie or not match.movie.tomatometer_score:
             continue
-        editlist.append(_suggested_edit(match, cand))
+        editlist.append(_suggested_edit(match, cand, safe_templates_and_wikilinks))
     return FullEdit(cand.title, editlist)
 
 
-def _process_manual_reviews(cand, fe, safe_templates_and_wikilinks):
-    for i, edit in enumerate(fe.edits):
-        edit.flags -= safe_templates_and_wikilinks
-        if not edit.flags:
-            continue
+def _process_manual_reviews(cand, fe):
+    with open('safe-templates-and-wikilinks.txt', 'r') as f:
+        safe_templates_and_wikilinks = set(line.rstrip('\n') for line in f)
 
-        _ask_for_review(cand, edit, safe_templates_and_wikilinks)
+    for i, edit in enumerate(fe.edits):
+        if edit.flags <= {'invisible edit'}:
+            continue
+        _ask_for_review(cand.title, cand.text,
+            cand.matches[i], edit, safe_templates_and_wikilinks)
     
     with open('safe-templates-and-wikilinks.txt', 'w') as f:
-        f.write('\n'.join(sorted(safe_templates_and_wikilinks)) + '\n')
+        for x in sorted(safe_templates_and_wikilinks):
+            print(x, file = f)
 
-def _ask_for_review(cand, edit, safe_templates_and_wikilinks):
-    title, text = cand.title, cand.text
+def _ask_for_review(title, text, rtmatch, edit, safe_templates_and_wikilinks):
     i, j = rtmatch.span[0], rtmatch.span[1]
     pspan = paragraph_span((i,j), text)
     oldtext, newtext = edit.replacements[0]
-    prompt = f"""{FORE.CYAN}An edit in [[{title}]] has been flagged for review.{STYLE.RESET_ALL}
-{FORE.YELLOW}Flags = {sorted(edit.flags)}{STYLE.RESET_ALL}
-{FORE.GREEN}Old Wikitext------------------------------------------{STYLE.RESET_ALL}
-{text[pspan[0]: i] + STYLE.BRIGHT + oldtext + STYLE.RESET_ALL + text[j: pspan[1]]}
-{FORE.GREEN}New Wikitext (Replace bolded)----------------{STYLE.RESET_ALL}
-{STYLE.BRIGHT + newtext + STYLE.RESET_ALL}
-{FORE.GREEN}---------------------------------------------{STYLE.RESET_ALL}
-Please select an option (s to skip, q to quit):
-1) keep edit
-2) open text editor for manual edit
-3) open [[{title}]] in the browser
-4) add/remove safe templates and wikilinks
-"""
-    print(prompt)
-    while (user_input:=input("Your selection: ")) not in ('1','2','s','q'):
-        if user_input == '3':
+    print(f"""{Fore.CYAN+Style.BRIGHT}An edit in [[{title}]] has been flagged for review.{Style.RESET_ALL}
+{Fore.YELLOW+Style.BRIGHT}Flags = {sorted(edit.flags)}{Style.RESET_ALL}
+{Fore.GREEN+Style.BRIGHT}Old Wikitext------------------------------------------{Style.RESET_ALL}
+{text[pspan[0]: i] + Style.BRIGHT + oldtext + Style.RESET_ALL + text[j: pspan[1]]}
+{Fore.GREEN+Style.BRIGHT}New Wikitext (Replace bolded above)-------------------{Style.RESET_ALL}
+{Style.BRIGHT+newtext+Style.RESET_ALL}
+{Fore.GREEN+Style.BRIGHT}------------------------------------------------------{Style.RESET_ALL}""")
+    prompt = """Select an option ([k]eep edit, open in [e]ditor, open in [b]rowser,
+    [r]ecord template/wikilink, [s]kip, or [q]uit): """
+    while (user_input:=input(prompt)) not in ('k','e','s','q'):
+        if user_input == 'b':
             webbrowser.open(Page(Site('en','wikipedia'), title).full_url())
-        elif user_input == '4':
-            while (user_input:=input('Template/Wikilink to add/remove (Press Enter to finish): ')):
+        elif user_input == 'r':
+            while (user_input:=input('Template/wikilink (Press Enter to finish): ')):
                 remove = False
                 if user_input[0] == '-':
-                    user_input = user_input[1:]
                     remove = True
-                if not re.fullmatch(r'Template:.+|\[\[.+\]\]', user_input):
-                    print("Use format Template:X or [[X]] to add. Prepend '-' to remove.")
+                    user_input = user_input[1:]
+                if not re.fullmatch(r'(T|WL):.+', user_input):
+                    print("Use T:Name for templates and WL:Name for wikilinks. Prepend '-' to remove.")
                     continue
                 if remove:
                     try:
@@ -106,15 +101,16 @@ Please select an option (s to skip, q to quit):
                 else:
                     safe_templates_and_wikilinks.add(user_input)
         else:
-            print("Not a valid selection.")
-
+            print("Invalid selection.")
     print()
-    if user_input == '1':
+
+    if user_input == 'k':
         edit.flags.clear()
-    elif user_input == '2':
+    elif user_input == 'e':
         review_edit(title, text[pspan[0]:pspan[1]], edit)
     elif user_input == 's':
         print(f"Skipping edit.")
+        edit.flags.add('skip')
     elif user_input == 'q':
         print("Quitting program.")
         sys.exit()  
@@ -127,8 +123,7 @@ def review_edit(title, context, edit):
 
 Remember not to remove a list-defined Rotten Tomatoes reference
 since the reference definition will still be replaced.
-Leave NEW WIKITEXT empty to skip this edit.
-Leave the entire file empty to quit the program.
+Leave either TO BE REPLACED or REPLACEMENT empty to skip this edit.
 -------------------------------------------------------------------------------
 Context:
 {context}
@@ -136,23 +131,19 @@ Context:
 TO BE REPLACED   (put wikitext between the arrows):
 🡺🡺🡺{edit.replacements[0][0]}🡸🡸🡸
 -------------------------------------------------------------------------------
-REPLACEMENT TEXT (put wikitext between the arrows):
+REPLACEMENT      (put wikitext between the arrows):
 🡺🡺🡺{edit.replacements[0][1]}🡸🡸🡸
 """
-    x = editor.edit(initial_text).decode()
-    if x == '':
-        print_logger.info('Quitting program.')
-        sys.exit()
+    x = editor.edit(contents=initial_text).decode()
+    old, new = [m[1] for m in re.finditer(r'🡺🡺🡺(.*?)🡸🡸🡸', x, re.S)]
 
-    old, new = [m[1] for m in re.finditer(r'🡺🡺🡺(.*)🡸🡸🡸', x, re.S)]
-
-    if new:
-        # Clear flags so that edit goes through
-        edit.flags.clear()
-    else:
+    if not old or not new:
         # edit will have flags, so it will be skipped
         edit.flags.add('skip')
         print('Skipping edit.')
+    else:
+        # Clear the flags so that edit goes through
+        edit.flags.clear()
         
     edit.replacements[0] = (old, new)
 
@@ -160,7 +151,7 @@ REPLACEMENT TEXT (put wikitext between the arrows):
 #################################################################################
 # Functions for creating replacement text.
 #################################################################################
-def _compute_flags(rtmatch, cand):
+def _compute_flags(rtmatch, cand, safe_templates_and_wikilinks):
     """
     Return list of all flags for a match. Flags indicate that a
     human needs to review the edit. An edit should never be made to
@@ -180,6 +171,9 @@ def _compute_flags(rtmatch, cand):
     if re.search(average_re, cand.title+movie.title):
         flags.add('average pattern in title')
 
+    # Remove comments from text
+    text = re.sub(r'<!--.*?-->', '', text, flags=re.S)
+
     # Brackets/quotes matched correctly?
     if not balanced_brackets(text):
         flags.add('mismatched brackets/quotes')
@@ -188,89 +182,85 @@ def _compute_flags(rtmatch, cand):
     if re.search(r'[mM]etacritic', text):
         flags.add("Metacritic")
 
-    if (k:=pattern_count(fr'<ref|{template_pattern("[rR]")}', text) - bool(rtmatch.ref)):
+    if pattern_count(fr'<ref|{template_pattern("[rR]")}', text) - bool(rtmatch.ref):
         flags.add(f"non-RT reference")
 
-    if text_no_quotes[-1] not in '."':
+    wikitext = wtp.parse(text)
+    for tag in wikitext.get_tags():
+        if tag.name != 'ref':
+            flags.add(f'non-ref tag')
+            break
+
+    # hide refs (comments already deleted)
+    text_no_refs = re.sub(someref_re, '', text, flags=re.S)
+
+    if text_no_refs[-1] not in '."':
         flags.add("suspicious end")
     if not re.match(r"['{[A-Z0-9]", text[0]):
         flags.add("suspicious start")
 
-    wikitext = wtp.parse(text)
-
-    # for x in reversed(wikitext.get_bolds_and_italics(recursive=False)):
-    #     x.string = len(x.string) * "'"
-
-    for x in reversed(wikitext.comments):
-        x.string = len(x.string) * 'Ξ'
-
-    if wikitext.external_links:
+    wikitext_no_refs = wtp.parse(text_no_refs)
+    if wikitext_no_refs.external_links:
         flags.add('external link')
-    # for x in reversed(wikitext.external_links):
-    #     x.url = len(x.url) * 'Ξ'
-
-    for x in reversed(wikitext.wikilinks):
-        flags.add(f'[[{x.title.strip()}]]')
+    for x in wikitext_no_refs.wikilinks:
         if x.text:
             x.target = 'Ξ'*len(x.target)
 
-    for x in reversed(wikitext.templates):
-        flags.add(f'Template:{x.normal_name()}')
+    k1 = pattern_count(average_re, str(text_no_refs))
+    if k1 > 1:
+        flags.add(f"multiple averages")
 
-    for x in reversed(wikitext.get_tags()):
-        if tag.name != 'ref':
-            flags.add(f'non-ref tag {tag.name}')
+    k2 = pattern_count(count_re, str(text_no_refs))
+    if k2 > 1:
+        flags.add(f"multiple counts")
 
-    wikitext = str(wikitext)
-    # wikitext = re.sub(r'".+?"', lambda m:len(m.group())*'"', wikitext, flags=re.S)
+    k3 = pattern_count(score_re, str(wikitext_no_refs))
+    if k3 > 1:
+        flags.add(f"multiple scores")
+    elif k3 == 0 and not re.match(t_rtprose, text_no_refs):
+        flags.add("missing score?")
 
-    # hide refs
-    text_no_refs = re.sub(someref_re, '', text, flags=re.S)
-    if len(text_no_refs) > 700:
-        flags.add('long')
-    if (k:=pattern_count(rt_re, text_no_refs)) != 1:
+    if pattern_count(rt_re, str(wikitext_no_refs)) != 1:
         flags.add(f'Rotten Tomatoes count != 1')
 
-    # hide quotes too
+    # hide quotes (comments already deleted, refs already hidden per above)
     text_no_quotes = re.sub(r'".+?"', lambda m:len(m.group())*'"', text_no_refs, flags=re.S)
     # audience score?
     if pattern_count(r'\b(audience|user|viewer)', text_no_quotes, re.IGNORECASE):
         flags.add('audience/user/viewer')
 
-    k1 = pattern_count(average_re, wikitext)
-    if k1 > 1:
-        flags.add(f"multiple averages ({k1})")
+    wikitext_no_quotes = wtp.parse(text_no_quotes)
 
-    k2 = pattern_count(count_re, wikitext)
-    if k2 > 1:
-        flags.add(f"multiple counts ({k2})")
+    for x in wikitext_no_quotes.wikilinks:
+        z = x.title.strip()
+        z = f'WL:{z[:1].upper()+z[1:]}'
+        if z not in safe_templates_and_wikilinks:
+            flags.add(z)
 
-    k3 = pattern_count(score_re, wikitext)
-    if k3 > 1:
-        flags.add(f"multiple scores ({k3})")
-    elif k3 == 0:
-        flags.add("missing score?")
+    for x in wikitext_no_quotes.templates:
+        z = f'T:{x.normal_name(capitalize=True)}'
+        if z not in safe_templates_and_wikilinks:
+            flags.add(z)
 
     return flags
 
+def _suggested_edit(rtmatch, cand, safe_templates_and_wikilinks):
+    flags = _compute_flags(rtmatch, cand, safe_templates_and_wikilinks)
 
-def _suggested_edit(rtmatch, cand):
-    flags = _compute_flags(rtmatch, cand)
     backup = Edit(_complete_replacements(rtmatch, cand), flags)
-
-    reduced_flags = set(x for x in flags if not re.match(r'\[\[|Template:', x))
+    reduced_flags = set(x for x in flags if not re.match(r'(T|WL):', x))
     reduced_flags -= {'no RT citation'}
     if reduced_flags:
         return backup
 
 
-    span = rtmatch.span
+    span, ref = rtmatch.span, rtmatch.ref
     text = cand.text[span[0]:span[1]]
     score, count, average = rtmatch.movie.tomatometer_score
 
     new_prose = text
     # first replace citation if not list-defined
-    if rtmatch.ref and not rtmatch.ref.list_defined:
+    if ref and not ref.list_defined:
         new_prose = new_prose.replace(ref.text, citation_replacement(rtmatch))
 
     if m := re.match(t_rtprose, new_prose):
@@ -317,36 +307,45 @@ def _suggested_edit(rtmatch, cand):
             return backup
 
         # Not a weighted average???
-        new_prose = re.sub(r'\[\[[wW]eighted.*?\]\]( rating| score)?', 'average rating', new_prose)
-        new_prose = re.sub(r'weighted average( rating| score)?', 'average rating', new_prose)
+        for wl in wtp.parse(new_prose).wikilinks:
+            z = wl.title.strip().lower()
+            if re.match(r'weighted (average|(arithmetic )?mean)|average (rating|score)|rating average', z):
+                repl = wl.text.strip() if wl.text else wl.title.strip()
+                new_prose = re.sub(re.escape(str(wl)), repl, new_prose)
+        new_prose = new_prose.replace(' weighted ', ' ')
         new_prose = new_prose.replace(' a average',' an average')
         if re.search("[wW]eighted", new_prose):
             return backup
 
-    if safe_to_add_consensus1(rtmatch, cand, new_prose):
-        new_prose += ' ' + consensus_prose
+    # Minor (usually correct) fixes
+    new_prose = new_prose.replace('"..', '".')
+    new_prose = new_prose.replace('.".', '."')
+    new_prose = new_prose.replace('".', '."')
+    new_prose = re.sub(someref_re, lambda m: m.group().lstrip(), new_prose, flags=re.S)
 
     if (x:=safe_to_add_consensus1(rtmatch, cand, new_prose)) != (y:=safe_to_add_consensus2(rtmatch, cand, new_prose)):
-        print(x, y, '\n', cand.title, '\n')
+        flags.add('check critics consensus')
+        # print(x, y, '\n', cand.title, '\n')
+    if y:
+        new_prose += ' ' + rating_and_consensus_prose(rtmatch.movie)[1]
 
     # add citation if missing
     ref = rtmatch.ref
     if not ref:
         new_prose += citation_replacement(rtmatch)
+    # otherwise don't make an edit if the only difference is the ref
     elif re.sub(someref_re,'',new_prose,flags=re.S) == re.sub(someref_re,'',text,flags=re.S):
-        # don't make an edit if the only difference is the ref
-        return None
+        flags.add('invisible edit')
 
 
     replacements = [(text, new_prose)]
     if ref and ref.list_defined:
-        replacements.append( (ref.text, new_citation) )
-
+        replacements.append( (ref.text, citation_replacement(rtmatch)) )
 
     return Edit(replacements, flags)
 
 def _complete_replacements(rtmatch, cand):
-    rating, consensus = rating_and_consensus_prose(rtmatch)
+    rating, consensus = rating_and_consensus_prose(rtmatch.movie)
     new_citation = citation_replacement(rtmatch)
     span, text, ref = rtmatch.span, cand.text, rtmatch.ref
     pstart, pend = paragraph_span(span, text)
@@ -380,7 +379,8 @@ f"of {score}% based on {count} reviews, with an average rating of {average}/10."
     return (s, f'The site\'s critical consensus reads, "{consensus}"')
 
 def citation_replacement(rtmatch):
-    refname = rtmatch.ref.name if rtmatch.ref else None
+    ref = rtmatch.ref
+    refname = ref.name if ref else None
     m = rtmatch.movie
     s = "<ref"
     s += f' name="{refname}">' if refname else '>'
@@ -390,7 +390,7 @@ def citation_replacement(rtmatch):
         'type': 'movie',
         'access-date': m.access_date
     }
-    if rtmatch.ref:
+    if ref:
         wikitext = wtp.parse(ref.text)
         if wikitext.templates:
             t = wikitext.templates[0]
@@ -409,13 +409,11 @@ def safe_to_add_consensus1(rtmatch, cand, new_text = ''):
     if not consensus:
         return False
     p_start, p_end = paragraph_span(rtmatch.span, text)
-    s = text[p_start:p_end]    # the paragraph
-    s = text[p_start, span[0]] + new_text + text[span[1], p_end]
+    s = text[p_start: span[0]] + new_text + text[span[1]: p_end]
     if re.search(r'[cC]onsensus', s):
         return False
     if len(cand.matches) > 1 and rtmatch.span[0] < text.index('\n=='):
         return False
-    # create sequence of lowercase letters for similarity comparison
     s_lower = ''.join(x for x in s         if x.islower())
     c_lower = ''.join(x for x in consensus if x.islower())
     if c_lower in s_lower:
@@ -423,40 +421,27 @@ def safe_to_add_consensus1(rtmatch, cand, new_text = ''):
     return True
 
 def safe_to_add_consensus2(rtmatch, cand, new_text = ''):
-    consensus = rtmatch.movie.consensus
-    span = rtmatch.span
-    text = cand.text
-    if not consensus:
+    consensus, span, text = rtmatch.movie.consensus, rtmatch.span, cand.text
+    def consensus_likely_in_text(t):
+        return partial_ratio(consensus,t,score_cutoff=60)
+
+    if consensus is None:
         return False
     if len(cand.matches) > 1 and rtmatch.span[0] < text.index('\n=='):
         return False
+
     p_start, p_end = paragraph_span(rtmatch.span, text)
+    pattern = someref_re + r"|''.*?''|\{.*?\}|\[[^]]*\||<!--.*?-->|\W"
 
-    before = re.sub(someref_re + r'|\{.*?\}|\[[^]]*\||<!--.*?-->', '', text[p_start, span[0]], re.S)
-    if consensus_likely_in_text(consensus, before):
+    before = re.sub(pattern, '', text[p_start:span[0]], flags=re.S)
+    after =  re.sub(pattern, '', text[span[1]: p_end], flags=re.S)
+    new_text = re.sub(pattern, '', new_text, flags=re.S)
+
+    consensus = re.sub(pattern, '', consensus, flags=re.S)
+    if not consensus: # edge cases such as The Emoji Movie or Tour De Pharmacy
         return False
 
-    after =  re.sub(someref_re + r'|\{.*?\}|\[[^]]*\||<!--.*?-->', '', text[span[1], p_end], re.S)
-    if consensus_likely_in_text(consensus, after):
-        return False
-
-    new_text = re.sub(someref_re + r'|\{.*?\}|\[[^]]*\||<!--.*?-->', '', new_text, re.S)
-    if consensus_likely_in_text(consensus, new_text):
-        return False
-    return True
-
-    surrounding_text = text[p_start:span[0]] + text[span[1]:p_end]
-
-    paragraph = text[p_start: p_end]
-    paragraph = re.sub(r'{.*?}|\[[^]]*\||<!--.*?-->', '', paragraph, re.S)
-    paragraph = re.sub(someref_re, '', paragraph)
-    return partial_ratio(consensus,paragraph,processor=True,score_cutoff=None)
-
-    return True
-
-
-def consensus_likely_in_text(consensus, text):
-    return bool(partial_ratio(consensus,text,processor=True,score_cutoff=80))
+    return not any(map(consensus_likely_in_text, [after, new_text, before]))
 
 def balanced_brackets(text):
     rbrackets = {
@@ -464,12 +449,16 @@ def balanced_brackets(text):
         "}" : "{",
         ")" : "(",
         ">" : "<",
-        '"' : '"'
         }
     lbrackets = rbrackets.values()
     stack= []
     for i in text:
-        if i in lbrackets:
+        if i == '"':
+            if stack and stack[-1]=='"':
+                stack.pop()
+            else:
+                stack.append('"')
+        elif i in lbrackets:
             stack.append(i)
         elif i in rbrackets:
             if stack and stack[-1]==rbrackets[i]:

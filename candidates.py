@@ -86,7 +86,7 @@ def find_candidates(xmlfile, get_user_input = False):
 
     WIKIDATA_LOCK = multiprocessing.Lock()
     GOOGLESEARCH_LOCK = multiprocessing.Lock()
-    with ProcessPoolExecutor(max_workers=16,
+    with ProcessPoolExecutor(max_workers=12,
             initializer=_init, initargs=(WIKIDATA_LOCK,GOOGLESEARCH_LOCK) ) as x:
         futures = {x.submit(candidate_from_entry, e) : e.title for e in xml_entries}
         for future in as_completed(futures):
@@ -172,14 +172,12 @@ def _ask_for_id(cand, rtmatch):
     title, text = cand.title, cand.text
     i, j = rtmatch.span[0], rtmatch.span[1]
     pspan = paragraph_span((i,j), text)
-    prompt = f"""{Fore.CYAN+Style.BRIGHT}Need id for a match in [[{title}]].{Style.RESET_ALL}
+    print(f"""{Fore.CYAN+Style.BRIGHT}Need id for a match in [[{title}]].{Style.RESET_ALL}
 {Fore.GREEN+Style.BRIGHT}Context------------------------------------------{Style.RESET_ALL}
 {text[pspan[0]: i] + Style.BRIGHT + text[i: j] + Style.RESET_ALL + text[j: pspan[1]]}
-{Fore.GREEN+Style.BRIGHT}-------------------------------------------------{Style.RESET_ALL}
-"""
-    print(prompt)
-    while not re.fullmatch(r'm/[-a-z0-9_]+',
-        (user_input:=input("Enter id (or open in [b]rowser, [s]kip, or [q]uit): "))):
+{Fore.GREEN+Style.BRIGHT}-------------------------------------------------{Style.RESET_ALL}""")
+    prompt = 'Enter id (or open in [b]rowser, [s]kip, or [q]uit): '
+    while not re.fullmatch(r'm/[-a-z0-9_]+', (user_input:=input(prompt))):
         if user_input == 'b':
             webbrowser.open(Page(Site('en','wikipedia'), title).full_url())
         elif user_input == 's':
@@ -188,6 +186,7 @@ def _ask_for_id(cand, rtmatch):
             print("Quitting program."); sys.exit()
         else:
             print("Invalid id. Must begin with 'm/', e.g. 'm/titanic'.")
+    print()
 
 # ===========================================================================================
 def _find_span333(match, title):

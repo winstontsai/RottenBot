@@ -143,19 +143,15 @@ class RTMovie:
         self.title = self.score_data["scoreboard"]["title"]
         if self.score_data['modal']["hasTomatometerScoreAll"]:
             if sd := self.score_data['modal']["tomatometerScoreAll"]:
-                self.tomatometer_score = (
-                    sd["score"], str(sd["ratingCount"]), sd["averageRating"]
-                )
+                self.tomatometer_score = tuple(map(str, [sd["score"], sd["ratingCount"], sd["averageRating"]]))
         if self.score_data['modal']["hasAudienceScoreAll"]:
             if sd := self.score_data['modal']["audienceScoreAll"]:
-                self.audience_score = (
-                    sd["score"], str(sd["ratingCount"]), sd["averageRating"]
-                )
+                self.audience_score = tuple(map(str, [sd["score"], sd["ratingCount"], sd["averageRating"]]))
 
 
 if __name__ == "__main__":
     movie = RTMovie('m/mike_wallace_is_here')
-    print(movie)
+    print(type(movie.consensus))
 
 
 

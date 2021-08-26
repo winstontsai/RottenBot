@@ -28,7 +28,7 @@ def store_edits(args):
     else:
         cands = candidates.find_candidates(args.file1, get_user_input=args.interactive)
 
-    edits = wikieditor.compute_edits(cands)
+    edits = wikieditor.compute_edits(cands, get_user_input=args.interactive)
     with open(args.file2, 'wb') as f:
         pickle.dump(list(edits), f)
 

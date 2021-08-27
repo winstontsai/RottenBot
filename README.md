@@ -1,7 +1,7 @@
 # RottenBot
 A [bot](https://en.wikipedia.org/wiki/Wikipedia:Bots) to help edit [Rotten Tomatoes](https://www.rottentomatoes.com/) data on the [English Wikipedia](https://en.wikipedia.org/wiki/Main_Page).
 
-See some example edits in [example_edits.txt](https://github.com/winstontsai/RottenBot/blob/master/example_edits.txt).
+For some example edits, see [example_edits.txt](https://github.com/winstontsai/RottenBot/blob/master/example_edits.txt).
 
 ## Description
 Many film articles on Wikipedia contain Rotten Tomatoes data for the film. For some examples, visit [Titanic](https://en.wikipedia.org/wiki/Titanic_(1997_film)), [Black Widow](https://en.wikipedia.org/wiki/Black_Widow_(2021_film)), and [Casablanca](https://en.wikipedia.org/wiki/Casablanca_(film)). RottenBot keeps the numbers up to date. It also adds missing info like the average rating or the critical consensus, updates/adds citations, and performs other minor fixes.
@@ -12,6 +12,6 @@ RottenBot also has a simple flagging system to try to prevent undesirable or oth
 
 ## See Also
 * [RottenBot's Wikipedia User Page](https://en.wikipedia.org/wiki/User:RottenBot)
-* [RottenBot's Request for Approval](https://en.wikipedia.org/wiki/Wikipedia:Bots/Requests_for_approval)
+* [RottenBot's Request for Approval](https://en.wikipedia.org/wiki/Wikipedia:Bots/Requests_for_approval/RottenBot)
 * [Wikipedia Manual of Style for Film](https://en.wikipedia.org/wiki/Wikipedia:Manual_of_Style/Film)
 * [Rotten Tomatoes FAQ](https://www.rottentomatoes.com/faq)

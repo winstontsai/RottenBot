@@ -131,11 +131,15 @@ class RTMovie:
         if x:
             consensus = re.search(r'>(.*)</span', str(x[0].span))[1]
             consensus = re.sub(r'</?em>|</?i>', "''", consensus)
-            self.consensus = consensus.replace("'''", r"''{{'}}").replace('"', "'")
+            consensus = consensus.replace("'''", r"''{{'}}")
+            consensus = consensus.replace('"', "'")
+            self.consensus = consensus
         if len(x) > 1:
             audience_says = re.search(r'>(.*)</span', str(x[1].span))[1]
             audience_says = re.sub(r'</?em>|</?i>', "''", audience_says)
-            self.audience_says = audience_says.replace("'''", r"''{{'}}").replace('"', "'")
+            audience_says = audience_says.replace("'''", r"''{{'}}")
+            audience_says = audience_says.replace('"', "'")
+            self.audience_says = audience_says
 
         sd = str(soup.find('script', id='score-details-json'))
         self.score_data = json.loads(sd[sd.find('>')+1 : sd.rfind('</scr')])
@@ -150,8 +154,8 @@ class RTMovie:
 
 
 if __name__ == "__main__":
-    movie = RTMovie('m/mike_wallace_is_here')
-    print(type(movie.consensus))
+    movie = RTMovie('m/black_widow_2021')
+    print(movie)
 
 
 

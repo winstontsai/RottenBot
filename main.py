@@ -34,7 +34,36 @@ def store_edits(args):
 
 # function for upload command
 def upload_edits(args):
-    print("upload_edits({})".format(args))
+    with open(args.file, 'rb') as f:
+        data = pickle.load(f)
+
+    site = pwb.Site('en', 'wikipedia')
+    site.login()
+    for fulledit in data:
+        print(f'Currently editing {fulledit.title}.')
+        page = pwb.Page(site, "User:Notsniwiast/sandbox")
+        text = page.text
+        all_edits = []
+        for e in fulledit.edits:
+            if e.flags:
+                continue
+            if e.replacements[0][0] not in text:
+                continue
+            all_edits.append(e)
+
+        all_edits.sort(key=lambda e: len(e.replacements))
+        for e in all_edits:
+            for old, new in e.replacements:
+                print('OLD ' + old + '\n')
+                print('NEW ' + new + '\n')
+                text = text.replace(old, new)
+            if not args.dryrun:
+                page.text = text
+                edit_summary = 'Updated Rotten Tomatoes data.'
+                if e.reviewed:
+                    edit_summary += ' (Human reviewed)'
+                page.save(edit_summary)
+
 
 def print_data(args):
     with open(args.file, 'rb') as f:

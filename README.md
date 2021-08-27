@@ -1,5 +1,6 @@
 # RottenBot
 A [bot](https://en.wikipedia.org/wiki/Wikipedia:Bots) to help edit [Rotten Tomatoes](https://www.rottentomatoes.com/) data on the [English Wikipedia](https://en.wikipedia.org/wiki/Main_Page).
+
 See some example edits in [example_edits.txt](https://github.com/winstontsai/RottenBot/blob/master/example_edits.txt).
 
 ## Description

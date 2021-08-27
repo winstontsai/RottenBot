@@ -1,8 +1,6 @@
 # This module does some preprocessing.
-# It identifies "candidate" pages that contain Rotten Tomatoes rating info,
-# finds the corresponding Rotten Tomatoes data if possible,
-# and also finds (or at least tries to) the start of the sentence in which
-# the rating info is contained.
+# It identifies "candidate" pages that contain Rotten Tomatoes rating info
+# and finds the corresponding Rotten Tomatoes data if possible.
 ################################################################################
 import sys
 import webbrowser

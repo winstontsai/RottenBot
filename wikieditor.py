@@ -1,6 +1,7 @@
 # This module takes Candidates and computes replacement text.
 ################################################################################
 import sys
+import webbrowser
 import logging
 logger = logging.getLogger(__name__)
 print_logger = logging.getLogger('print_logger')
@@ -22,6 +23,7 @@ from patterns import *
 class Edit:
     replacements: list[tuple[str, str]]
     flags: set[str]
+    reviewed: bool = False
 
 @dataclass
 class FullEdit:
@@ -187,8 +189,8 @@ def _compute_flags(rtmatch, cand, safe_templates_and_wikilinks):
 
     wikitext = wtp.parse(text)
     for tag in wikitext.get_tags():
-        if tag.name != 'ref':
-            flags.add(f'non-ref tag')
+        if tag.name not in ['ref', 'nowiki']:
+            flags.add(f'suspicious tag')
             break
 
     # hide refs (comments already deleted)
@@ -457,6 +459,8 @@ def balanced_brackets(text):
             else:
                 return False
     return not stack
+
+
 
 
 if __name__ == "__main__":

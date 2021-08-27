@@ -5,7 +5,6 @@
 import sys
 import webbrowser
 import time
-import string
 import multiprocessing
 import urllib.error # for googlesearch maybe
 import logging
@@ -18,7 +17,6 @@ from dataclasses import dataclass, field
 from itertools import chain
 
 import regex as re
-import pywikibot as pwb
 import wikitextparser as wtp
 
 from pywikibot import Page, Site, ItemPage

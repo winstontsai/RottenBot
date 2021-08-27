@@ -3,7 +3,6 @@
 import re
 import sys
 import json
-import multiprocessing
 import logging
 logger = logging.getLogger(__name__)
 print_logger = logging.getLogger('print_logger')

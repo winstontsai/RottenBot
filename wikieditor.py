@@ -35,7 +35,6 @@ def compute_edits(candidates, get_user_input = True):
     The candidates parameter should be
     an iterable of candidate objects.
     """
-
     for cand in candidates:
         fe = fulledit_from_candidate(cand)
         if not fe:
@@ -46,7 +45,7 @@ def compute_edits(candidates, get_user_input = True):
 
 def fulledit_from_candidate(cand):
     with open('safe-templates-and-wikilinks.txt', 'r') as f:
-        safe_templates_and_wikilinks = set(line[:-1] for line in f)
+        safe_templates_and_wikilinks = set(line.rstrip('\n') for line in f)
 
     editlist = []
     for match in cand.matches:
@@ -72,6 +71,7 @@ def _process_manual_reviews(cand, fe):
             print(x, file = f)
 
 def _ask_for_review(title, text, rtmatch, edit, safe_templates_and_wikilinks):
+    edit.reviewed = True
     i, j = rtmatch.span[0], rtmatch.span[1]
     pspan = paragraph_span((i,j), text)
     oldtext, newtext = edit.replacements[0]
@@ -144,10 +144,9 @@ REPLACEMENT      (put wikitext between the arrows):
         # edit will have flags, so it will be skipped
         edit.flags.add('skip')
         print('Skipping edit.')
-    else:
-        # Clear the flags so that edit goes through
-        edit.flags.clear()
-        
+        return
+    # Clear the flags so that edit goes through
+    edit.flags.clear()
     edit.replacements[0] = (old, new)
 
 
@@ -156,7 +155,7 @@ REPLACEMENT      (put wikitext between the arrows):
 #################################################################################
 def _compute_flags(rtmatch, cand, safe_templates_and_wikilinks):
     """
-    Return list of all flags for a match. Flags indicate that a
+    Return set of all flags for a match. Flags indicate that a
     human needs to review the edit. An edit should never be made to
     the live wiki if it its flags attribute is nonempty.
     """
@@ -176,28 +175,33 @@ def _compute_flags(rtmatch, cand, safe_templates_and_wikilinks):
     if re.search(average_re, cand.title+movie.title):
         flags.add('average pattern in title')
 
-    # Brackets/quotes matched correctly?
+    # Check brackets and quotes
     if not balanced_brackets(text):
         flags.add('mismatched brackets/quotes')
 
-    # Other suspicious activity
+    # Metacritic?
     if re.search(r'[mM]etacritic', text):
         flags.add("Metacritic")
 
+    # Reference other than Rotten Tomatoes?
     if pattern_count(fr'<ref|{template_pattern("[rR]")}', text) - bool(rtmatch.ref):
         flags.add(f"non-RT reference")
 
     wikitext = wtp.parse(text)
+    # Tags other than ref and nowiki?
     for tag in wikitext.get_tags():
         if tag.name not in ['ref', 'nowiki']:
             flags.add(f'suspicious tag')
             break
 
-    # hide refs (comments already deleted)
+    # delete refs (comments already deleted)
     text_no_refs = re.sub(someref_re, '', text, flags=re.S)
 
+    # Commented out because seems useless, pretty much just false positives.
     # if text_no_refs[-1] not in '."':
     #     flags.add("suspicious end")
+
+    # Very rare, usually false positive I think, but harmless
     if not re.match(r"['{[A-Z0-9]", text[0]):
         flags.add("suspicious start")
 
@@ -206,22 +210,22 @@ def _compute_flags(rtmatch, cand, safe_templates_and_wikilinks):
         flags.add('external link')
     for x in wikitext_no_refs.wikilinks:
         if x.text:
-            x.target = 'Ξ'*len(x.target)
+            x.target = 'a' * len(x.target)
 
-    k3 = pattern_count(score_re, str(wikitext_no_refs))
-    if k3 > 1:
+    k = pattern_count(score_re, str(wikitext_no_refs))
+    if k > 1:
         flags.add(f"multiple scores")
 
-    k1 = pattern_count(average_re, str(text_no_refs))
-    if k1 > 1:
+    k = pattern_count(average_re, str(text_no_refs))
+    if k > 1:
         flags.add(f"multiple averages")
 
-    k2 = pattern_count(count_re, str(text_no_refs))
-    if k2 > 1:
+    k = pattern_count(count_re, str(text_no_refs))
+    if k > 1:
         flags.add(f"multiple counts")
 
-    # hide quotes (comments already deleted, refs already hidden per above)
-    text_no_quotes = re.sub(r'".+?"', lambda m:len(m.group())*'"', text_no_refs, flags=re.S)
+    # hide quotes (comments and refs already deleted)
+    text_no_quotes = re.sub(r'".+?"', '', text_no_refs, flags=re.S)
     # audience score?
     if pattern_count(r'\b(audience|user|viewer)', text_no_quotes, re.IGNORECASE):
         flags.add('audience/user/viewer')
@@ -292,7 +296,7 @@ def _suggested_edit(rtmatch, cand, safe_templates_and_wikilinks):
                 d['3'] = day
             new_prose = new_prose.replace(m[0], construct_template("As of", d))
         elif m:=re.search(r"[Aa]s of (?=January|February|March|April|May|June|July|August|September|October|November|December|[1-9])[ ,a-zA-Z0-9]{,14}[0-9]{4}(?![0-9])", new_prose):
-            day, month, year = date.today().strftime("%d %B %Y").split()
+            day, month, year = date.today().strftime("%d %m %Y").split()
             d = {'1':year, '2':month}
             if pattern_count(r'[0-9]', m[0]) > 4: # if includes day
                 d['3'] = day

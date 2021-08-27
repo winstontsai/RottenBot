@@ -39,9 +39,10 @@ def upload_edits(args):
 
     site = pwb.Site('en', 'wikipedia')
     site.login()
+
     for fulledit in data:
         print(f'Currently editing {fulledit.title}.')
-        page = pwb.Page(site, "User:Notsniwiast/sandbox")
+        page = pwb.Page(site, fulledit.title)
         text = page.text
         all_edits = []
         for e in fulledit.edits:
@@ -54,15 +55,15 @@ def upload_edits(args):
         all_edits.sort(key=lambda e: len(e.replacements))
         for e in all_edits:
             for old, new in e.replacements:
-                print('OLD ' + old + '\n')
-                print('NEW ' + new + '\n')
+                # print('OLD ' + old + '\n')
+                # print('NEW ' + new + '\n')
                 text = text.replace(old, new)
-            if not args.dryrun:
-                page.text = text
-                edit_summary = 'Updated Rotten Tomatoes data.'
-                if e.reviewed:
-                    edit_summary += ' (Human reviewed)'
-                page.save(edit_summary)
+            page.text = text
+            edit_summary = 'Updated Rotten Tomatoes prose. Trial edit. See [[Wikipedia:Bots/Requests for approval/RottenBot|BRFA]].'
+            if e.reviewed:
+                edit_summary += ' (Human reviewed)'
+            page.save(summary = edit_summary,
+                      minor = False,)
 
 
 def print_data(args):
@@ -109,8 +110,6 @@ See 'https://github.com/winstontsai/RottenBot' for source code and more info."""
         help='Upload edits from a file to the live wiki.')
     parser_upload.set_defaults(func=upload_edits)
     parser_upload.add_argument('file', help='File from which edits will be uploaded.')
-    parser_upload.add_argument('-d', '--dryrun', action='store_true',
-        help='No edits will actually be made to the live wiki.')
 
     # parser for printing stored data
     parser_print = subparsers.add_parser('print',

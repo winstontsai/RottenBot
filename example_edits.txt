@@ -2,7 +2,7 @@ TITLE A Summer Place (film)
 
 OLD [[Rotten Tomatoes]] sampled 6 reviewers and judged 83% of the reviews to be positive.<ref name=rot>{{cite web|title=A Summer Place (1959)|url=http://www.rottentomatoes.com/m/summer_place/|website=[[Rotten Tomatoes]]|access-date=May 24, 2015}}</ref>
 
-NEW On [[Rotten Tomatoes]], ''A Summer Place'' holds an approval rating of 83% based on 6 reviews, with an average rating of 6.00/10.<ref name="rot">{{Cite Rotten Tomatoes|title=A Summer Place|id=summer_place|type=m|access-date=August 26, 2021}}</ref>
+NEW On [[Rotten Tomatoes]], ''A Summer Place'' holds an approval rating of 83% based on 6 reviews, with an average rating of 6.00/10.<ref name="rot">{{Cite Rotten Tomatoes|title=A Summer Place|id=summer_place|type=m|access-date=August 27, 2021}}</ref>
 
 FLAGS set()
 
@@ -10,7 +10,7 @@ TITLE Aquaman (film)
 
 OLD Review aggregator website [[Rotten Tomatoes]] reports that 65% of 406 critics gave the film a positive review, with an average rating of 6/10. The website's critical consensus reads: "''Aquaman'' swims with its entertainingly ludicrous tide, offering up CGI superhero spectacle that delivers energetic action with an emphasis on good old-fashioned fun."<ref name=rt>{{Cite Rotten Tomatoes |id=aquaman_2018 |type=m |title=Aquaman |access-date=June 12, 2021}}</ref>
 
-NEW Review aggregator website [[Rotten Tomatoes]] reports that 65% of 408 critics gave the film a positive review, with an average rating of 6.00/10. The website's critical consensus reads: "''Aquaman'' swims with its entertainingly ludicrous tide, offering up CGI superhero spectacle that delivers energetic action with an emphasis on good old-fashioned fun."<ref name="rt">{{Cite Rotten Tomatoes|title=Aquaman|id=aquaman_2018|type=m|access-date=August 26, 2021}}</ref>
+NEW Review aggregator website [[Rotten Tomatoes]] reports that 65% of 408 critics gave the film a positive review, with an average rating of 6.00/10. The website's critical consensus reads: "''Aquaman'' swims with its entertainingly ludicrous tide, offering up CGI superhero spectacle that delivers energetic action with an emphasis on good old-fashioned fun."<ref name="rt">{{Cite Rotten Tomatoes|title=Aquaman|id=aquaman_2018|type=m|access-date=August 27, 2021}}</ref>
 
 FLAGS set()
 
@@ -18,55 +18,7 @@ TITLE Blow the Man Down (film)
 
 OLD It holds a 98% approval rating on review aggregator website [[Rotten Tomatoes]], based on 120 reviews, with a [[Weighted arithmetic mean|weighted average]] of 7.60/10. The site's critical consensus reads, "Clever, funny, and original, ''Blow the Man Down'' is one hell of a ride that should not be missed."<ref>{{cite web|url=https://rottentomatoes.com/m/blow_the_man_down|title=Blow the Man Down (2020)|website=[[Rotten Tomatoes]]|publisher=[[Fandango Media]]|accessdate=March 15, 2021}}</ref>
 
-NEW It holds a 98% approval rating on review aggregator website [[Rotten Tomatoes]], based on 120 reviews, with an average of 7.60/10. The site's critical consensus reads, "Clever, funny, and original, ''Blow the Man Down'' is one hell of a ride that should not be missed."<ref>{{Cite Rotten Tomatoes|title=Blow the Man Down|id=blow_the_man_down|type=m|access-date=August 26, 2021}}</ref>
-
-FLAGS set()
-
-TITLE Camp Rock 2: The Final Jam
-
-OLD On [[Rotten Tomatoes]], the film has an approval rating of 63% based on 5 reviews and an average of 6.1/10.<ref>{{cite web |url=https://www.rottentomatoes.com/m/camp_rock_2 |title=Camp Rock 2: The Final Jam (2010) |website=Rotten Tomatoes |access-date=July 30, 2017}}</ref>
-
-NEW On [[Rotten Tomatoes]], the film has an approval rating of 63% based on 8 reviews and an average of 6.10/10.<ref>{{Cite Rotten Tomatoes|title=Camp Rock 2: The Final Jam|id=camp-rock-2|type=m|access-date=August 26, 2021}}</ref>
-
-FLAGS set()
-
-TITLE Carrie (1976 film)
-
-OLD The [[review aggregator]] [[Rotten Tomatoes]] gives the film an approval rating of 93% based on 67 reviews, with an average rating of 8.3/10. The website's critical consensus reads, "''Carrie'' is a horrifying look at supernatural powers, high school cruelty, and teen angst—and it brings us one of the most memorable and disturbing prom scenes in history."<ref>{{cite web|url=https://www.rottentomatoes.com/m/1003625_carrie?|title=Carrie (1976)|work=[[Rotten Tomatoes]]|publisher=[[Fandango Media|Fandango]]|access-date=April 22, 2019|archive-date=April 20, 2019|archive-url=https://web.archive.org/web/20190420113330/https://www.rottentomatoes.com/m/1003625_carrie|url-status=live}}</ref>
-
-NEW The [[review aggregator]] [[Rotten Tomatoes]] gives the film an approval rating of 93% based on 67 reviews, with an average rating of 8.30/10. The website's critical consensus reads, "''Carrie'' is a horrifying look at supernatural powers, high school cruelty, and teen angst—and it brings us one of the most memorable and disturbing prom scenes in history."<ref>{{Cite Rotten Tomatoes|title=Carrie|id=1003625-carrie|type=m|access-date=August 26, 2021|archive-url=|archive-url=https://web.archive.org/web/20190420113330/https://www.rottentomatoes.com/m/1003625_carrie|archive-date=|archive-date=April 20, 2019|url-status=live}}</ref>
-
-FLAGS set()
-
-TITLE Carrie (2002 film)
-
-OLD The film was poorly received by film critics; it currently has an approval of 20% on [[Rotten Tomatoes]] based on 10 reviews, with an average rating of 4.92 out of 10. The site's critics consensus reads, "This made-for-TV adaptation of Stephen King's classic fails to impress or bring anything new to the table, - or to the prom - paling even more in comparison to the 1970's memorable version."<ref>{{cite web|url=https://www.rottentomatoes.com/m/1123000_carrie|title=Carrie (2002)|work=[[Rotten Tomatoes]]|publisher=[[Fandango Media|Fandango]]|access-date=May 14, 2020}}</ref>
-
-NEW The film was poorly received by film critics; it currently has an approval of 20% on [[Rotten Tomatoes]] based on 10 reviews, with an average rating of 4.90/10. The site's critics consensus reads, "This made-for-TV adaptation of Stephen King's classic fails to impress or bring anything new to the table, - or to the prom - paling even more in comparison to the 1970's memorable version."<ref>{{Cite Rotten Tomatoes|title=Carrie|id=1123000-carrie|type=m|access-date=August 26, 2021}}</ref>
-
-FLAGS set()
-
-TITLE Carrie (2013 film)
-
-OLD The review aggregator website [[Rotten Tomatoes]] reported a 50% approval rating with an average rating of 5.49/10 based on 180 reviews. The website's critical consensus reads, "It boasts a talented cast, but Kimberly Peirce's 'reimagining' of Brian De Palma's horror classic finds little new in the Stephen King novel -- and feels woefully unnecessary."<ref>{{cite web|url=https://rottentomatoes.com/m/carrie/|title=Carrie (2013)|work=[[Rotten Tomatoes]]|publisher=[[Fandango Media]]|access-date=July 19, 2019}}</ref>
-
-NEW The review aggregator website [[Rotten Tomatoes]] reported a 50% approval rating with an average rating of 5.50/10 based on 187 reviews. The website's critical consensus reads, "It boasts a talented cast, but Kimberly Peirce's 'reimagining' of Brian De Palma's horror classic finds little new in the Stephen King novel -- and feels woefully unnecessary."<ref>{{Cite Rotten Tomatoes|title=Carrie|id=carrie|type=m|access-date=August 26, 2021}}</ref>
-
-FLAGS set()
-
-TITLE Casper (film)
-
-OLD On [[Rotten Tomatoes]], the film has a rating of 51%, based on 41 reviews, with the site's critical consensus reading, "A meandering, mindless family movie that frequently resorts to special effects and transparent sappiness."<ref>{{Cite web |url=https://www.rottentomatoes.com/m/casper |title=Casper (1995) |work=[[Rotten Tomatoes]] }}</ref>
-
-NEW On [[Rotten Tomatoes]], ''Casper'' holds an approval rating of 50% based on 40 reviews, with an average rating of 5.00/10. The site's critical consensus reads, "A meandering, mindless family movie that frequently resorts to special effects and transparent sappiness."<ref>{{Cite Rotten Tomatoes|title=Casper|id=casper|type=m|access-date=August 26, 2021}}</ref>
-
-FLAGS set()
-
-TITLE Charlotte's Web (2006 film)
-
-OLD Review aggregation website [[Rotten Tomatoes]] gives the film a 78% "Certified Fresh" rating based on 147 reviews with an average rating of 6.97/10. The site's critical consensus reads, "Kids will be entertained by the straightforward plot and cute animals, and adults will be charmed by how quiet and humble the production is, a fine translation of E.B. White's genteel prose."<ref>{{cite web|url=http://www.rottentomatoes.com/m/charlottes_web/|title=Charlotte's Web (2006)|publisher=[[Rotten Tomatoes]]|access-date=February 1, 2014}}</ref>
-
-NEW Review aggregation website [[Rotten Tomatoes]] gives the film a 78% "Certified Fresh" rating based on 148 reviews with an average rating of 7.00/10. The site's critical consensus reads, "Kids will be entertained by the straightforward plot and cute animals, and adults will be charmed by how quiet and humble the production is, a fine translation of E.B. White's genteel prose."<ref>{{Cite Rotten Tomatoes|title=Charlotte's Web|id=charlottes_web|type=m|access-date=August 26, 2021}}</ref>
+NEW It holds a 98% approval rating on review aggregator website [[Rotten Tomatoes]], based on 120 reviews, with an average of 7.60/10. The site's critical consensus reads, "Clever, funny, and original, ''Blow the Man Down'' is one hell of a ride that should not be missed."<ref>{{Cite Rotten Tomatoes|title=Blow the Man Down|id=blow_the_man_down|type=m|access-date=August 27, 2021}}</ref>
 
 FLAGS set()
 
@@ -74,7 +26,7 @@ TITLE Children of a Lesser God (film)
 
 OLD On review aggregation website [[Rotten Tomatoes]], the film received a score of 79% from 34 critics.<ref>{{cite web |url=http://www.rottentomatoes.com/m/children_of_a_lesser_god/ |title=Children of a Lesser God |website=Rotten Tomatoes |access-date=2021-02-02 |archive-date=2021-01-17 |archive-url=https://web.archive.org/web/20210117064857/https://www.rottentomatoes.com/m/children_of_a_lesser_god |url-status=live }}</ref>
 
-NEW On [[Rotten Tomatoes]], ''Children of a Lesser God'' holds an approval rating of 79% based on 34 reviews, with an average rating of 7.10/10. The site's critical consensus reads, "''Children of a Lesser God'' transcends its transparently noble goals thanks to a pair of absorbing performances from William Hurt and Marlee Matlin."<ref>{{Cite Rotten Tomatoes|title=Children of a Lesser God|id=children_of_a_lesser_god|type=m|access-date=August 26, 2021|archive-url=|archive-url=https://web.archive.org/web/20210117064857/https://www.rottentomatoes.com/m/children_of_a_lesser_god |archive-date=|archive-date=2021-01-17 |url-status=live}}</ref>
+NEW On [[Rotten Tomatoes]], ''Children of a Lesser God'' holds an approval rating of 79% based on 34 reviews, with an average rating of 7.10/10. The site's critical consensus reads, "''Children of a Lesser God'' transcends its transparently noble goals thanks to a pair of absorbing performances from William Hurt and Marlee Matlin."<ref>{{Cite Rotten Tomatoes|title=Children of a Lesser God|id=children_of_a_lesser_god|type=m|access-date=August 27, 2021|archive-url=|archive-url=https://web.archive.org/web/20210117064857/https://www.rottentomatoes.com/m/children_of_a_lesser_god |archive-date=|archive-date=2021-01-17 |url-status=live}}</ref>
 
 FLAGS set()
 
@@ -82,39 +34,7 @@ TITLE Creepshow 2
 
 OLD On review aggregator [[Rotten Tomatoes]], it holds a 29% approval rating with a 4.3/10 average rating based on 24 reviews as of March 2021.<ref>{{cite web|url=https://www.rottentomatoes.com/m/creepshow_2/|title=Creepshow 2 (1987)|work=[[Rotten Tomatoes]]|publisher=[[Fandango Media]]|accessdate=July 22, 2021}}</ref>
 
-NEW On review aggregator [[Rotten Tomatoes]], it holds a 29% approval rating with a 4.30/10 average rating based on 24 reviews {{As of|2021|August|lc=y}}.<ref>{{Cite Rotten Tomatoes|title=Creepshow 2|id=creepshow_2|type=m|access-date=August 26, 2021}}</ref> The site's critical consensus reads, "Not even the melding of Stephen King and George A. Romero's writing sensibilities can elevate this spineless anthology, which is too simple in its storytelling and too skimpy on the genuine scares."
-
-FLAGS set()
-
-TITLE Cujo (film)
-
-OLD On review aggregation website [[Rotten Tomatoes]], it holds a 62% approval rating based on 42 reviews, with the website's consensus stating: "''Cujo'' is artless work punctuated with moments of high canine gore and one wild Dee Wallace performance".<ref name="rottentomatoes">{{cite web|url=https://www.rottentomatoes.com/m/cujo/|title=Cujo (1983)|website=[[Rotten Tomatoes]]|publisher=[[Fandango (company)|Fandango]]|access-date=July 24, 2021}}</ref>
-
-NEW On [[Rotten Tomatoes]], ''Cujo'' holds an approval rating of 62% based on 42 reviews, with an average rating of 5.60/10. The site's critical consensus reads, "''Cujo'' is artless work punctuated with moments of high canine gore and one wild Dee Wallace performance."<ref name="rottentomatoes">{{Cite Rotten Tomatoes|title=Cujo|id=cujo|type=m|access-date=August 26, 2021}}</ref>
-
-FLAGS set()
-
-TITLE Dark Shadows (film)
-
-OLD On [[Rotten Tomatoes]], ''Dark Shadows'' holds an approval rating of 35% based on 259 reviews, with an average rating of 5.30/10. The site's critical consensus reads: "The visuals are top notch but Tim Burton never finds a consistent rhythm, mixing campy jokes and gothic spookiness with less success than other Johnny Depp collaborations."<ref name="rotten tomatoes">{{cite web|url=https://rottentomatoes.com/m/dark-shadows-2010/|title=''Dark Shadows''|website=[[Rotten Tomatoes]]|publisher=[[Fandango (company)|Fandango]]|access-date=July 10, 2021}}</ref>
-
-NEW On [[Rotten Tomatoes]], ''Dark Shadows'' holds an approval rating of 35% based on 260 reviews, with an average rating of 5.30/10. The site's critical consensus reads: "The visuals are top notch but Tim Burton never finds a consistent rhythm, mixing campy jokes and gothic spookiness with less success than other Johnny Depp collaborations."<ref name="rotten tomatoes">{{Cite Rotten Tomatoes|title=Dark Shadows|id=dark-shadows-2010|type=m|access-date=August 26, 2021}}</ref>
-
-FLAGS set()
-
-TITLE Dolores Claiborne (film)
-
-OLD ''Dolores Claiborne'' received mostly positive reviews from critics; it currently holds an 84% rating on [[Rotten Tomatoes]] based on 44 reviews with an average rating of 6.75. The site's consensus states: "Post-''[[Misery (film)|Misery]]'' Kathy Bates proves to be another wonderful conduit for Stephen King's novels in this patient, gradually terrifying thriller."<ref>{{cite news|title= Dolores Claiborne (1995)|publisher= [[Rotten Tomatoes]]|url= https://www.rottentomatoes.com/m/dolores_claiborne/|access-date=2017-12-06}}</ref>
-
-NEW On [[Rotten Tomatoes]], ''Dolores Claiborne'' holds an approval rating of 84% based on 44 reviews, with an average rating of 6.70/10. The site's critical consensus reads, "Post-''Misery'' Kathy Bates proves to be another wonderful conduit for Stephen King's novels in this patient, gradually terrifying thriller."<ref>{{Cite Rotten Tomatoes|title=Dolores Claiborne|id=dolores_claiborne|type=m|access-date=August 26, 2021}}</ref>
-
-FLAGS set()
-
-TITLE Dreamcatcher (2003 film)
-
-OLD ''Dreamcatcher'' received negative reviews from critics, earning a 28% rating on review aggregation website [[Rotten Tomatoes]] based on 183 reviews, and an average rating of 4.73/10. The site's consensus states: "An incoherent and overly long creature feature."<ref>{{cite web |title=Dreamcatcher |url= http://www.rottentomatoes.com/m/dreamcatcher/ |work= [[Rotten Tomatoes]] |publisher= [[Flixster]] |access-date= 2014-02-09}}</ref>
-
-NEW ''Dreamcatcher'' received negative reviews from critics, earning a 28% rating on review aggregation website [[Rotten Tomatoes]] based on 183 reviews, and an average rating of 4.80/10. The site's consensus states: "An incoherent and overly long creature feature."<ref>{{Cite Rotten Tomatoes|title=Dreamcatcher|id=dreamcatcher|type=m|access-date=August 26, 2021}}</ref>
+NEW On review aggregator [[Rotten Tomatoes]], it holds a 29% approval rating with a 4.30/10 average rating based on 24 reviews {{As of|2021|08|lc=y}}.<ref>{{Cite Rotten Tomatoes|title=Creepshow 2|id=creepshow_2|type=m|access-date=August 27, 2021}}</ref> The site's critical consensus reads, "Not even the melding of Stephen King and George A. Romero's writing sensibilities can elevate this spineless anthology, which is too simple in its storytelling and too skimpy on the genuine scares."
 
 FLAGS set()
 
@@ -122,39 +42,7 @@ TITLE Hope Springs (2012 film)
 
 OLD Review aggregation website [[Rotten Tomatoes]] gives an approval rating of 75% based on reviews from 173 critics, with an average score of 6.63/10. The site's consensus states: "Led by a pair of mesmerizing performances from Meryl Streep and Tommy Lee Jones, ''Hope Springs'' offers filmgoers some grown-up laughs -- and a thoughtful look at mature relationships."<ref>{{cite web|url=http://www.rottentomatoes.com/m/hope_springs_2012/ |title= Hope Springs (2012) |website= [[Rotten Tomatoes]] |publisher= [[Fandango (company)|Fandango]] |access-date= April 2, 2020}}</ref>
 
-NEW Review aggregation website [[Rotten Tomatoes]] gives an approval rating of 75% based on reviews from 174 critics, with an average score of 6.60/10. The site's consensus states: "Led by a pair of mesmerizing performances from Meryl Streep and Tommy Lee Jones, ''Hope Springs'' offers filmgoers some grown-up laughs -- and a thoughtful look at mature relationships."<ref>{{Cite Rotten Tomatoes|title=Hope Springs|id=hope_springs_2012|type=m|access-date=August 26, 2021}}</ref>
-
-FLAGS set()
-
-TITLE In the Bedroom
-
-OLD On [[Rotten Tomatoes]] the film has a "certified fresh" approval rating of 93% based on 138 reviews, with an average score of 7.91/10. The site's consensus states "Expertly crafted and performed, ''In the Bedroom'' is a quietly wrenching portrayal of grief."<ref name="rotten">{{cite web |url=http://www.rottentomatoes.com/m/in_the_bedroom/ |title=''In the Bedroom'' |access-date=2020-04-12 |website= [[Rotten Tomatoes]] }}</ref>
-
-NEW On [[Rotten Tomatoes]] the film has a "certified fresh" approval rating of 93% based on 139 reviews, with an average score of 7.90/10. The site's consensus states "Expertly crafted and performed, ''In the Bedroom'' is a quietly wrenching portrayal of grief."<ref name="rotten">{{Cite Rotten Tomatoes|title=In the Bedroom|id=in_the_bedroom|type=m|access-date=August 26, 2021}}</ref>
-
-FLAGS set()
-
-TITLE It (2017 film)
-
-OLD On review aggregator [[Rotten Tomatoes]], the film holds an approval rating of 86% based on 374 reviews, with an average rating of 7.24/10. The site's critical consensus reads, "Well-acted and fiendishly frightening with an emotionally affecting story at its core, ''It'' amplifies the horror in Stephen King's classic story without losing touch with its heart."<ref>{{cite Rotten Tomatoes|id=it_2017|type=m|title=It (2017)|access-date=March 1, 2021}}</ref>
-
-NEW On review aggregator [[Rotten Tomatoes]], the film holds an approval rating of 86% based on 386 reviews, with an average rating of 7.30/10. The site's critical consensus reads, "Well-acted and fiendishly frightening with an emotionally affecting story at its core, ''It'' amplifies the horror in Stephen King's classic story without losing touch with its heart."<ref>{{Cite Rotten Tomatoes|title=It|id=it_2017|type=m|access-date=August 26, 2021}}</ref>
-
-FLAGS set()
-
-TITLE It (miniseries)
-
-OLD {{asof|2020|9}}, on [[Rotten Tomatoes]], the miniseries holds an approval rating of 67% based on {{nowrap|24 reviews}}, with a [[weighted average]] rating of 5.59/10. The site's consensus reads, "Though hampered by an uneven second half, ''It'' supplies a wealth of funhouse thrills and an idelible turn from Tim Curry as Pennywise."<ref name="rottomatoes">{{cite web|title=Stephen King's It (1990)|url=https://www.rottentomatoes.com/m/stephen_kings_it1990|website=[[Rotten Tomatoes]]|access-date=March 18, 2020}}</ref>
-
-NEW {{As of|2021|08}}, on [[Rotten Tomatoes]], the miniseries holds an approval rating of 67% based on {{nowrap|24 reviews}}, with an average rating of 6.00/10. The site's consensus reads, "Though hampered by an uneven second half, ''It'' supplies a wealth of funhouse thrills and an idelible turn from Tim Curry as Pennywise."<ref name="rottomatoes">{{Cite Rotten Tomatoes|title=It|id=stephen-kings-it1990|type=m|access-date=August 26, 2021}}</ref>
-
-FLAGS set()
-
-TITLE It Chapter Two
-
-OLD On [[Rotten Tomatoes]], the film holds an approval rating of 62% based on 375 reviews, with an [[Weighted arithmetic mean|average rating]] of 6.1/10. The website's critical consensus reads, "''It Chapter Two'' proves bigger doesn't always mean scarier for horror sequels, but a fine cast and faithful approach to the source material keep this follow-up afloat."<ref>{{cite rt |id=it_chapter_two |type=m |title=It Chapter Two |access-date=March 1, 2021 |archive-url=https://web.archive.org/web/20190807070542/https://www.rottentomatoes.com/m/it_chapter_two |archive-date=August 7, 2019 |url-status=live}}</ref>
-
-NEW On [[Rotten Tomatoes]], the film holds an approval rating of 62% based on 377 reviews, with an average rating of 6.10/10. The website's critical consensus reads, "''It Chapter Two'' proves bigger doesn't always mean scarier for horror sequels, but a fine cast and faithful approach to the source material keep this follow-up afloat."<ref>{{Cite Rotten Tomatoes|title=It: Chapter Two|id=it_chapter_two|type=m|access-date=August 26, 2021|archive-url=|archive-url=https://web.archive.org/web/20190807070542/https://www.rottentomatoes.com/m/it_chapter_two |archive-date=|archive-date=August 7, 2019 |url-status=live}}</ref>
+NEW Review aggregation website [[Rotten Tomatoes]] gives an approval rating of 75% based on reviews from 174 critics, with an average score of 6.60/10. The site's consensus states: "Led by a pair of mesmerizing performances from Meryl Streep and Tommy Lee Jones, ''Hope Springs'' offers filmgoers some grown-up laughs -- and a thoughtful look at mature relationships."<ref>{{Cite Rotten Tomatoes|title=Hope Springs|id=hope_springs_2012|type=m|access-date=August 27, 2021}}</ref>
 
 FLAGS set()
 
@@ -166,7 +54,7 @@ NEW On [[review aggregator]] website [[Rotten Tomatoes]], the film has an approv
 
 OLD <ref name=RottenTom>{{cite web|url=https://rottentomatoes.com/m/lake_placid/|title=Lake Placid (1999)|website=[[Rotten Tomatoes]]|access-date=September 6, 2015}}</ref>
 
-NEW <ref name="RottenTom">{{Cite Rotten Tomatoes|title=Lake Placid|id=lake_placid|type=m|access-date=August 26, 2021}}</ref>
+NEW <ref name="RottenTom">{{Cite Rotten Tomatoes|title=Lake Placid|id=lake_placid|type=m|access-date=August 27, 2021}}</ref>
 
 FLAGS set()
 
@@ -174,109 +62,7 @@ TITLE Lake Placid 2
 
 OLD It has a 14% on [[Rotten Tomatoes]] based on 7 reviews, with an average rating of 3.94 out of 10<ref>{{cite web |url=https://www.rottentomatoes.com/m/lake_placid_2 |title=Lake Placid 2 (2007) |publisher=[[Rotten Tomatoes]] |access-date=May 13, 2020}}</ref>
 
-NEW It has a 11% on [[Rotten Tomatoes]] based on 9 reviews, with an average rating of 3.70/10<ref>{{Cite Rotten Tomatoes|title=Lake Placid 2|id=lake_placid_2|type=m|access-date=August 26, 2021}}</ref>
-
-FLAGS set()
-
-TITLE Leave Her to Heaven
-
-OLD Rotten Tomatoes reported that 93% of critics gave the film a positive review, based on 27 reviews.<ref>[https://www.rottentomatoes.com/m/leave_her_to_heaven/ ''Leave Her to Heaven''] at [[Rotten Tomatoes]]. Last accessed: December 30, 2020.</ref>
-
-NEW On [[Rotten Tomatoes]], ''Leave Her to Heaven'' holds an approval rating of 93% based on 29 reviews, with an average rating of 8.30/10.<ref>{{Cite Rotten Tomatoes|title=Leave Her to Heaven|id=leave_her_to_heaven|type=m|access-date=August 26, 2021}}</ref>
-
-FLAGS set()
-
-TITLE Marrowbone (film)
-
-OLD On [[review aggregator]] website [[Rotten Tomatoes]], the film has an approval rating of 48% based on 73 reviews, and an average rating of 5.30/10. The website's critical consensus reads, "''Marrowbone's'' effective setting and strong cast can't make up for thinly conceived characters and a story short on genuine scares."<ref>{{cite web|url=https://www.rottentomatoes.com/m/marrowbone|title=Marrowbone (2018)|work=[[Rotten Tomatoes]]|publisher=[[Fandango Media]]|access-date=8 November 2020}}</ref>
-
-NEW On [[review aggregator]] website [[Rotten Tomatoes]], the film has an approval rating of 49% based on 75 reviews, and an average rating of 5.40/10. The website's critical consensus reads, "''Marrowbone's'' effective setting and strong cast can't make up for thinly conceived characters and a story short on genuine scares."<ref>{{Cite Rotten Tomatoes|title=Marrowbone|id=marrowbone|type=m|access-date=August 26, 2021}}</ref>
-
-FLAGS set()
-
-TITLE Needful Things (film)
-
-OLD The film holds a 31% rating on [[Rotten Tomatoes]], based on 26 reviews, with an average rating of 4.1/10.<ref name="RT">{{cite web | url=http://www.rottentomatoes.com/m/needful_things/ | title=Needful Things (1993) | publisher=[[Fandango Media]] |work=[[Rotten Tomatoes]] | access-date=17 April 2018}}</ref>
-
-NEW The film holds a 28% rating on [[Rotten Tomatoes]], based on 25 reviews, with an average rating of 4.50/10.<ref name="RT">{{Cite Rotten Tomatoes|title=Needful Things|id=needful_things|type=m|access-date=August 26, 2021}}</ref>
-
-FLAGS set()
-
-TITLE Night of the Living Deb
-
-OLD [[Rotten Tomatoes]], a [[review aggregator]], reports that 88% of eight surveyed critics from  gave the film a positive review; the average rating is 6.64/10.<ref>{{cite web|url=https://www.rottentomatoes.com/m/night_of_the_living_deb|title=Night of the Living Deb (2014)|work=[[Rotten Tomatoes]]|accessdate=August 29, 2020}}</ref>
-
-NEW [[Rotten Tomatoes]], a [[review aggregator]], reports that 88% of 8 surveyed critics from  gave the film a positive review; the average rating is 6.60/10.<ref>{{Cite Rotten Tomatoes|title=Night of the Living Deb|id=night_of_the_living_deb|type=m|access-date=August 26, 2021}}</ref>
-
-FLAGS set()
-
-TITLE Pet Sematary (1989 film)
-
-OLD [[Rotten Tomatoes]], a [[review aggregator]], reports that 51% of 35 surveyed critics gave the film a positive review; the average rating is 5.42/10. The website's critical consensus reads, "''Pet Sematary'' is a bruising horror flick that wears its quirks on its sleeves, to the detriment of its scare factor."<ref>{{cite web |url=https://www.rottentomatoes.com/m/pet_sematary/ |title=Pet Sematary (1989) |work=[[Rotten Tomatoes]] |publisher=[[Fandango Media|Fandango]] |access-date=2018-10-04}}</ref>
-
-NEW [[Rotten Tomatoes]], a [[review aggregator]], reports that 51% of 35 surveyed critics gave the film a positive review; the average rating is 5.60/10. The website's critical consensus reads, "''Pet Sematary'' is a bruising horror flick that wears its quirks on its sleeves, to the detriment of its scare factor."<ref>{{Cite Rotten Tomatoes|title=Pet Sematary|id=pet_sematary|type=m|access-date=August 26, 2021}}</ref>
-
-FLAGS set()
-
-TITLE Pet Sematary (2019 film)
-
-OLD On [[review aggregator]] [[Rotten Tomatoes]], the film holds an approval rating of 58% based on 272 reviews, with an average rating of 5.93/10. The website's critical consensus reads: "''Pet Sematary'' takes its source material in a few different directions, but this remake feels like an exhuming almost as often as it does a revival."<ref>{{cite web|url=https://www.rottentomatoes.com/m/pet_sematary_2019|title=Pet Semetary (2019)|work=[[Rotten Tomatoes]]|publisher=[[Fandango Media]]|access-date=October 7, 2020}}</ref>
-
-NEW On [[review aggregator]] [[Rotten Tomatoes]], the film holds an approval rating of 57% based on 279 reviews, with an average rating of 5.90/10. The website's critical consensus reads: "''Pet Sematary'' takes its source material in a few different directions, but this remake feels like an exhuming almost as often as it does a revival."<ref>{{Cite Rotten Tomatoes|title=Pet Sematary|id=pet_sematary_2019|type=m|access-date=August 26, 2021}}</ref>
-
-FLAGS set()
-
-TITLE Pet Sematary Two
-
-OLD [[Rotten Tomatoes]], a [[review aggregator]], reports that 22% of 23 critics gave the film a positive review and the average rating was 3.70/10. The site's consenuse reads, "Not realizing that it had no unfinished business, ''Pet Sematary'' rises from the grave once more to beat an undead corpse.".<ref>{{cite web|url=https://www.rottentomatoes.com/m/pet_sematary_ii|title=Pet Sematary Two (1992)|website=[[Rotten Tomatoes]]|access-date=February 27, 2021}}</ref>
-
-NEW [[Rotten Tomatoes]], a [[review aggregator]], reports that 22% of 23 critics gave the film a positive review and the average rating was 3.70/10. The site's consenuse reads, "Not realizing that it had no unfinished business, ''Pet Sematary'' rises from the grave once more to beat an undead corpse."<ref>{{Cite Rotten Tomatoes|title=Pet Sematary Two|id=pet_sematary_ii|type=m|access-date=August 26, 2021}}</ref>
-
-FLAGS set()
-
-TITLE Pete's Dragon (1977 film)
-
-OLD On the review aggregator website [[Rotten Tomatoes]], the film has an approval rating of 56% based on 27 reviews, with an average rating of 5/10. The site's consensus states: "Boring and slow, this is a lesser Disney work, though the animation isn't without its charms."<ref>{{cite web | url=https://www.rottentomatoes.com/m/petes_dragon/ | title=Pete's Dragon (1977) | work=[[Rotten Tomatoes]] | access-date=April 21, 2021 | archive-date=January 20, 2021 | archive-url=https://web.archive.org/web/20210120120958/https://www.rottentomatoes.com/m/petes_dragon | url-status=live }}</ref>
-
-NEW On the review aggregator website [[Rotten Tomatoes]], the film has an approval rating of 56% based on 27 reviews, with an average rating of 5.00/10. The site's consensus states: "Boring and slow, this is a lesser Disney work, though the animation isn't without its charms."<ref>{{Cite Rotten Tomatoes|title=Pete's Dragon|id=petes_dragon|type=m|access-date=August 26, 2021|archive-url=| archive-url=https://web.archive.org/web/20210120120958/https://www.rottentomatoes.com/m/petes_dragon |archive-date=| archive-date=January 20, 2021 |url-status=live}}</ref>
-
-FLAGS set()
-
-TITLE Pod (film)
-
-OLD [[Rotten Tomatoes]] gave the film a 67% approval rating based on six reviews.
-
-NEW On [[Rotten Tomatoes]], ''Pod'' holds an approval rating of 80% based on 10 reviews, with an average rating of 6.40/10.<ref>{{Cite Rotten Tomatoes|title=Pod|id=pod|type=m|access-date=August 26, 2021}}</ref>
-
-FLAGS set()
-
-OLD [[Rotten Tomatoes]], a [[review aggregator]], reports that 67% of six surveyed critics gave the film a positive review; the average rating is 6/10.<ref>{{cite web|url=https://rottentomatoes.com/m/771422471/|title=Pod (2015)|work=[[Rotten Tomatoes]]|accessdate=2015-12-12}}</ref>
-
-NEW [[Rotten Tomatoes]], a [[review aggregator]], reports that 80% of 10 surveyed critics gave the film a positive review; the average rating is 6.40/10.<ref>{{Cite Rotten Tomatoes|title=Pod|id=pod|type=m|access-date=August 26, 2021}}</ref>
-
-FLAGS set()
-
-TITLE Prophecy (film)
-
-OLD As of August 2021, review aggregator [[Rotten Tomatoes]] gave ''Prophecy'' an approval rating of 26%, based on 19 reviews, with an average rating of 4.3/10.<ref name="rottomatoes">{{cite web |title=Prophecy (1979) – Rotten Tomatoes |url=https://www.rottentomatoes.com/m/1016842-prophecy|website=Rotten Tomatoes.com |publisher=Fandango Media |access-date=August 16, 2021}}</ref>
-
-NEW {{As of|2021|August}}, review aggregator [[Rotten Tomatoes]] gave ''Prophecy'' an approval rating of 26%, based on 19 reviews, with an average rating of 4.30/10.<ref name="rottomatoes">{{Cite Rotten Tomatoes|title=Prophecy|id=1016842-prophecy|type=m|access-date=August 26, 2021}}</ref>
-
-FLAGS set()
-
-TITLE Salem's Lot (1979 miniseries)
-
-OLD As of May 2020, it holds an approval rating of 88% on review aggregator [[Rotten Tomatoes]], based on 17 reviews, and an average rating of 6.65/10. Its consensus reads: "Director Tobe Hooper and a devilishly charismatic James Mason elevate this television adaptation of the Stephen King novel, injecting the vampiric tradition with fresh blood and lingering scares."<ref name="rottentomatoes">{{cite web |title=Salem's Lot (1979) |url=https://www.rottentomatoes.com/m/salems_lot_the_movie |website=RottenTomatoes.com |publisher=Fandango Media |access-date=May 5, 2020}}</ref>
-
-NEW {{As of|2021|August}}, it holds an approval rating of 88% on review aggregator [[Rotten Tomatoes]], based on 17 reviews, and an average rating of 6.60/10. Its consensus reads: "Director Tobe Hooper and a devilishly charismatic James Mason elevate this television adaptation of the Stephen King novel, injecting the vampiric tradition with fresh blood and lingering scares."<ref name="rottentomatoes">{{Cite Rotten Tomatoes|title=Salem's Lot|id=salems_lot_the_movie|type=m|access-date=August 26, 2021}}</ref>
-
-FLAGS set()
-
-TITLE Shut In (2016 film)
-
-OLD On [[review aggregator]] website [[Rotten Tomatoes]], the film has an approval rating of 9% based on 43 reviews, with an average rating of 2.92/10. The site's critical consensus reads, "Fatally undermined by a clichéd, confused plot and a total absence of thrills, ''Shut In'' wastes its talented cast—and viewers' time."<ref>{{cite web|url=https://www.rottentomatoes.com/m/shut_in |title=''Shut In'' (2016) |work=[[Rotten Tomatoes]] |publisher=[[Fandango Media|Fandango]] |access-date=May 3, 2019}}</ref>
-
-NEW On [[review aggregator]] website [[Rotten Tomatoes]], the film has an approval rating of 7% based on 45 reviews, with an average rating of 3.20/10. The site's critical consensus reads, "Fatally undermined by a clichéd, confused plot and a total absence of thrills, ''Shut In'' wastes its talented cast—and viewers' time."<ref>{{Cite Rotten Tomatoes|title=Shut In|id=shut_in|type=m|access-date=August 26, 2021}}</ref>
+NEW It has a 11% on [[Rotten Tomatoes]] based on 9 reviews, with an average rating of 3.70/10<ref>{{Cite Rotten Tomatoes|title=Lake Placid 2|id=lake_placid_2|type=m|access-date=August 27, 2021}}</ref>
 
 FLAGS set()
 
@@ -284,143 +70,7 @@ TITLE Silver Bullet (film)
 
 OLD The film received mixed reviews from critics; it holds a rating of 45% on [[Rotten Tomatoes]] based on 20 reviews.<ref>{{cite web |url=https://www.rottentomatoes.com/m/stephen_kings_silver_bullet |title=Stephen King's Silver Bullet |website=[[Rotten Tomatoes]] |access-date=July 28, 2019 }}</ref>
 
-NEW On [[Rotten Tomatoes]], ''Silver Bullet'' holds an approval rating of 45% based on 20 reviews, with an average rating of 5.30/10.<ref>{{Cite Rotten Tomatoes|title=Silver Bullet|id=stephen_kings_silver_bullet|type=m|access-date=August 26, 2021}}</ref>
-
-FLAGS set()
-
-TITLE Simon Birch
-
-OLD ''Simon Birch'' holds a 44% rating on [[Rotten Tomatoes]], with the site's consensus calling the film "Overly mushy; tries too hard to pull at the heart-strings."<ref>{{rotten-tomatoes|simon_birch|Simon Birch}}</ref>
-
-NEW On [[Rotten Tomatoes]], ''Simon Birch'' holds an approval rating of 44% based on 32 reviews, with an average rating of 5.80/10. The site's critical consensus reads, "Overly mushy; tries too hard to pull at the heart-strings."<ref>{{Cite Rotten Tomatoes|title=Simon Birch|id=simon_birch|type=m|access-date=August 26, 2021}}</ref>
-
-FLAGS set()
-
-TITLE The Cider House Rules (film)
-
-OLD It was positively reviewed and has a 71% approval rating based on 112 votes on [[Rotten Tomatoes]].<ref>{{Citation|title=The Cider House Rules (1999)|url=https://www.rottentomatoes.com/m/cider_house_rules|language=en|access-date=2020-02-10}}</ref>
-
-NEW On [[Rotten Tomatoes]], ''The Cider House Rules'' holds an approval rating of 71% based on 112 reviews, with an average rating of 6.60/10.<ref>{{Cite Rotten Tomatoes|title=The Cider House Rules|id=cider_house_rules|type=m|access-date=August 26, 2021}}</ref>
-
-FLAGS set()
-
-OLD On the review aggregator [[Rotten Tomatoes]], the film holds a 71% approval rating, based on 112 reviews with an average rating of 6.6/10. The website's critical consensus reads, "''The Cider House Rules'' derives affecting drama from wonderful performances, lovely visuals, and an old-fashioned feel."<ref>{{cite web|url=http://www.rottentomatoes.com/m/cider_house_rules/ |title=The Cider House Rules (1999) |work=[[Rotten Tomatoes]] |publisher=[[Fandango Media]] |access-date=November 25, 2020}}</ref>
-
-NEW On the review aggregator [[Rotten Tomatoes]], the film holds a 71% approval rating, based on 112 reviews with an average rating of 6.60/10. The website's critical consensus reads, "''The Cider House Rules'' derives affecting drama from wonderful performances, lovely visuals, and an old-fashioned feel."<ref>{{Cite Rotten Tomatoes|title=The Cider House Rules|id=cider_house_rules|type=m|access-date=August 26, 2021}}</ref>
-
-FLAGS set()
-
-TITLE The Dark Half (film)
-
-OLD On [[Rotten Tomatoes]], it currently holds a 58% from 33 reviews with an average score of 5.78/10. The critics consensus reads, ”''The Dark Half'' is a highly serious psychological study that can be faulted for being more curious than actually scary.” <ref>{{cite web|url=https://www.rottentomatoes.com/m/dark_half/|title=The Dark Half (1993)|work=[[Rotten Tomatoes]]|access-date=February 26, 2020}}</ref>
-
-NEW On [[Rotten Tomatoes]], it currently holds a 58% from 33 reviews with an average score of 5.80/10. The critics consensus reads, "''The Dark Half'' is a highly serious psychological study that can be faulted for being more curious than actually scary."<ref>{{Cite Rotten Tomatoes|title=The Dark Half|id=dark_half|type=m|access-date=August 26, 2021}}</ref>
-
-FLAGS set()
-
-TITLE The Dead Zone (film)
-
-OLD It holds an approval rating of 90% on [[review aggregator]] website [[Rotten Tomatoes]] based on 48 reviews. The site's consensus reads, "''The Dead Zone'' combines taut direction from David Cronenberg and a rich performance from Christopher Walken to create one of the strongest Stephen King adaptations."<ref>{{cite web|title=The Dead Zone|url=https://rottentomatoes.com/m/dead_zone/|url-status=live|access-date=August 15, 2021|website=[[Rotten Tomatoes]]}}</ref>
-
-NEW On [[Rotten Tomatoes]], ''The Dead Zone'' holds an approval rating of 90% based on 48 reviews, with an average rating of 7.60/10. The site's critical consensus reads, "''The Dead Zone'' combines taut direction from David Cronenberg and and a rich performance from Christopher Walken to create one of the strongest Stephen King adaptations."<ref>{{Cite Rotten Tomatoes|title=The Dead Zone|id=dead_zone|type=m|access-date=August 26, 2021}}</ref>
-
-FLAGS set()
-
-TITLE The Good Son (film)
-
-OLD It received generally negative reviews and has a 26% approval rating based on 27 votes on [[Rotten Tomatoes]].<ref>{{Citation|title=The Good Son (1993)|url=https://www.rottentomatoes.com/m/good_son|language=en|access-date=2020-09-08}}</ref>
-
-NEW On [[Rotten Tomatoes]], ''The Good Son'' holds an approval rating of 26% based on 27 reviews, with an average rating of 4.60/10.<ref>{{Cite Rotten Tomatoes|title=The Good Son|id=good_son|type=m|access-date=August 26, 2021}}</ref>
-
-FLAGS set()
-
-OLD As of October 2020, on [[Rotten Tomatoes]], the film had an approval rating of 26% based on 27 reviews, with an average rating of 4.27/10. The site's consensus stated: "''The Good Son'' is never good enough to live up to its unsettling potential, failing to drum up much suspense and unable to make Macaulay Culkin a credible psychopath."<ref>{{cite web |url= https://www.rottentomatoes.com/m/good_son/|title=The Good Son|website= [[Rotten Tomatoes]] |access-date=Dec 30, 2018}}</ref>
-
-NEW {{As of|2021|August}}, on [[Rotten Tomatoes]], the film had an approval rating of 26% based on 27 reviews, with an average rating of 4.60/10. The site's consensus stated: "''The Good Son'' is never good enough to live up to its unsettling potential, failing to drum up much suspense and unable to make Macaulay Culkin a credible psychopath."<ref>{{Cite Rotten Tomatoes|title=The Good Son|id=good_son|type=m|access-date=August 26, 2021}}</ref>
-
-FLAGS set()
-
-TITLE The Hunt for Red October (film)
-
-OLD On [[Rotten Tomatoes]] the film has a "Certified Fresh" 88% rating based on 73 reviews, with an average score of 7.70/10. The site's consensus states: "Perfectly cast and packed with suspense, ''The Hunt for Red October'' is an old-fashioned submarine thriller with plenty of firepower to spare."<ref>{{cite web |url= https://www.rottentomatoes.com/m/hunt_for_red_october |title= The Hunt for Red October (1990) |website= [[Rotten Tomatoes]] |access-date= August 18, 2021 |archive-date= January 3, 2021 |archive-url= https://web.archive.org/web/20210103045641/https://www.rottentomatoes.com/m/hunt_for_red_october |url-status= live }}</ref>
-
-NEW On [[Rotten Tomatoes]] the film has a "Certified Fresh" 88% rating based on 73 reviews, with an average score of 7.70/10. The site's consensus states: "Perfectly cast and packed with suspense, ''The Hunt for Red October'' is an old-fashioned submarine thriller with plenty of firepower to spare."<ref>{{Cite Rotten Tomatoes|title=The Hunt for Red October|id=hunt_for_red_october|type=m|access-date=August 26, 2021|archive-url=|archive-url= https://web.archive.org/web/20210103045641/https://www.rottentomatoes.com/m/hunt_for_red_october |archive-date=|archive-date= January 3, 2021 |url-status=live}}</ref>
-
-FLAGS {'invisible edit'}
-
-TITLE The Iron Giant
-
-OLD On [[Rotten Tomatoes]], the film holds a 96% approval rating based on 143 reviews, with an average rating of 8.21/10. The website's critics consensus reads, "The endearing ''Iron Giant'' tackles ambitious topics and complex human relationships with a steady hand and beautifully animated direction from Brad Bird."<ref>{{cite web|url=https://www.rottentomatoes.com/m/iron_giant|title=The Iron Giant (1999)|website=[[Rotten Tomatoes]]|publisher=[[Fandango Media|Fandango]]|access-date=November 9, 2020|archive-date=November 9, 2020|archive-url=https://web.archive.org/web/20201109031751/https://www.rottentomatoes.com/m/iron_giant|url-status=live}}</ref>
-
-NEW On [[Rotten Tomatoes]], the film holds a 96% approval rating based on 142 reviews, with an average rating of 8.20/10. The website's critics consensus reads, "The endearing ''Iron Giant'' tackles ambitious topics and complex human relationships with a steady hand and beautifully animated direction from Brad Bird."<ref>{{Cite Rotten Tomatoes|title=The Iron Giant|id=iron_giant|type=m|access-date=August 26, 2021|archive-url=|archive-url=https://web.archive.org/web/20201109031751/https://www.rottentomatoes.com/m/iron_giant|archive-date=|archive-date=November 9, 2020|url-status=live}}</ref>
-
-FLAGS set()
-
-TITLE The Langoliers (miniseries)
-
-OLD According to [[Rotten Tomatoes]], 52% of critics gave the miniseries a positive review (out of 23 reviews) with an average rating of 5.21/10.<ref>{{cite web|url=https://www.rottentomatoes.com/m/langoliers|title=Stephen King's 'The Langoliers' (1995)|via=www.rottentomatoes.com}}</ref>
-
-NEW According to [[Rotten Tomatoes]], 50% of critics gave the miniseries a positive review (out of 22 reviews) with an average rating of 5.10/10.<ref>{{Cite Rotten Tomatoes|title=Stephen King's 'The Langoliers'|id=stephen_kings_the_langoliers|type=m|access-date=August 26, 2021}}</ref> The site's critical consensus reads, "While not without its fair share of thrills, ''The Langoliers'' suffers from a meandering pace and dubious characterizations."
-
-FLAGS set()
-
-TITLE The Little Girl Who Lives Down the Lane
-
-OLD The film has a 93% approval rating on Rotten Tomatoes, based on 14 reviews.<ref>{{cite web |url=https://www.rottentomatoes.com/m/little_girl_who_lives_down_the_lane/ |title=The Little Girl Who Lives Down the Lane (1976) |work=[[Rotten Tomatoes]] |access-date=8 February 2021 |url-status=live |archive-url=https://web.archive.org/web/20170306132332/https://www.rottentomatoes.com/m/little_girl_who_lives_down_the_lane/ |archive-date=6 March 2017 }}</ref>
-
-NEW On [[Rotten Tomatoes]], ''The Little Girl Who Lives Down the Lane'' holds an approval rating of 93% based on 14 reviews, with an average rating of 7.30/10.<ref>{{Cite Rotten Tomatoes|title=The Little Girl Who Lives Down the Lane|id=little_girl_who_lives_down_the_lane|type=m|access-date=August 26, 2021|archive-url=|archive-url=https://web.archive.org/web/20170306132332/https://www.rottentomatoes.com/m/little_girl_who_lives_down_the_lane/ |archive-date=|archive-date=6 March 2017 |url-status=live}}</ref>
-
-FLAGS set()
-
-TITLE The Man Without a Face
-
-OLD On [[Rotten Tomatoes]], ''The Man Without a Face'' holds a 65% rating on [[Rotten Tomatoes]] based on 23 reviews with an average rating of 5.7/10.<ref>{{cite web|url=https://www.rottentomatoes.com/m/man_without_a_face|title=The Man Without a Face (1993)|website=[[Rotten Tomatoes]]|accessdate=February 28, 2020}}</ref>
-
-NEW On [[Rotten Tomatoes]], ''The Man Without a Face'' holds a 65% rating on [[Rotten Tomatoes]] based on 23 reviews with an average rating of 5.70/10.<ref>{{Cite Rotten Tomatoes|title=The Man Without a Face|id=man_without_a_face|type=m|access-date=August 26, 2021}}</ref>
-
-FLAGS set()
-
-TITLE The Mist (film)
-
-OLD On [[Rotten Tomatoes]], 71% of critics have given the film a positive review based on 147 reviews, with an average rating of 6.60/10. The site's critics consensus reads, "Frank Darabont's impressive camerawork and politically incisive script make ''The Mist'' a truly frightening experience."<ref>{{cite web |url= https://www.rottentomatoes.com/m/mist |title= The Mist (2007) |website= [[Rotten Tomatoes]] |publisher= [[Fandango Media|Fandango]] |access-date= February 13, 2021}}</ref>
-
-NEW On [[Rotten Tomatoes]], 71% of critics have given the film a positive review based on 146 reviews, with an average rating of 6.50/10. The site's critics consensus reads, "Frank Darabont's impressive camerawork and politically incisive script make ''The Mist'' a truly frightening experience."<ref>{{Cite Rotten Tomatoes|title=The Mist|id=mist|type=m|access-date=August 26, 2021}}</ref>
-
-FLAGS set()
-
-TITLE The Parent Trap (1998 film)
-
-OLD The review aggregator website [[Rotten Tomatoes]] reported an 86% approval rating with an average rating of 6.8/10 based on 51 reviews. The website's consensus states: "Writer-director Nancy Meyers takes the winning formula of the 1961 original and gives it an amiable modern spin, while young star Lindsay Lohan shines in her breakout role."<ref>{{cite web|title=The Parent Trap (1998)|url=https://www.rottentomatoes.com/m/1083414-parent_trap|publisher=[[Rotten Tomatoes]]|access-date=June 24, 2020}}</ref>
-
-NEW The review aggregator website [[Rotten Tomatoes]] reported an 87% approval rating with an average rating of 6.80/10 based on 52 reviews. The website's consensus states: "Writer-director Nancy Meyers takes the winning formula of the 1961 original and gives it an amiable modern spin, while young star Lindsay Lohan shines in her breakout role."<ref>{{Cite Rotten Tomatoes|title=The Parent Trap|id=1083414-parent_trap|type=m|access-date=August 26, 2021}}</ref>
-
-FLAGS set()
-
-TITLE The Rage: Carrie 2
-
-OLD [[Rotten Tomatoes]] reported the film had a 22% approval rating based on 37 reviews with the consensus: "As disposable as its predecessor is indispensable, ''The Rage: Carrie 2'' mimics the arc of Stephen King's classic story without adding anything of value."
-
-NEW On [[Rotten Tomatoes]], ''The Rage: Carrie 2'' holds an approval rating of 22% based on 37 reviews, with an average rating of 4.10/10. The site's critical consensus reads, "As disposable as its predecessor is indispensable, ''The Rage: Carrie 2'' mimics the arc of Stephen King's classic story without adding anything of value."<ref>{{Cite Rotten Tomatoes|title=The Rage: Carrie 2|id=rage_carrie_2|type=m|access-date=August 26, 2021}}</ref>
-
-FLAGS set()
-
-TITLE The Shawshank Redemption
-
-OLD Contemporary review aggregation website [[Rotten Tomatoes]] gives the film a 91% approval rating from 77 critics, with an [[weighted mean|average]] rating of 8.30/10. The consensus reads, "''The Shawshank Redemption'' is an uplifting, deeply satisfying prison drama with sensitive direction and fine performances."<ref name="RevRT"/>
-
-NEW Contemporary review aggregation website [[Rotten Tomatoes]] gives the film a 91% approval rating from 77 critics, with an average rating of 8.30/10. The consensus reads, "''The Shawshank Redemption'' is an uplifting, deeply satisfying prison drama with sensitive direction and fine performances."<ref name="RevRT"/>
-
-OLD <ref name="RevRT">{{cite web |title=The Shawshank Redemption |url=https://www.rottentomatoes.com/m/shawshank_redemption/ |work=[[Rotten Tomatoes]] |access-date=May 3, 2021 |archive-url=https://archive.today/20170918210429/https://www.rottentomatoes.com/m/shawshank_redemption/ |archive-date=September 18, 2017 |url-status=live |df=mdy-all }}</ref>
-
-NEW <ref name="RevRT">{{Cite Rotten Tomatoes|title=The Shawshank Redemption|id=shawshank_redemption|type=m|access-date=August 26, 2021|archive-url=|archive-url=https://archive.today/20170918210429/https://www.rottentomatoes.com/m/shawshank_redemption/ |archive-date=|archive-date=September 18, 2017 |url-status=live}}</ref>
-
-FLAGS set()
-
-TITLE The Spitfire Grill
-
-OLD ''The Spitfire Grill'' currently holds a 36% rating on [[Rotten Tomatoes]], based on 28 reviews.
-
-NEW On [[Rotten Tomatoes]], ''The Spitfire Grill'' holds an approval rating of 36% based on 28 reviews, with an average rating of 5.40/10.<ref>{{Cite Rotten Tomatoes|title=The Spitfire Grill|id=spitfire_grill|type=m|access-date=August 26, 2021}}</ref>
+NEW On [[Rotten Tomatoes]], ''Silver Bullet'' holds an approval rating of 45% based on 20 reviews, with an average rating of 5.30/10.<ref>{{Cite Rotten Tomatoes|title=Silver Bullet|id=stephen_kings_silver_bullet|type=m|access-date=August 27, 2021}}</ref>
 
 FLAGS set()
 
@@ -428,63 +78,7 @@ TITLE The Tommyknockers (miniseries)
 
 OLD ''The Tommyknockers'' holds a rating of 29% on [[Rotten Tomatoes]] from 24 reviews.<ref>https://www.rottentomatoes.com/m/tommyknockers</ref>
 
-NEW On [[Rotten Tomatoes]], ''The Tommyknockers'' holds an approval rating of 30% based on 23 reviews, with an average rating of 4.50/10. The site's critical consensus reads, "Unlikeable characters, a bloated narrative, and drab scripting make ''The Tommyknockers'' a hard watch for even the most die-hard of Stephen King fans."<ref>{{Cite Rotten Tomatoes|title=The Tommyknockers|id=tommyknockers|type=m|access-date=August 26, 2021}}</ref>
-
-FLAGS set()
-
-TITLE The Turning (2020 film)
-
-OLD On [[review aggregator]] [[Rotten Tomatoes]], the film holds an approval rating of 11% based on 98 reviews, with an average rating of 3.58/10. The website's critics consensus reads, "Stylish but muddled, this misbegotten adaptation of Henry James' classic novel will send horror-hungry viewers ''Turning'' to the source material instead."<ref>{{cite web|url=https://www.rottentomatoes.com/m/the_turning_2020/ |title= The Turning (2020) |work= [[Rotten Tomatoes]] |publisher= [[Fandango (company)|Fandango]] |access-date= August 25, 2020}}</ref>
-
-NEW On [[review aggregator]] [[Rotten Tomatoes]], the film holds an approval rating of 13% based on 102 reviews, with an average rating of 3.70/10. The website's critics consensus reads, "Stylish but muddled, this misbegotten adaptation of Henry James' classic novel will send horror-hungry viewers ''Turning'' to the source material instead."<ref>{{Cite Rotten Tomatoes|title=The Turning|id=the_turning_2020|type=m|access-date=August 26, 2021}}</ref>
-
-FLAGS set()
-
-TITLE The Uninvited (2009 film)
-
-OLD On [[Rotten Tomatoes]] the film has an approval rating of 32% based on reviews from 129 critics, with an average rating of 4.55/10. The site's critics consensus reads, "''The Uninvited'' is moody and reasonably involving, but suffers from predictable plot twists."<ref>{{cite web |title=The Uninvited (2009) |work=[[Rotten Tomatoes]] |publisher=[[Fandango (company)|Fandango]] |url=https://www.rottentomatoes.com/m/uninvited_2009 |access-date=August 20, 2020 }}</ref>
-
-NEW On [[Rotten Tomatoes]] the film has an approval rating of 32% based on reviews from 129 critics, with an average rating of 4.60/10. The site's critics consensus reads, "''The Uninvited'' is moody and reasonably involving, but suffers from predictable plot twists."<ref>{{Cite Rotten Tomatoes|title=The Uninvited|id=uninvited_2009|type=m|access-date=August 26, 2021}}</ref>
-
-FLAGS set()
-
-TITLE The Weight of Water (film)
-
-OLD On [[Rotten Tomatoes]], the film has an approval rating of 35%, based on reviews from 65 critics. The site's critical summary reads, "The story is too muddled to build any interest".<ref>{{cite web |title= The Weight of Water |url= https://www.rottentomatoes.com/m/weight_of_water/ |website= [[Rotten Tomatoes]] |access-date= 10 June 2020 }}</ref>
-
-NEW On [[Rotten Tomatoes]], ''The Weight of Water'' holds an approval rating of 35% based on 65 reviews, with an average rating of 5.10/10. The site's critical consensus reads, "The story is too muddled to build any interest."<ref>{{Cite Rotten Tomatoes|title=The Weight of Water|id=weight_of_water|type=m|access-date=August 26, 2021}}</ref>
-
-FLAGS set()
-
-TITLE The Whales of August
-
-OLD On [[Rotten Tomatoes]] out of 11 critics, 64% of them gave the film a positive review, with an average score of 6.63 out of 10.<ref>[http://www.rottentomatoes.com/m/whales_of_august/ The Whales of August (1987)] at [[Rotten Tomatoes]]. Accessed from May 5, 2012.</ref>
-
-NEW On [[Rotten Tomatoes]] out of 11 critics, 64% of them gave the film a positive review, with an average score of 6.60/10.<ref>{{Cite Rotten Tomatoes|title=The Whales of August|id=whales_of_august|type=m|access-date=August 26, 2021}}</ref>
-
-FLAGS set()
-
-TITLE Tumbledown (film)
-
-OLD On [[Rotten Tomatoes]], the film has a rating of 70%, based on 37 reviews, with an average rating of 6.32/10.<ref>{{cite web|url=https://www.rottentomatoes.com/m/tumbledown_2016/ |title=Tumbledown (2016) |publisher=Rotten Tomatoes wasn't the best |date=2016-02-19 |accessdate=2016-02-19}}</ref>
-
-NEW On [[Rotten Tomatoes]], the film has a rating of 70%, based on 37 reviews, with an average rating of 6.30/10.<ref>{{Cite Rotten Tomatoes|title=Tumbledown|id=tumbledown_2016|type=m|access-date=August 26, 2021}}</ref>
-
-FLAGS set()
-
-TITLE Welcome to Mooseport
-
-OLD On [[review aggregator]] website [[Rotten Tomatoes]], the film received a 13% score, based on 144 critics, with an average rating of 4.2/10. The site's consensus states: "A bland comedy that squanders a talented cast."<ref>{{cite web | url=http://www.rottentomatoes.com/m/welcome_to_mooseport/ | title=Welcome to Mooseport (2004) | publisher=[[Rotten Tomatoes]] | access-date=January 21, 2016}}</ref>
-
-NEW On [[review aggregator]] website [[Rotten Tomatoes]], the film received a 13% score, based on 146 critics, with an average rating of 4.20/10. The site's consensus states: "A bland comedy that squanders a talented cast."<ref>{{Cite Rotten Tomatoes|title=Welcome to Mooseport|id=welcome_to_mooseport|type=m|access-date=August 26, 2021}}</ref>
-
-FLAGS set()
-
-TITLE Wet Hot American Summer
-
-OLD [[Rotten Tomatoes]] gives the film a rating of 38%, based on 76 reviews, with an average rating of 4.85/10. The website's critical consensus reads, "''Wet Hot American Summer''{{'}}s incredibly talented cast is too often outmatched by a deeply silly script that misses its targets at least as often as it skewers them."<ref>{{cite web|url=http://www.rottentomatoes.com/m/wet_hot_american_summer/?search=Wet%20hot |title=Wet Hot American Summer (2001) |work=[[Rotten Tomatoes]]|access-date=August 2, 2019}}</ref>
-
-NEW [[Rotten Tomatoes]] gives the film a rating of 38%, based on 76 reviews, with an average rating of 5.10/10. The website's critical consensus reads, "''Wet Hot American Summer''{{'}}s incredibly talented cast is too often outmatched by a deeply silly script that misses its targets at least as often as it skewers them."<ref>{{Cite Rotten Tomatoes|title=Wet Hot American Summer|id=wet_hot_american_summer|type=m|access-date=August 26, 2021}}</ref>
+NEW On [[Rotten Tomatoes]], ''The Tommyknockers'' holds an approval rating of 30% based on 23 reviews, with an average rating of 4.50/10. The site's critical consensus reads, "Unlikeable characters, a bloated narrative, and drab scripting make ''The Tommyknockers'' a hard watch for even the most die-hard of Stephen King fans."<ref>{{Cite Rotten Tomatoes|title=The Tommyknockers|id=tommyknockers|type=m|access-date=August 27, 2021}}</ref>
 
 FLAGS set()
 

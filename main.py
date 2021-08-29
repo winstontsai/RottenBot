@@ -62,6 +62,8 @@ def upload_edits(args):
             edit_summary = 'Updated Rotten Tomatoes prose. Trial edit. See [[Wikipedia:Bots/Requests for approval/RottenBot|BRFA]].'
             if e.reviewed:
                 edit_summary += ' (Human reviewed)'
+
+            time.sleep(9)
             page.save(summary = edit_summary,
                       minor = False,)
 

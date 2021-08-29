@@ -276,12 +276,9 @@ def _suggested_edit(rtmatch, cand, safe_templates_and_wikilinks):
         d['1'] = score
         d['3'] = count
         if float(d['2'])!=float(average):
-            if average.endswith('00') and '.' not in d['2']:
+            z = str(float(average))
+            if '.00' in average:
                 z = average[0]
-            elif pattern_count(r'\d', d['2']) >= 3:
-                z = average
-            else:
-                z = str(float(average))
             d['2'] = z
         new_prose = new_prose.replace(m[0], construct_template('Rotten Tomatoes prose', d))
     else:
@@ -293,16 +290,13 @@ def _suggested_edit(rtmatch, cand, safe_templates_and_wikilinks):
         def repl(m):
             #print(m[0])
             if m['average']:
+                z = str(float(average))
+                if '.00' in average:
+                    z = average[0]
                 if not re.match(r'\d', m['average']):
-                    return average + '/10'
+                    return z + '/10'
                 if float(m['average'])==float(average):
                     return m[0]
-                if average.endswith('00') and '.' not in m['average']:
-                    z = average[0]
-                elif pattern_count(r'\d', m['average']) >= 3:
-                    z = average
-                else:
-                    z = str(float(average))
                 return z + m['outof'] + '10'
             if m['count']:
                 return count + ' ' + m['count_term']

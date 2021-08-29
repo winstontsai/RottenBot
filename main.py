@@ -63,7 +63,7 @@ def upload_edits(args):
             if e.reviewed:
                 edit_summary += ' (Human reviewed)'
 
-            time.sleep(9)
+            time.sleep(5)
             page.save(summary = edit_summary,
                       minor = False,)
 

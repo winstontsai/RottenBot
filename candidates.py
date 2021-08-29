@@ -314,7 +314,7 @@ def _find_RTMovie(page, initial_id, make_guess = False):
             return False
         z = re.findall(r'\d+', movie.runtime)
         if len(z) == 1:
-            minutes = int(z[0])
+            hours, minutes = 0, int(z[0])
         else:
             hours, minutes = map(int, z)
         return f'{60*hours + minutes} minutes' in lead

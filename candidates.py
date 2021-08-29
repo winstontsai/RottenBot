@@ -78,7 +78,7 @@ def find_candidates(xmlfile, get_user_input = False):
 
     WIKIDATA_LOCK = multiprocessing.Lock()
     GOOGLESEARCH_LOCK = multiprocessing.Lock()
-    with ProcessPoolExecutor(max_workers=12,
+    with ProcessPoolExecutor(max_workers=14,
             initializer=_init, initargs=(WIKIDATA_LOCK,GOOGLESEARCH_LOCK) ) as x:
         futures = {x.submit(candidate_from_entry, e) : e.title for e in xml_entries}
         for future in as_completed(futures):
@@ -182,7 +182,7 @@ def _ask_for_id(cand, rtmatch):
 
 # ===========================================================================================
 def _find_span333(match, title):
-    if match['refs'] and match['rtprose']:
+    if match['rtprose'] and match['refs']:
         return match.span()
 
     matchstart = match.start()

@@ -123,8 +123,8 @@ numword_re1 = alternates([fr"{alternates(tens)}([ -]{alternates(ones)})?"]+teens
 numword_re2 = alternates([fr"{alternates(tens)}([ -]{alternates(ones)})?"]+teens+ones+['zero','one[ -]hundred'])
 
 count_re = fr"\b(?P<count>[5-9]|[1-9][0-9]|[1-9][0-9][0-9]|{numword_re1}) (?P<count_term>(critic(al)? )?review(er)?s|(surveyed )?critics)"
-average_re = fr"\b(([0-9]|10)(\.\d\d?)?|{alternates(ones+['zero','ten'])})(?:/| out of )(?:10|ten)\b"
-score_re = fr"\b(?:[0-9]|[1-9][0-9]|100|{numword_re2})(?:%| percent)"
+average_re = fr"\b(?P<average>([0-9]|10)(\.\d\d?)?|{alternates(ones+['zero','ten'])})(?P<outof>/| out of )(?:10|ten)\b"
+score_re = fr"\b(?P<score>[0-9]|[1-9][0-9]|100|{numword_re2})(?:%| percent)"
 
 
 url_re = r"rottentomatoes.com/(?P<rt_id>m/[-A-Za-z0-9_]+)"
@@ -168,7 +168,6 @@ someref_re = fr'\s*(?:<ref(?:(?!<ref).)+?/(?:ref *)?>|{template_pattern(r"[rR]")
 # matches zero or more consecutive references (not necessarily for RT), use re.DOTALL
 anyrefs_re = fr'(?:{someref_re})*'
 
-
 def section(name):
     """
     Returns regex matching the specified section. Case is ignored in name.
@@ -181,8 +180,17 @@ notincurly = r'(?!((?!\n\n)[^}{]|(?&template))*\})' # i.e. not in template
 notincom = r'(?!((?!<!--|\n\n).)*-->)'
 notinref = r'(?!((?!<ref|\n\n).)*</ref)'
 
-refbegin_redirects = ['Ref ?begin', 'Sources?start', 'Beginref', 'Reftop']
-refbegin_re = fr'{template_pattern(construct_redirects(refbegin_redirects))}'
+
+cn_redirects = ['cb', 'ciation needed', 'cit', 'cita requerida', 'citaiton needed',
+'cit(ation|e) missing', 'citation[ -]?needed', 'citation requested',
+'citation ?required', 'citationeeded', 'citazione necessaria', 'cite[ -]?needed',
+'cite ?source', 'ci?tn', 'cn( needed)?', 'facts?', 'fcitation need(ed)?',
+'me-fact', 'need ?citation', 'need sources', 'need-ref', 'needcite',
+'needs citations?', 'needs reference', 'needs-cite', 'needsref',
+'no source given', 'prov-statement', 'prove ?it', 'ref[ -]?needed',
+'reference needed', 'refplease', 'request citation', 'source needed',
+'sourceme', 'uncited', 'unreferenced inline', 'unsourced-inline']
+cn_re = fr'(?i:{template_pattern(construct_redirects(cn_redirects))})'
 
 if __name__ == "__main__":
     print(t_rtprose)

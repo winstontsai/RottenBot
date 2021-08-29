@@ -212,17 +212,24 @@ def _compute_flags(rtmatch, cand, safe_templates_and_wikilinks):
         if x.text:
             x.target = 'a' * len(x.target)
 
-    k = pattern_count(score_re, str(wikitext_no_refs))
+    uses_rtprose = 1 if re.search(t_rtprose, text_no_refs) else 0
+    k = pattern_count(score_re, str(wikitext_no_refs)) + uses_rtprose
+    if k == 0:
+        flags.add('missing score')
     if k > 1:
-        flags.add(f"multiple scores")
+        flags.add('multiple scores')
 
-    k = pattern_count(average_re, str(text_no_refs))
+    k = pattern_count(average_re, str(text_no_refs)) + uses_rtprose
+    if k == 0:
+        flags.add('missing average')
     if k > 1:
-        flags.add(f"multiple averages")
+        flags.add('multiple averages')
 
-    k = pattern_count(count_re, str(text_no_refs))
+    k = pattern_count(count_re, str(text_no_refs)) + uses_rtprose
+    if k == 0:
+        flags.add('missing count')
     if k > 1:
-        flags.add(f"multiple counts")
+        flags.add('multiple counts')
 
     # hide quotes (comments and refs already deleted)
     text_no_quotes = re.sub(r'".+?"', '', text_no_refs, flags=re.S)
@@ -250,42 +257,58 @@ def _suggested_edit(rtmatch, cand, safe_templates_and_wikilinks):
     backup = Edit(_complete_replacements(rtmatch, cand), flags)
 
     reduced_flags = set(x for x in flags if not re.match(r'(T|WL):', x))
-    if reduced_flags:
-        return backup
+    # if reduced_flags:
+    #     return backup
 
     span, ref = rtmatch.span, rtmatch.ref
     text = cand.text[span[0]:span[1]]
     score, count, average = rtmatch.movie.tomatometer_score
 
+
     new_prose = re.sub(r'<!--.*?-->', '', text, flags=re.S)
     # Fix quote style
     new_prose = new_prose.translate(str.maketrans('“”‘’','""\'\''))
 
-    # first replace citation if not list-defined
-    if ref and not ref.list_defined:
-        new_prose = new_prose.replace(ref.text, citation_replacement(rtmatch))
 
-    if m := re.match(t_rtprose, new_prose):
-            d = {
-                '1': score,
-                '2': average,
-                '3': count,
-            }
-            new_prose = new_prose.replace(m[0], construct_template('Rotten Tomatoes prose', d))
+    if m := re.search(t_rtprose, new_prose):
+        # order is score, average, count
+        d = parse_template(m[0])[1]
+        d['1'] = score
+        d['3'] = count
+        if float(d['2'])!=float(average):
+            if average.endswith('00') and '.' not in d['2']:
+                z = average[0]
+            elif pattern_count(r'\d', d['2']) >= 3:
+                z = average
+            else:
+                z = str(float(average))
+            d['2'] = z
+        new_prose = new_prose.replace(m[0], construct_template('Rotten Tomatoes prose', d))
     else:
-        if not re.search(average_re, text) or not re.search(count_re, text):
-            return backup
-        elif (m:=re.search(r'ilms with a (100|0)% rating on Rotten Tom', new_prose)) and m[1] != score:
-            return backup
-        else:
-            def repl(m):
-                if m['a']:
-                    return f'{average}/10'
-                if m['c']:
-                    return f'{count} {m["count_term"]}'
-                if m['s']:
-                    return score+'%'
-            new_prose = re.sub(fr'(?P<a>{average_re})|(?P<c>{count_re})|(?P<s>{score_re})', repl, new_prose)
+        # if not re.search(average_re, text) or not re.search(count_re, text):
+        #     pass
+        if (m:=re.search(r'ilms with a (100|0)% rating on Rotten Tom', new_prose)) and m[1] != score:
+            flags.add(r'no longer 0% or 100%')
+        #else:
+        def repl(m):
+            #print(m[0])
+            if m['average']:
+                if not re.match(r'\d', m['average']):
+                    return average + '/10'
+                if float(m['average'])==float(average):
+                    return m[0]
+                if average.endswith('00') and '.' not in m['average']:
+                    z = average[0]
+                elif pattern_count(r'\d', m['average']) >= 3:
+                    z = average
+                else:
+                    z = str(float(average))
+                return z + m['outof'] + '10'
+            if m['count']:
+                return count + ' ' + m['count_term']
+            if m['score']:
+                return score + '%'
+        new_prose = re.sub(fr'{average_re}|{count_re}|{score_re}', repl, new_prose)
 
         # Update "As of"
         if m:=re.search(t_asof, new_prose): # As of template
@@ -306,7 +329,7 @@ def _suggested_edit(rtmatch, cand, safe_templates_and_wikilinks):
                 d['lc'] = 'y'
             new_prose = new_prose.replace(m[0], construct_template("As of", d))
         elif re.search(r"\b[Aa]s of\b", new_prose):
-            return backup
+            flags.add('As of')
 
         # Not a weighted average???
         for wl in wtp.parse(new_prose).wikilinks:
@@ -316,8 +339,6 @@ def _suggested_edit(rtmatch, cand, safe_templates_and_wikilinks):
                 new_prose = re.sub(re.escape(str(wl)), repl, new_prose)
         new_prose = new_prose.replace(' weighted ', ' ')
         new_prose = new_prose.replace(' a average',' an average')
-        if re.search("[wW]eighted", new_prose):
-            return backup
 
     # Minor (usually correct) fixes
     new_prose = new_prose.replace('"..', '".')
@@ -331,18 +352,39 @@ def _suggested_edit(rtmatch, cand, safe_templates_and_wikilinks):
     if y:
         new_prose += ' ' + rating_and_consensus_prose(rtmatch.movie)[1]
 
-    # add citation if missing
-    ref = rtmatch.ref
-    if not ref:
-        new_prose += citation_replacement(rtmatch)
-    # otherwise don't make an edit if the only difference is the ref
-    elif re.sub(someref_re,'',new_prose,flags=re.S) == re.sub(someref_re,'',text,flags=re.S):
+    # Don't make an edit if the prose (without refs) is the same.
+    if ref and new_prose == text:
         flags.add('invisible edit')
 
+    replacements = []
+    # citation update
+    if ref:
+        refwikitext = wtp.parse(ref.text)
+        if refwikitext.templates:
+            t = refwikitext.templates[0]
+            if re.search('cit(e|ation)', t.normal_name().lower()):
+                if t.get_arg('accessdate'):
+                    t.set_arg('accessdate', rtmatch.movie.access_date)
+                else:
+                    t.set_arg('access-date', rtmatch.movie.access_date)
+                new_citation = str(refwikitext)
+            else:
+                new_citation = citation_replacement(rtmatch)
+        else:
+            new_citation = citation_replacement(rtmatch)
 
-    replacements = [(text, new_prose)]
-    if ref and ref.list_defined:
-        replacements.append( (ref.text, citation_replacement(rtmatch)) )
+        if ref.list_defined:
+            replacements = [(ref.text, new_citation)]
+        else:
+            new_prose = re.sub(someref_re, '', new_prose, flags=re.S)
+            new_prose += new_citation
+    else:
+        new_prose += citation_replacement(rtmatch)
+
+    # remove citation needed template
+    new_prose = re.sub(cn_re, '', new_prose, flags=re.S)
+
+    replacements = [(text, new_prose)] + replacements
 
     return Edit(replacements, flags)
 
@@ -387,21 +429,22 @@ def citation_replacement(rtmatch):
     s = "<ref"
     s += f' name="{refname}">' if refname else '>'
     template_dict = {
+        'url': m.url,
         'title': m.title,
-        'id': m.short_url[2:],
-        'type': 'm',
+        'website' : '[[Rotten Tomatoes]]',
+        'publisher' : '[[Fandango Media]]',
         'access-date': m.access_date
     }
     if ref:
         wikitext = wtp.parse(ref.text)
         if wikitext.templates:
-            t = wikitext.templates[0]
-            if (x:= t.get_arg('archive-url') or t.get_arg('archiveurl')):
+            d = parse_template(str(wikitext.templates[0]))[1]
+            if (x:= d.get('archive-url') or d.get('archiveurl')):
                 template_dict['archive-url'] = x
-                if (x:= t.get_arg('archive-date') or t.get_arg('archivedate')):
+                if (x:= d.get('archive-date') or d.get('archivedate')):
                     template_dict['archive-date'] = x
                 template_dict['url-status'] = 'live'
-    s += construct_template('Cite Rotten Tomatoes', template_dict) + "</ref>"
+    s += construct_template('Cite web', template_dict) + "</ref>"
     return s
 
 def safe_to_add_consensus1(rtmatch, cand, new_text = ''):

@@ -106,7 +106,6 @@ See 'https://github.com/winstontsai/RottenBot' for source code and more info."""
     parser_store.add_argument('-i', '--interactive', action='store_true',
         help='In interactive mode, the user will be asked for their input for certain articles.')
     
-
     # parser for uploading
     parser_upload = subparsers.add_parser('upload',
         help='Upload edits from a file to the live wiki.')

@@ -240,11 +240,15 @@ def _find_citation_and_id(title, m, refnames):
     elif rt := m['rt']:
         d = parse_template(rt)[1]
         if '1' in d:
-            movieid = ['m/',''][d['1'].startswith('m/')] + d['1']
+            movieid = d['1']
         elif 'id' in d:
-            movieid = ['m/',''][d['id'].startswith('m/')] + d['id']
+            movieid = d['id']
         else:
             movieid = _p1258(title)
+            if movieid is None:
+                return None, None
+        if not movieid.startswith('m/'):
+            movieid = 'm/' + movieid
     return ref, movieid.lower()
 
 def _p1258(title):
@@ -254,7 +258,9 @@ def _p1258(title):
     item.get()
     WIKIDATA_LOCK.release()
     if 'P1258' in item.claims:
-        return item.claims['P1258'][0].getTarget()
+        z = item.claims['P1258'][0].getTarget()
+        if z.startswith('m/'):
+            return z
     return None
 
 def _inside_table(match):

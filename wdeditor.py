@@ -56,29 +56,30 @@ def entityid_from_movieid(movieid):
         return data[0]['item']['value'].split('/')[-1]
     return None
 
-def most_recent_score(entity_id, score_type='percent'):
-    query = f"""SELECT ?reviewvalue
+def most_recent_score_data(entity_id):
+    query = """SELECT ?score ?count ?average
 WHERE 
-{{
-  wd:{entity_id} p:P444 ?reviewstatement.
+{
+  ?item p:P444 ?reviewstatement.
   ?reviewstatement pq:P447 wd:Q105584.    # reviewed by Rotten Tomatoes.
   ?reviewstatement pq:P459 wd:Q108403393. # determination method
-  ?reviewstatement ps:P444 ?reviewvalue.
-  ?reviewstatement pq:P585 ?time1
+  ?reviewstatement ps:P444 ?score.
+  ?reviewstatement pq:P7887 ?count.
+  ?reviewstatement pq:P585 ?time1.
+  ?item p:P444 ?reviewstatement2.
+  ?reviewstatement2 pq:P447 wd:Q105584.    # reviewed by Rotten Tomatoes.
+  ?reviewstatement2 pq:P459 wd:Q108403540. # determination method
+  ?reviewstatement2 ps:P444 ?average.
+  ?reviewstatement2 pq:P585 ?time1.
   # only get most recent point in time
-  filter not exists {{
+  filter not exists {
     ?reviewstatement pq:P585 ?time2
     filter (?time2 > ?time1)
-  }}
-}}"""
-    if score_type == 'average':
-        query = query.replace('Q108403393', 'Q108403540')
-    elif score_type != 'percent':
-        raise ValueError(f'Unknown score_type argument: {score_type}.')
-
-    if data := get_results(query):
-        return data[0]['reviewvalue']['value']
-
+  }
+}"""
+    query = query.replace('?item', 'wd:'+entity_id)
+    if data := get_results(query)[0]:
+        return data['score']['value'], data['count']['value'], data['average']['value']
 
 def should_add_RT_claims(item):
     """
@@ -98,10 +99,12 @@ def should_add_RT_claims(item):
     if not movie.tomatometer_score:
         return False
 
-    current_score, count, current_average = map(float, movie.tomatometer_score)
-
-    old_score = most_recent_score(item.getID())
-    old_average = most_recent_score(item.getID(), score_type='average')
+    current_score, current_count, current_average = map(float, movie.tomatometer_score)
+    old_score_data = most_recent_score_data(item.getID())
+    if old_score_data is None:
+        return score_claims_from_movie(movie)
+    else:
+        old_score, old_count, old_average = map(float, old_score_data)
 
     if old_score is None or old_average is None:
         return score_claims_from_movie(movie)
@@ -116,7 +119,7 @@ def should_add_RT_claims(item):
     else:
         return score_claims_from_movie(movie)
 
-    if old_score != current_score or old_average != current_average:
+    if (old_score, old_count, old_average)!=(current_score, current_count, current_average):
         return score_claims_from_movie(movie)
     
     return False
@@ -221,20 +224,19 @@ if __name__ == "__main__":
     site.login()
 
 
-    count = 0
-    items_to_edit = ['Q467541']
-    for entity_id in items_to_edit:
-        z = add_RT_claims_to_item(entity_id)
-        count += z
-        print(z, entity_id)
-        if count == 30:
-            break
+    # count = 0
+    # items_to_edit = ['Q467541']
+    # for entity_id in items_to_edit:
+    #     z = add_RT_claims_to_item(entity_id)
+    #     count += z
+    #     print(z, entity_id)
+    #     if count == 30:
+    #         break
 
 
     # Q18152569 Meadowland
     # Q28936 Cloud Atlas
-    # print(most_recent_score('Q15154975'))
-    # print(most_recent_score('Q15154975', score_type='average'))
+    print(most_recent_score_data('Q28936'))
     # print(entityid_from_movieid('m/maRVels_the_avengers'))
 
 

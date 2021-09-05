@@ -56,7 +56,7 @@ def entityid_from_movieid(movieid):
         return data[0]['item']['value'].split('/')[-1]
     return None
 
-def most_recent_score(entity_id, score_type = 'percent'):
+def most_recent_score(entity_id, score_type='percent'):
     query = f"""SELECT ?reviewvalue
 WHERE 
 {{
@@ -139,23 +139,36 @@ def score_claims_from_movie(movie):
         day=day,
         site = site)
 
-    # AVERAGE CLAIM
-    #######################################################################
     average_claim = pwb.Claim(site, 'P444')
     average_claim.setTarget(average + '/10')
 
-    # qualifiers
     review_score_by = pwb.Claim(site, 'P447')
     review_score_by.setTarget(pwb.page.ItemPage(site, 'Q105584')) # Rotten Tomatoes
     average_claim.addQualifier(review_score_by)
 
+    percent_claim = average_claim.copy()
+    percent_claim.setTarget(score + '%')
+
+    number_of_reviews = pwb.Claim(site, 'P7887')
+    review_quantity = pwb.WbQuantity(amount=count,
+        unit="http://www.wikidata.org/entity/Q80698083", # critic review
+        site=site
+    )
+    number_of_reviews.setTarget(review_quantity)
+    # only add review count to percent score
+    percent_claim.addQualifier(number_of_reviews)
+
     point_in_time = pwb.Claim(site, 'P585')
     point_in_time.setTarget(wbtimetoday)
     average_claim.addQualifier(point_in_time)
+    percent_claim.addQualifier(point_in_time)
 
     method = pwb.Claim(site, 'P459')
     method.setTarget(pwb.page.ItemPage(site, 'Q108403540')) # RT average rating
     average_claim.addQualifier(method)
+    method = method.copy()
+    method.setTarget(pwb.page.ItemPage(site, 'Q108403393')) # RT score
+    percent_claim.addQualifier(method)
     
     # reference
     statedin = pwb.Claim(site, 'P248')
@@ -169,22 +182,7 @@ def score_claims_from_movie(movie):
     retrieved = pwb.Claim(site, 'P813')
     retrieved.setTarget(wbtimetoday)
     average_claim.addSources([statedin, title, languageofwork, refURL, retrieved])
-
-    # PERCENT CLAIM
-    #######################################################################
-    percent_claim = average_claim.copy()
-    percent_claim.setTarget(score + '%')
-
-    number_of_reviews = pwb.Claim(site, 'P7887')
-    review_quantity = pwb.WbQuantity(amount=count,
-        unit="http://www.wikidata.org/entity/Q80698083", # critic review
-        site=site
-    )
-    number_of_reviews.setTarget(review_quantity)
-    percent_claim.addQualifier(number_of_reviews)
-
-    # change determination method to RT score
-    percent_claim.qualifiers['P459'][0].setTarget(pwb.page.ItemPage(site, 'Q108403393'))
+    percent_claim.addSources([statedin, title, languageofwork, refURL, retrieved])
 
     # newest scores are preferred
     percent_claim.setRank('preferred')
@@ -223,22 +221,21 @@ if __name__ == "__main__":
     site.login()
 
 
-    # count = 0
-    # items_to_edit = ['Q728404', 'Q728485', 'Q728488', 'Q728499', 'Q728539', 'Q728555', 'Q728618', 'Q729026', 'Q729246', 'Q729297', 'Q729360', 'Q729666', 'Q729671', 'Q729788', 'Q729794', 'Q729807', 'Q729836', 'Q729980', 'Q729991', 'Q730164', 'Q730228', 'Q730321', 'Q730340', 'Q730370', 'Q730436', 'Q730473', 'Q730555', 'Q730584', 'Q730639', 'Q730765', 'Q730857', 'Q730888', 'Q731082', 'Q731164', 'Q731261', 'Q731310', 'Q731335', 'Q731401', 'Q731436', 'Q731555', 'Q731645', 'Q731646', 'Q731769', 'Q731776', 'Q731855', 'Q732022', 'Q732071', 'Q732130', 'Q732230', 'Q732241']
-    # for entity_id in set(items_to_edit):
-    #     z = add_RT_claims_to_item(entity_id)
-    #     count += z
-    #     print(z, entity_id)
-    #     if count == 30:
-    #         break
-
+    count = 0
+    items_to_edit = ['Q467541']
+    for entity_id in items_to_edit:
+        z = add_RT_claims_to_item(entity_id)
+        count += z
+        print(z, entity_id)
+        if count == 30:
+            break
 
 
     # Q18152569 Meadowland
     # Q28936 Cloud Atlas
-    print(most_recent_score('Q15154975'))
-    print(most_recent_score('Q15154975', score_type='average'))
-    print(entityid_from_movieid('m/maRVels_the_avengers'))
+    # print(most_recent_score('Q15154975'))
+    # print(most_recent_score('Q15154975', score_type='average'))
+    # print(entityid_from_movieid('m/maRVels_the_avengers'))
 
 
 

@@ -23,7 +23,7 @@ from patterns import *
 # P444: review score
 # P447: review score by
 # P7887: number of ratings
-# P585: point in time
+# P585: point in time4
 # P459: determination method
 
 # P854: reference URL
@@ -73,12 +73,16 @@ WHERE
   ?reviewstatement2 pq:P585 ?time1.
   # only get most recent point in time
   filter not exists {
-    ?reviewstatement pq:P585 ?time2
+    ?item p:P444 ?reviewstatement3.
+    ?reviewstatement3 pq:P447 wd:Q105584.   # reviewed by Rotten Tomatoes.
+    ?reviewstatement3 pq:P585 ?time2.
     filter (?time2 > ?time1)
   }
 }"""
     query = query.replace('?item', 'wd:'+entity_id)
-    if data := get_results(query)[0]:
+    data = get_results(query)
+    if data:
+        data = data[0]
         return data['score']['value'], data['count']['value'], data['average']['value']
 
 def should_add_RT_claims(item):
@@ -104,10 +108,7 @@ def should_add_RT_claims(item):
     if old_score_data is None:
         return score_claims_from_movie(movie)
     else:
-        old_score, old_count, old_average = map(float, old_score_data)
-
-    if old_score is None or old_average is None:
-        return score_claims_from_movie(movie)
+        old_score, old_count, old_average = old_score_data
 
     if m := re.fullmatch(r'([0-9]|[1-9][0-9]|100)(%| percent)', old_score):
         old_score = float(m[1])
@@ -116,6 +117,11 @@ def should_add_RT_claims(item):
     
     if m := re.fullmatch(r'(([0-9]|10)(\.\d\d?)?)(?:/| out of )10', old_average):
         old_average = float(m[1])
+    else:
+        return score_claims_from_movie(movie)
+
+    if m := re.fullmatch(r'\d+', old_count):
+        old_count = float(m[0])
     else:
         return score_claims_from_movie(movie)
 
@@ -142,15 +148,14 @@ def score_claims_from_movie(movie):
         day=day,
         site = site)
 
+    percent_claim = pwb.Claim(site, 'P444')
+    percent_claim.setTarget(score + '%')
     average_claim = pwb.Claim(site, 'P444')
     average_claim.setTarget(average + '/10')
 
+    # qualifiers
     review_score_by = pwb.Claim(site, 'P447')
     review_score_by.setTarget(pwb.page.ItemPage(site, 'Q105584')) # Rotten Tomatoes
-    average_claim.addQualifier(review_score_by)
-
-    percent_claim = average_claim.copy()
-    percent_claim.setTarget(score + '%')
 
     number_of_reviews = pwb.Claim(site, 'P7887')
     review_quantity = pwb.WbQuantity(amount=count,
@@ -158,20 +163,14 @@ def score_claims_from_movie(movie):
         site=site
     )
     number_of_reviews.setTarget(review_quantity)
-    # only add review count to percent score
-    percent_claim.addQualifier(number_of_reviews)
 
     point_in_time = pwb.Claim(site, 'P585')
     point_in_time.setTarget(wbtimetoday)
-    average_claim.addQualifier(point_in_time)
-    percent_claim.addQualifier(point_in_time)
 
-    method = pwb.Claim(site, 'P459')
-    method.setTarget(pwb.page.ItemPage(site, 'Q108403540')) # RT average rating
-    average_claim.addQualifier(method)
-    method = method.copy()
-    method.setTarget(pwb.page.ItemPage(site, 'Q108403393')) # RT score
-    percent_claim.addQualifier(method)
+    percent_method = pwb.Claim(site, 'P459')
+    percent_method.setTarget(pwb.page.ItemPage(site, 'Q108403393')) # RT score
+    average_method = pwb.Claim(site, 'P459')
+    average_method.setTarget(pwb.page.ItemPage(site, 'Q108403540')) # RT average rating
     
     # reference
     statedin = pwb.Claim(site, 'P248')
@@ -180,25 +179,34 @@ def score_claims_from_movie(movie):
     title.setTarget(pwb.WbMonolingualText(movie.title, 'en'))
     languageofwork = pwb.Claim(site, 'P407')
     languageofwork.setTarget(pwb.page.ItemPage(site, 'Q1860'))
+    publisher = pwb.Claim(site, 'P123')
+    publisher.setTarget(pwb.page.ItemPage(site, 'Q5433722'))
     refURL = pwb.Claim(site, 'P854')
     refURL.setTarget(movie.url)
     retrieved = pwb.Claim(site, 'P813')
     retrieved.setTarget(wbtimetoday)
-    average_claim.addSources([statedin, title, languageofwork, refURL, retrieved])
-    percent_claim.addSources([statedin, title, languageofwork, refURL, retrieved])
+    source_order = [title, statedin, publisher, languageofwork, refURL, retrieved]
 
-    # newest scores are preferred
+    # set up qualifiers, reference, and rank for percent claim
+    for x in [review_score_by, number_of_reviews, point_in_time, percent_method]:
+        percent_claim.addQualifier(x)
+    percent_claim.addSources(source_order)
     percent_claim.setRank('preferred')
+
+    # set up qualifiers, reference, and rank for average claim
+    for x in [review_score_by, point_in_time, average_method]:
+        average_claim.addQualifier(x)
+    average_claim.addSources(source_order)
     average_claim.setRank('preferred')
 
     return [percent_claim, average_claim]
 
 
 def add_RT_claims_to_item(item_id):
-    time.sleep(10)  # slow down editing
+    time.sleep(5)  # slow down editing
     item = pwb.page.ItemPage(site, item_id)
-    z = should_add_RT_claims(item)
-    if z:
+
+    if z := should_add_RT_claims(item):
         percent_claim, average_claim = z
     else:
         return False
@@ -219,24 +227,28 @@ def add_RT_claims_to_item(item_id):
     return True
 
 
+def set_Rotten_Tomatoes_ID(item):
+    pass
+
+
 if __name__ == "__main__":
     site = pwb.Site('wikidata', 'wikidata')
     site.login()
 
 
-    # count = 0
-    # items_to_edit = ['Q467541']
-    # for entity_id in items_to_edit:
-    #     z = add_RT_claims_to_item(entity_id)
-    #     count += z
-    #     print(z, entity_id)
-    #     if count == 30:
-    #         break
+    count = 0
+    items_to_edit = ['Q2345' ]
+    for entity_id in items_to_edit:
+        z = add_RT_claims_to_item(entity_id)
+        count += z
+        print(z, entity_id)
+        if count == 30:
+            break
 
 
     # Q18152569 Meadowland
     # Q28936 Cloud Atlas
-    print(most_recent_score_data('Q28936'))
+    # print(most_recent_score_data('Q28936'))
     # print(entityid_from_movieid('m/maRVels_the_avengers'))
 
 

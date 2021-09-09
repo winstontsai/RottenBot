@@ -40,7 +40,7 @@ def get_results(query):
 
 
 def entityid_from_movieid(movieid):
-    query = f"SELECT ?item ?b WHERE{{?item wdt:P1258 ?b FILTER (regex(?b, '^{movieid}$', 'i'))}}"
+    query = f"SELECT ?item ?b WHERE{{?item wdt:P1258 '{movieid}'}}"
     data = get_results(query)
     if data:
         return data[0]['item']['value'].split('/')[-1]
@@ -155,7 +155,7 @@ def score_claims_from_movie(movie):
 
     # qualifiers
     review_score_by = pwb.Claim(site, 'P447')
-    review_score_by.setTarget(pwb.page.ItemPage(site, 'Q105584')) # Rotten Tomatoes
+    review_score_by.setTarget(pwb.ItemPage(site, 'Q105584')) # Rotten Tomatoes
 
     number_of_reviews = pwb.Claim(site, 'P7887')
     review_quantity = pwb.WbQuantity(amount=count,
@@ -168,19 +168,19 @@ def score_claims_from_movie(movie):
     point_in_time.setTarget(wbtimetoday)
 
     percent_method = pwb.Claim(site, 'P459')
-    percent_method.setTarget(pwb.page.ItemPage(site, 'Q108403393')) # RT score
+    percent_method.setTarget(pwb.ItemPage(site, 'Q108403393')) # RT score
     average_method = pwb.Claim(site, 'P459')
-    average_method.setTarget(pwb.page.ItemPage(site, 'Q108403540')) # RT average rating
+    average_method.setTarget(pwb.ItemPage(site, 'Q108403540')) # RT average rating
     
     # reference
     statedin = pwb.Claim(site, 'P248')
-    statedin.setTarget(pwb.page.ItemPage(site, 'Q105584'))
+    statedin.setTarget(pwb.ItemPage(site, 'Q105584'))
     title = pwb.Claim(site, 'P1476')
     title.setTarget(pwb.WbMonolingualText(movie.title, 'en'))
     languageofwork = pwb.Claim(site, 'P407')
-    languageofwork.setTarget(pwb.page.ItemPage(site, 'Q1860'))
+    languageofwork.setTarget(pwb.ItemPage(site, 'Q1860'))
     publisher = pwb.Claim(site, 'P123')
-    publisher.setTarget(pwb.page.ItemPage(site, 'Q5433722'))
+    publisher.setTarget(pwb.ItemPage(site, 'Q5433722'))
     refURL = pwb.Claim(site, 'P854')
     refURL.setTarget(movie.url)
     retrieved = pwb.Claim(site, 'P813')
@@ -204,7 +204,7 @@ def score_claims_from_movie(movie):
 
 def add_RT_claims_to_item(item_id):
     time.sleep(5)  # slow down editing
-    item = pwb.page.ItemPage(site, item_id)
+    item = pwb.ItemPage(site, item_id)
 
     if z := should_add_RT_claims(item):
         percent_claim, average_claim = z
@@ -216,7 +216,7 @@ def add_RT_claims_to_item(item_id):
         if 'P447' in c.qualifiers: # review by
             # check that review is by Rotten Tomatoes
             val = c.qualifiers['P447'][0].getTarget()
-            if not isinstance(val, pwb.page.ItemPage) or val.getID()!='Q105584':
+            if not isinstance(val, pwb.ItemPage) or val.getID()!='Q105584':
                 continue
             # changed 'preferred' ranks to 'normal'
             if c.rank == 'preferred':
@@ -227,6 +227,19 @@ def add_RT_claims_to_item(item_id):
     return True
 
 
+def add_RTmovie_data_to_item(movie, item):
+    if 'P1258' in item.claims:
+        item.claims['P1258'][0].changeTarget(movie.short_url)
+    else:
+        rtid_claim = pwb.Claim(site, 'P1258')
+        rtid_claim.setTarget(movie.short_url)
+        item.addClaim(rtid_claim)
+
+    if not movie.tomatometer_score:
+        return
+
+    
+
 def set_Rotten_Tomatoes_ID(item):
     pass
 
@@ -236,20 +249,34 @@ if __name__ == "__main__":
     site.login()
 
 
-    count = 0
-    items_to_edit = ['Q2345' ]
-    for entity_id in items_to_edit:
-        z = add_RT_claims_to_item(entity_id)
-        count += z
-        print(z, entity_id)
-        if count == 30:
-            break
+    # count = 0
+    # items_to_edit = ['Q2345' ]
+    # for entity_id in items_to_edit:
+    #     z = add_RT_claims_to_item(entity_id)
+    #     count += z
+    #     print(z, entity_id)
+    #     if count == 30:
+    #         break
 
 
-    # Q18152569 Meadowland
-    # Q28936 Cloud Atlas
     # print(most_recent_score_data('Q28936'))
     # print(entityid_from_movieid('m/maRVels_the_avengers'))
 
 
+    x = json.load(open('/Users/winston/Downloads/query.json'))['results']['bindings']
+
+    check_these = []
+    for result in x[1136:5000]:
+        movieid = result['rtid']['value']
+        try:
+            movie = RTMovie(movieid)
+        except Exception:
+            continue
+        z = movie.tomatometer_score
+        print(z, movie.title)
+        if z and not re.fullmatch(average_re, z[2]+'/10'):
+            check_these.append(movie.title)
+            print("FOUND IT", movie.title)
+
+    print(check_these)
 

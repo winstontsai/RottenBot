@@ -224,6 +224,18 @@ def _find_span333(match, title):
     return (i, j)
 
 
+def _p1258(title):
+    WIKIDATA_LOCK.acquire()
+    time.sleep(1)       # avoid getting blocked, better safe than sorry
+    item = ItemPage.fromPage(Page(Site('en','wikipedia'), title))
+    item.get()
+    WIKIDATA_LOCK.release()
+    if 'P1258' in item.claims:
+        z = item.claims['P1258'][0].getTarget()
+        if z.startswith('m/'):
+            return z
+    return None
+
 def _find_citation_and_id(title, m, refnames):
     if ldrefname := m.groupdict().get('ldrefname'):
         m = refnames[ldrefname]
@@ -250,18 +262,6 @@ def _find_citation_and_id(title, m, refnames):
         if not movieid.startswith('m/'):
             movieid = 'm/' + movieid
     return ref, movieid.lower()
-
-def _p1258(title):
-    WIKIDATA_LOCK.acquire()
-    time.sleep(1)       # avoid getting blocked, better safe than sorry
-    item = ItemPage.fromPage(Page(Site('en','wikipedia'), title))
-    item.get()
-    WIKIDATA_LOCK.release()
-    if 'P1258' in item.claims:
-        z = item.claims['P1258'][0].getTarget()
-        if z.startswith('m/'):
-            return z
-    return None
 
 def _inside_table(match):
     """

@@ -9,7 +9,8 @@ There is no consensus on the wording of Rotten Tomatoes prose on Wikipedia, so a
 RottenBot also has a simple flagging system to prevent undesirable or otherwise overzealous edits from being made. Flagged edits need to be reviewed and cleared by the bot operator in order for the edit to be uploaded.
 
 ## See Also
+* [Rotten Tomatoes FAQ](https://www.rottentomatoes.com/faq)
 * [RottenBot's Request for Permissions on Wikidata](https://www.wikidata.org/wiki/Wikidata:Requests_for_permissions/Bot/RottenBot)
 * [RottenBot's Request for Approval on Wikipedia](https://en.wikipedia.org/wiki/Wikipedia:Bots/Requests_for_approval/RottenBot)
 * [RottenBot's User Page on Wikipedia](https://en.wikipedia.org/wiki/User:RottenBot)
-* [Rotten Tomatoes FAQ](https://www.rottentomatoes.com/faq)
+* [Template:Rotten Tomatoes data](https://en.wikipedia.org/wiki/Template:Rotten_Tomatoes_data)

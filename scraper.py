@@ -144,19 +144,19 @@ class RTMovie:
         self.score_data = json.loads(sd[sd.find('>')+1 : sd.rfind('</scr')])
         self.year = self.score_data["scoreboard"]["info"].split(',')[0]
         self.title = self.score_data["scoreboard"]["title"]
-        if self.score_data['modal']["hasTomatometerScoreAll"]:
-            if sd := self.score_data['modal']["tomatometerScoreAll"]:
-                self.tomatometer_score = tuple(map(str, [sd["score"], sd["ratingCount"], sd["averageRating"]]))
-        if self.score_data['modal']["hasAudienceScoreAll"]:
-            if sd := self.score_data['modal']["audienceScoreAll"]:
-                self.audience_score = tuple(map(str, [sd["score"], sd["ratingCount"], sd["averageRating"]]))
-
+        #if self.score_data['modal']["hasTomatometerScoreAll"]:
+        if sd := self.score_data['modal']["tomatometerScoreAll"]:
+            s, c, a = sd["score"], sd["ratingCount"], sd["averageRating"]
+            if s is not None:
+                self.tomatometer_score = (str(s), str(c), str(a))
+        #if self.score_data['modal']["hasAudienceScoreAll"]:
+        if sd := self.score_data['modal']["audienceScoreAll"]:
+            s, c, a = sd["score"], sd["ratingCount"], sd["averageRating"]
+            if s is not None:
+                self.audience_score = (str(s), str(c), str(a))
 
 if __name__ == "__main__":
-    movie = RTMovie('m/black_widow_2021')
+    movie = RTMovie('m/the_coldest_game')
     print(movie)
-
-
-
 
 

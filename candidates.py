@@ -25,13 +25,9 @@ from googlesearch import lucky
 from colorama import Fore, Style
 
 import scraper
+import wdeditor
 from patterns import *
 ################################################################################
-
-
-class OverlappingMatchError(Exception):
-    pass
-
 
 @dataclass
 class Reference:
@@ -48,6 +44,7 @@ class RTMatch:
     span: tuple[int, int]
     ref: Reference
     movie: scraper.RTMovie = None
+    qid: str = None
 
 @dataclass
 class Candidate:
@@ -60,13 +57,14 @@ class Candidate:
     text: str            # wikitext
     matches: list[RTMatch] = field(default_factory=list)
 
-def _init(lock1, lock2):
+def _init(lock1, lock2, lock3):
     """
     To be used with Executor in find_candidates.
     """
     global WIKIDATA_LOCK
     global GOOGLESEARCH_LOCK
-    WIKIDATA_LOCK, GOOGLESEARCH_LOCK = lock1, lock2
+    global WQS_LOCK
+    WIKIDATA_LOCK, GOOGLESEARCH_LOCK, WQS_LOCK = lock1, lock2, lock3
 
 def find_candidates(xmlfile, get_user_input = False):
     """
@@ -78,8 +76,9 @@ def find_candidates(xmlfile, get_user_input = False):
 
     WIKIDATA_LOCK = multiprocessing.Lock()
     GOOGLESEARCH_LOCK = multiprocessing.Lock()
+    WQS_LOCK = multiprocessing.Lock()   # Wikidata Query Service
     with ProcessPoolExecutor(max_workers=14,
-            initializer=_init, initargs=(WIKIDATA_LOCK,GOOGLESEARCH_LOCK) ) as x:
+            initializer=_init, initargs=(WIKIDATA_LOCK,GOOGLESEARCH_LOCK, WQS_LOCK)) as x:
         futures = {x.submit(candidate_from_entry, e) : e.title for e in xml_entries}
         for future in as_completed(futures):
             total += 1
@@ -138,6 +137,19 @@ def candidate_from_entry(entry):
     for rtmatch, initial in rtmatch_and_initialids:
         safe_to_guess = len(id_set)<2 or rtmatch.span[0]<text.index('\n==')
         rtmatch.movie = _find_RTMovie(entry, initial, safe_to_guess)
+        if rtmatch.movie:
+            with WQS_LOCK:
+                rtmatch.qid = wdeditor.qid_from_movieid(rtmatch.movie.short_url)
+            # if not rtmatch.qid and safe_to_guess:
+            #     with WIKIDATA_LOCK:
+            #         item = ItemPage.fromPage(Page(Site('en','wikipedia'), title))
+            #         qid = item.getID()
+            #     query = "SELECT WHERE {?item wdt:P31 ?filmclass. ?filmclass wdt:P279* wd:Q11424.}"
+            #     query = query.replace('?item', 'wd:' + qid)
+            #     with WQS_LOCK:
+            #         if wdeditor.get_results(query):
+            #             rtmatch.qid = qid
+
         cand.matches.append(rtmatch)
 
     if cand.matches:
@@ -145,31 +157,31 @@ def candidate_from_entry(entry):
 
 def _process_needs_input_movies(cand):
     for rtm in cand.matches:
-        if rtm.movie:
-            continue
-        while True:
-            newid = _ask_for_id(cand, rtm)
-            if newid is None:
-                break
-            if z := _find_RTMovie(cand, newid):
-                rtm.movie = z
-                break
-            print(f"Problem getting Rotten Tomatoes data with id {newid}.\n")
+        if not rtm.movie:
+            while True:
+                newid = _ask_for_rtid(cand, rtm)
+                if newid is None:
+                    break
+                if z := _find_RTMovie(cand, newid):
+                    rtm.movie = z
+                    with WQS_LOCK:
+                        rtm.qid = wdeditor.qid_from_movieid(rtm.movie.short_url)
+                    break
+                print(f"Problem getting Rotten Tomatoes data with id {newid}.\n")
+        if rtm.movie and not rtm.qid:
+            rtm.qid = _ask_for_qid(cand, rtm)
 
-
-def _ask_for_id(cand, rtmatch):
-    """
-    Asks for a user decision regarding the Rotten Tomatoes id for a film.
-    """
+def _ask_for_rtid(cand, rtmatch):
     title, text = cand.title, cand.text
     i, j = rtmatch.span[0], rtmatch.span[1]
     pspan = paragraph_span((i,j), text)
-    print(f"""{Fore.CYAN+Style.BRIGHT}Need id for a match in [[{title}]].{Style.RESET_ALL}
+    print(f"""{Fore.CYAN+Style.BRIGHT}Need Rotten Tomatoes ID for a match in [[{title}]].{Style.RESET_ALL}
 {Fore.GREEN+Style.BRIGHT}Context------------------------------------------{Style.RESET_ALL}
 {text[pspan[0]: i] + Style.BRIGHT + text[i: j] + Style.RESET_ALL + text[j: pspan[1]]}
 {Fore.GREEN+Style.BRIGHT}-------------------------------------------------{Style.RESET_ALL}""")
-    prompt = 'Enter id (or open in [b]rowser, [s]kip, or [q]uit): '
-    while not re.fullmatch(r'm/[-a-z0-9_]+', (user_input:=input(prompt))):
+
+    prompt = 'Enter Rotten Tomatoes ID (or open in [b]rowser, [s]kip, or [q]uit): '
+    while not re.fullmatch(r'm/[-a-z0-9_]+', (user_input:=input(prompt)) ):
         if user_input == 'b':
             webbrowser.open(Page(Site('en','wikipedia'), title).full_url())
         elif user_input == 's':
@@ -177,8 +189,26 @@ def _ask_for_id(cand, rtmatch):
         elif user_input == 'q':
             print("Quitting program."); sys.exit()
         else:
-            print("Invalid id. Must begin with 'm/', e.g. 'm/titanic'.")
-    print()
+            print("ID must match the regex 'm/[-a-z0-9_]+'.")
+    return user_input
+
+def _ask_for_qid(cand, rtmatch):
+    title, text = cand.title, cand.text
+    rtid = rtmatch.movie.short_url
+    print(f"""{Fore.CYAN+Style.BRIGHT}Need QID for Rotten Tomatoes ID {rtid}.{Style.RESET_ALL}""")
+
+    prompt = 'Enter QID (or open in [b]rowser, [s]kip, or [q]uit): '
+    while not re.fullmatch(r'Q[0-9]+', (user_input:=input(prompt)) ):
+        if user_input == 'b':
+            webbrowser.open(scraper.rt_url(rtid))
+        elif user_input == 's':
+            print(f"Skipping match."); return None
+        elif user_input == 'q':
+            print("Quitting program."); sys.exit()
+        else:
+            print("QID must match the regex 'Q[0-9]+'.")
+    return user_input
+
 
 # ===========================================================================================
 def _find_span333(match, title):
@@ -225,15 +255,12 @@ def _find_span333(match, title):
 
 
 def _p1258(title):
-    WIKIDATA_LOCK.acquire()
-    time.sleep(1)       # avoid getting blocked, better safe than sorry
-    item = ItemPage.fromPage(Page(Site('en','wikipedia'), title))
-    item.get()
-    WIKIDATA_LOCK.release()
-    if 'P1258' in item.claims:
-        z = item.claims['P1258'][0].getTarget()
-        if z.startswith('m/'):
-            return z
+    with WIKIDATA_LOCK:
+        item = ItemPage.fromPage(Page(Site('en','wikipedia'), title))
+        if 'P1258' in item.claims:
+            z = item.claims['P1258'][0].getTarget()
+            if z.startswith('m/'):
+                return z
     return None
 
 def _find_citation_and_id(title, m, refnames):
@@ -277,17 +304,11 @@ def _inside_table(match):
     return False
 
 def googled_id(title):
-    GOOGLESEARCH_LOCK.acquire()
-    time.sleep(1)       # avoid getting blocked, better safe than sorry
     print_logger.info(f"GOOGLING ID for [[{title}]].")
-    try:
+    with GOOGLESEARCH_LOCK:
+        time.sleep(5)      # avoid getting blocked, better safe than sorry
         url = lucky(title+' movie site:rottentomatoes.com/m/',
             user_agent=scraper.USER_AGENT)
-    except urllib.error.HTTPError as x:
-        GOOGLESEARCH_LOCK.release()
-        raise
-    else:
-        GOOGLESEARCH_LOCK.release()
     suggested_id = url.split('rottentomatoes.com/m/')[1]
     return 'm/' + suggested_id.split('/')[0]
 

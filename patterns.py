@@ -57,16 +57,18 @@ def is_subspan(x, y):
 ##############################################################################
 # Helper functions for making regular expressions
 ##############################################################################
-
 def alternates(l):
     return f'(?:{"|".join(l)})'
 
-def template_pattern(name):
+def template_pattern(name, disambiguator = ''):
     """
     Returns regex matching the specified template.
     Assumes no nested templates.
     """
-    return fr'{{{{ *{name} *(?:\|.*?)?}}}}'
+    disambiguator = str(disambiguator) # used to prevent duplicate group names
+    z = ''.join(x for x in name if x.isalpha())[:20] + str(len(name)) + disambiguator
+    t = r'(?P<template_' + z + r'>{{(?:[^}{]|(?&template_' + z + r'))*}})'
+    return fr'{{{{\s*{name}\s*(?:\|(?:[^}}{{]|{t})*)?}}}}'
 
 def construct_redirects(l):
     """
@@ -159,14 +161,16 @@ asof_redirects = ["As of", "Asof"]
 t_asof = fr"(?P<asof>{template_pattern(construct_redirects(asof_redirects))})"
 
 t_alternates = alternates([t_other,t_citert,t_rt])
-citation_re = fr'(?P<citation><ref( +name *= *"?(?P<refname>[^>]+?)"?)? *>((?!<ref).)*?{t_alternates}((?!<ref).)*</ref *>)'
+citation_re = fr'(?P<citation><ref(\s+name\s*=\s*"?(?P<refname>[^>]+?)"?)?\s*>((?!<ref).)*?{t_alternates}((?!<ref).)*</ref\s*>)'
 
 # for list-defined references.
-# ldref_re = fr'(?P<ldref><ref +name *= *"?(?P<ldrefname>[^>]+?)"? */>)'
+# ldref_re = fr'(?P<ldref><ref +name\s*=\s*"?(?P<ldrefname>[^>]+?)"?\s*/>)'
 
-someref_re = fr'\s*(?:<ref(?:(?!<ref).)+?/(?:ref *)?>|{template_pattern(r"[rR]")})'
+someref_re = fr'\s*(?:<ref(?:(?!<ref).)+?/(?:ref\s*)?>|{template_pattern(r"[rR]")})'
+someref_re2 = fr'\s*(?:<ref(?:(?!<ref).)+?/(?:ref\s*)?>|{template_pattern(r"[rR]", disambiguator=2)})'
 # matches zero or more consecutive references (not necessarily for RT), use re.DOTALL
 anyrefs_re = fr'(?:{someref_re})*'
+anyrefs_re2 = fr'(?:{someref_re2})*'
 
 def section(name):
     """
@@ -180,7 +184,6 @@ notincurly = r'(?!((?!\n\n)[^}{]|(?&template))*\})' # i.e. not in template
 notincom = r'(?!((?!<!--|\n\n).)*-->)'
 notinref = r'(?!((?!<ref|\n\n).)*</ref)'
 
-
 cn_redirects = ['cb', 'ciation needed', 'cit', 'cita requerida', 'citaiton needed',
 'cit(ation|e) missing', 'citation[ -]?needed', 'citation requested',
 'citation ?required', 'citationeeded', 'citazione necessaria', 'cite[ -]?needed',
@@ -191,6 +194,11 @@ cn_redirects = ['cb', 'ciation needed', 'cit', 'cita requerida', 'citaiton neede
 'reference needed', 'refplease', 'request citation', 'source needed',
 'sourceme', 'uncited', 'unreferenced inline', 'unsourced-inline']
 cn_re = fr'(?i:{template_pattern(construct_redirects(cn_redirects))})'
+
+
+infobox_film_redirects = ['infobox (film|movie)', 'film infobox',
+'infobox hollywood cartoon', 'infobox (tamil|japanese|short) film']
+infobox_film_re = fr'(?i:{template_pattern(construct_redirects(infobox_film_redirects))})'
 
 if __name__ == "__main__":
     print(t_rtprose)

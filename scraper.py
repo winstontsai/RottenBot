@@ -1,18 +1,18 @@
 # This module is for scraping rottentomatoes.com.
 ################################################################################
-import re
-import sys
 import json
 import logging
-logger = logging.getLogger(__name__)
-print_logger = logging.getLogger('print_logger')
+import re
+import sys
 
-from datetime import date
 from dataclasses import dataclass, field
+from datetime import date
 
 import requests
 
 from bs4 import BeautifulSoup
+
+logger = logging.getLogger(__name__)
 ################################################################################
 USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:91.0) Gecko/20100101 Firefox/91.0'
 RT_HEADERS = {
@@ -156,7 +156,7 @@ class RTMovie:
                 self.audience_score = (str(s), str(c), str(a))
 
 if __name__ == "__main__":
-    movie = RTMovie('m/the_coldest_game')
+    movie = RTMovie('m/society')
     print(movie)
 
 

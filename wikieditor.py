@@ -1,23 +1,24 @@
 # This module takes Candidates and computes replacement text.
 ################################################################################
+import logging
 import sys
 import webbrowser
-import logging
-logger = logging.getLogger(__name__)
-print_logger = logging.getLogger('print_logger')
 
 from dataclasses import dataclass
 from datetime import date
 
-import editor
 import regex as re
 import wikitextparser as wtp
 
+from colorama import Fore, Style
 from pywikibot import Page, Site
 from rapidfuzz.fuzz import partial_ratio
-from colorama import Fore, Style
+
+import editor
 
 from patterns import *
+
+logger = logging.getLogger(__name__)
 ################################################################################
 @dataclass
 class Edit:
@@ -420,13 +421,12 @@ def citation_replacement(rtmatch):
     ref = rtmatch.ref
     refname = ref.name if ref else None
     m = rtmatch.movie
-    s = "<ref"
-    s += f' name="{refname}">' if refname else '>'
+    s = "<ref" + f' name="{refname}">' if refname else '>'
     template_dict = {
         'url': m.url,
         'title': m.title,
         'website' : '[[Rotten Tomatoes]]',
-        'publisher' : '[[Fandango Media]]',
+        'publisher' : '[[Fandango Media|Fandango]]',
         'access-date': m.access_date
     }
     if ref:
@@ -438,8 +438,7 @@ def citation_replacement(rtmatch):
                 if (x:= d.get('archive-date') or d.get('archivedate')):
                     template_dict['archive-date'] = x
                 template_dict['url-status'] = 'live'
-    s += construct_template('Cite web', template_dict) + "</ref>"
-    return s
+    return s + construct_template('Cite web', template_dict) + "</ref>"
 
 def safe_to_add_consensus1(rtmatch, cand, new_text = ''):
     consensus = rtmatch.movie.consensus
@@ -472,8 +471,8 @@ def safe_to_add_consensus2(rtmatch, cand, new_text = ''):
     p_start, p_end = paragraph_span(rtmatch.span, text)
     pattern = someref_re + r"|''.*?''|\{.*?\}|\[[^]]*\||<!--.*?-->|\W"
 
-    before = re.sub(pattern, '', text[p_start:span[0]], flags=re.S)
-    after =  re.sub(pattern, '', text[span[1]: p_end], flags=re.S)
+    before   = re.sub(pattern, '', text[p_start:span[0]], flags=re.S)
+    after    =  re.sub(pattern, '', text[span[1]: p_end], flags=re.S)
     new_text = re.sub(pattern, '', new_text, flags=re.S)
 
     consensus = re.sub(pattern, '', consensus, flags=re.S)

@@ -81,7 +81,6 @@ def listpages(args):
         for x in cat.articles(recurse=True, namespaces=0):
             print(x.title())
 
-
 def get_args():
     parser = argparse.ArgumentParser(description = 'Bot to help edit Rotten Toatoes film ratings on the English Wikipedia.',
         epilog="""Use '-h' after a subcommand to read about a specific subcommand.

@@ -14,7 +14,7 @@ from bs4 import BeautifulSoup
 
 logger = logging.getLogger(__name__)
 ################################################################################
-USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:91.0) Gecko/20100101 Firefox/91.0'
+USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:92.0) Gecko/20100101 Firefox/92.0'
 RT_HEADERS = {
     'Host': 'www.rottentomatoes.com',
     'User-Agent': USER_AGENT,
@@ -24,7 +24,12 @@ RT_HEADERS = {
     'DNT': '1',
     'Connection': 'keep-alive',
     'Upgrade-Insecure-Requests': '1',
-    'Sec-GPC': '1',
+    # 'Referer': 'https://www.rottentomatoes.com/',
+    # 'Sec-Fetch-Dest': 'document',
+    # 'Sec-Fetch-Mode': 'navigate',
+    # 'Sec-Fetch-Site': 'none',
+    # 'Sec-Fetch-User': '?1',
+    # 'Sec-GPC': '1',
 }
 
 def rt_url(movieid):
@@ -91,19 +96,23 @@ class RTMovie:
             html = url_contents(rt_url(self.short_url))
         except requests.exceptions.HTTPError as x:
             if x.response.status_code == 403:
-                logger.exception("Probably blocked by rottentomatoes.com. Exiting thread")
+                logger.exception("Probably blocked by rottentomatoes.com. Exiting.")
                 sys.exit()
             elif x.response.status_code == 404:
                 logger.debug("404 Client Error", exc_info=True)
             elif x.response.status_code == 500:
                 logger.debug("500 Server Error", exc_info=True)
+            elif x.response.status_code == 503:
+                logger.exception("Probably blocked by rottentomatoes.com? Exiting.")
+                sys.exit()
             elif x.response.status_code == 504:
                 logger.debug("504 Server Error", exc_info=True)
             else:
-                logger.exception("An unknown HTTPError occured for short url %s", self.short_url)
+                logger.exception(f"An unknown HTTPError occured for short url {self.short_url}. Exiting.")
+                sys.exit()
             raise
         except requests.exceptions.TooManyRedirects as x:
-            logger.exception("Too many redirects for short url %s", self.short_url)
+            logger.exception("Too many redirects for %s", self.short_url)
             raise
 
         soup = BeautifulSoup(html, "html.parser")

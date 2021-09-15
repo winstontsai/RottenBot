@@ -12,6 +12,7 @@ from concurrent.futures import as_completed, ProcessPoolExecutor
 from dataclasses import dataclass, field
 from itertools import chain
 
+import pywikibot as pwb
 import regex as re
 import wikitextparser as wtp
 
@@ -43,7 +44,7 @@ class RTMatch:
     span: tuple[int, int]
     ref: Reference
     movie: scraper.RTMovie = None
-    qid: str = None
+    qid: str = None   # special value 'connected' means use connected Wikidata item
     initial_rtid: str = None
     safe_to_guess: bool = False
 
@@ -78,7 +79,7 @@ def find_candidates(xmlfile, get_user_input = False):
     WIKIDATA_LOCK = multiprocessing.Lock()
     GOOGLESEARCH_LOCK = multiprocessing.Lock()
     WQS_LOCK = multiprocessing.Lock()   # Wikidata Query Service
-    with ProcessPoolExecutor(max_workers=12,
+    with ProcessPoolExecutor(max_workers=10,
             initializer=_init, initargs=(WIKIDATA_LOCK,GOOGLESEARCH_LOCK, WQS_LOCK)) as executor:
         futures = {executor.submit(candidate_from_entry, e) : e.title for e in xml_entries}
 
@@ -117,7 +118,7 @@ def find_candidates(xmlfile, get_user_input = False):
                 print('SHUTTING DOWN due to an exception.')
                 raise
             if cand.matches:
-                logger.info(f"Found candidate [[{futures[future]}]].")
+                print(f"Found candidate [[{futures[future]}]].")
                 count += 1
                 yield cand
     logger.info(f"Found {count} candidates out of {total} pages")
@@ -299,7 +300,10 @@ def _find_span(match, title):
 
 def P1258(title):
     with WIKIDATA_LOCK:
-        item = ItemPage.fromPage(Page(Site('en','wikipedia'), title))
+        try:
+            item = ItemPage.fromPage(Page(Site('en','wikipedia'), title))
+        except pwb.exceptions.NoPageError:
+            return None
         item.get()
     if rtid_claims := item.claims.get(P_ROTTEN_TOMATOES_ID):
         if rtid_claims[0].target.startswith('m/'):
@@ -399,10 +403,16 @@ def _find_RTMovie(cand, rtm, make_guess = False):
             return True
         if not re.search(f"''{re.escape(movie.title)}''", lead, flags=re.I):
             return False
+        if not movie.runtime:
+            return False
         z = re.findall(r'\d+', movie.runtime)
         if len(z) == 1:
             z = ['0'] + z
-        hours, minutes = map(int, z)
+        try:
+            hours, minutes = map(int, z)
+        except ValueError:
+            raise ValueError(f'Check runtime for {movie.title}.')
+
         return f'{60*hours+minutes} min' in infobox
 
     if (gid := googled_id(title)) not in seen_ids:
@@ -421,7 +431,11 @@ def _find_qid(cand, rtm, rtid_to_qid):
     """
     if b := rtid_to_qid[rtm.movie.short_url] or rtid_to_qid[rtm.initial_rtid]:
         return b
-    item = ItemPage.fromPage(Page(Site('en','wikipedia'), cand.title))
+
+    try:
+        item = ItemPage.fromPage(Page(Site('en','wikipedia'), cand.title))
+    except pwb.exceptions.NoPageError:
+        return None
 
     if rtm.safe_to_guess: # and FilmTypes.has_film_type(item):
         return item.getID()

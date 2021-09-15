@@ -69,10 +69,11 @@ class RTID_to_QID:
         return self.data.get(rtid, None)
 
     def __setitem__(self, rtid, value):
-        if rtid is None or value is None:
+        if type(rtid) != str or type(value) != str:
+            return
+        if not re.fullmatch('m/[-a-z0-9_]+', rtid) or not re.fullmatch('Q[0-9]+', value):
             return
         self.data[rtid] = value
-
 
 def date_from_claim(c):
     """
@@ -208,7 +209,7 @@ def score_claims_from_movie(movie):
     # languageofwork = make_claim(P_LANGUAGE, make_item(Q_ENGLISH))
     # retrieved = make_claim(P_RETRIEVED, wbtimetoday)
 
-    source_order = [statedin, rtid_claim, title, retrieved]
+    source_order = [statedin, rtid_claim]
 
     # add qualifiers, reference, and rank for percent claim
     for x in [review_score_by, number_of_reviews, point_in_time, percent_method]:
@@ -249,19 +250,21 @@ def add_RTmovie_data_to_item(movie, qid):
     Adds/updates the Rotten Tomatoes data in a Wikidata item.
     Currently this means the Rotten Tomatoes ID and the two score claims.
     """
-    print(f"Checking item {item.title()} aka {item.labels.get('en')}.")
     changed = False
+    title = movie.title
     item = make_item(qid)
+    print(f"Checking item {item.getID()} aka {item.labels.get('en')}.")
 
-    titlediff = movie.title != item.labels['en']
-    if titlediff and movie.title not in item.aliases['en']:
-        item.editAliases( {'en': item.aliases['en']+[movie.title] } )
+    titlediff = title.lower() != item.labels['en'].lower()
+    if titlediff and title not in (s.lower() for s in item.aliases['en']):
+        item.editAliases( {'en': item.aliases['en']+[title] }, summary=f'Add alias {title}. Test edit. See [[Wikidata:Requests for permissions/Bot/RottenBot]].')
 
     # check if up-to-date Rotten Tomatoes ID exists, add if it does not.
+    # also add P_NAMED_AS qualifier if the RT title is different from the label
     for claim in item.claims.get(P_ROTTEN_TOMATOES_ID, []):
         if claim.target == movie.short_url:
-            if titlediff:
-                claim.addQualifier(make_claim(P_NAMED_AS, movie.title))
+            if titlediff and P_NAMED_AS not in claim.qualifiers:
+                claim.addQualifier(make_claim(P_NAMED_AS, title), summary='Add {{P|1810}} qualifier to {{P|1358}} claim. Test edit. See [[Wikidata:Requests for permissions/Bot/RottenBot]].')
             break
     else:
         d, m, y = map(int, date.today().strftime('%d %m %Y').split())
@@ -269,7 +272,7 @@ def add_RTmovie_data_to_item(movie, qid):
         rtid_claim = make_claim(P_ROTTEN_TOMATOES_ID, movie.short_url)
         rtid_claim.addSource(retrieved)
         if titlediff:
-            rtid_claim.addQualifier(make_claim(P_NAMED_AS, movie.title))
+            rtid_claim.addQualifier(make_claim(P_NAMED_AS, title))
         item.addClaim(rtid_claim)
         changed = True
 
@@ -277,7 +280,7 @@ def add_RTmovie_data_to_item(movie, qid):
         changed = True
 
     if changed:
-        print(f"Updated item {item.title()} aka {item.labels.get('en')}.")
+        print(f"Updated item {item.getID()} aka {item.labels.get('en')}.")
     return changed
 
 
@@ -323,6 +326,9 @@ if __name__ == "__main__":
     #     qid = entity_uri.split('/')[-1]
     #     rtid = result['rtid']['value']
     #     pairs.append((qid, rtid))
+
+    pairs = [('Q943338', 'm/hitch')]
+    update_film_items(pairs)
 
 
 

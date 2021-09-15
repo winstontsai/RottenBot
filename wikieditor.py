@@ -33,8 +33,7 @@ class FullEdit:
 
 def compute_edits(candidates, get_user_input = True):
     """
-    The candidates parameter should be
-    an iterable of candidate objects.
+    candidates is an iterable of candidate objects.
     """
     for cand in candidates:
         fe = fulledit_from_candidate(cand)

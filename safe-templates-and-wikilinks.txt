@@ -23,6 +23,11 @@ T:Nsmdashns
 T:Nsmdns
 T:RT
 T:RT prose
+T:Rottentomatoes
+T:Rotten
+T:Rotten tomatoes
+T:Rottentomatoes.com
+T:Rotten-tomatoes
 T:Rotten Tomatoes prose
 T:Snd
 T:Zero width joiner em dash zero width non joiner
@@ -38,3 +43,4 @@ WL:Rotten Tomatoes
 WL:Weighted arithmetic mean
 WL:Weighted average
 WL:Weighted mean
+WL:List of films with a 0% rating on Rotten Tomatoes

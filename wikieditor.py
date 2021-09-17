@@ -7,16 +7,16 @@ import webbrowser
 from dataclasses import dataclass
 from datetime import date
 
+import editor
 import regex as re
 import wikitextparser as wtp
 
 from colorama import Fore, Style
-from pywikibot import Page, Site
+from pywikibot import Page, Site, ItemPage
 from rapidfuzz.fuzz import partial_ratio
 
-import editor
-
 from patterns import *
+from wdeditor import *
 
 logger = logging.getLogger(__name__)
 ################################################################################
@@ -31,13 +31,13 @@ class FullEdit:
     title: str
     edits: list[Edit]
 
-def compute_edits(candidates, get_user_input = True):
+def compute_edits(candidates, get_user_input = False):
     """
     candidates is an iterable of candidate objects.
     """
     for cand in candidates:
         fe = fulledit_from_candidate(cand)
-        if not fe:
+        if not fe.edits:
             continue
         if get_user_input:
             _process_manual_reviews(cand, fe)
@@ -47,13 +47,26 @@ def fulledit_from_candidate(cand):
     with open('safe-templates-and-wikilinks.txt', 'r') as f:
         safe_templates_and_wikilinks = set(line.rstrip('\n') for line in f)
 
-    editlist = []
+    # find qid of item connected to cand's article
+    current_item, cand.qid = None, None
+    # try:
+    #     current_item = ItemPage.fromPage(Page(Site('en','wikipedia'), cand.title))
+    #     cand.qid = current_item.getID()
+    # except pwb.exceptions.NoPageError:
+    #     pass
+    fulledit = FullEdit(cand.title, [])
+    fulledit.qid = cand.qid
+
+    updated_items = set()
     for match in cand.matches:
-        if not match.movie or not match.movie.tomatometer_score:
-            continue
-        editlist.append(_suggested_edit(match, cand, safe_templates_and_wikilinks))
-    if editlist:
-        return FullEdit(cand.title, editlist)
+        # if match.qid not in updated_items:
+        #     if match.qid == cand.qid:
+        #         add_RTmovie_data_to_item(match.movie, current_item)
+        #     else:
+        #         add_RTmovie_data_to_item(match.movie, make_item(match.qid))
+        #     updated_items.add(match.qid)
+        fulledit.edits.append(_suggested_edit(cand, match, safe_templates_and_wikilinks))
+    return fulledit
 
 
 def _process_manual_reviews(cand, fe):
@@ -61,7 +74,7 @@ def _process_manual_reviews(cand, fe):
         safe_templates_and_wikilinks = set(line.rstrip('\n') for line in f)
 
     for i, edit in enumerate(fe.edits):
-        if edit.flags <= {'invisible edit'}:
+        if not edit.flags:
             continue
         _ask_for_review(cand.title, cand.text,
             cand.matches[i], edit, safe_templates_and_wikilinks)
@@ -220,14 +233,14 @@ def _compute_flags(rtmatch, cand, safe_templates_and_wikilinks):
         flags.add('multiple scores')
 
     k = pattern_count(average_re, str(text_no_refs)) + uses_rtprose
-    if k == 0:
-        flags.add('missing average')
+    # if k == 0:
+    #     flags.add('missing average')
     if k > 1:
         flags.add('multiple averages')
 
     k = pattern_count(count_re, str(text_no_refs)) + uses_rtprose
-    if k == 0:
-        flags.add('missing count')
+    # if k == 0:
+    #     flags.add('missing count')
     if k > 1:
         flags.add('multiple counts')
 
@@ -252,9 +265,9 @@ def _compute_flags(rtmatch, cand, safe_templates_and_wikilinks):
 
     return flags
 
-def _suggested_edit(rtmatch, cand, safe_templates_and_wikilinks):
+def _suggested_edit(cand, rtmatch, safe_templates_and_wikilinks):
     flags = _compute_flags(rtmatch, cand, safe_templates_and_wikilinks)
-    backup = Edit(_complete_replacements(rtmatch, cand), flags)
+    backup = Edit(_complete_replacements(cand, rtmatch), flags)
 
     reduced_flags = set(x for x in flags if not re.match(r'(T|WL):', x))
     # if reduced_flags:
@@ -271,61 +284,52 @@ def _suggested_edit(rtmatch, cand, safe_templates_and_wikilinks):
 
 
     if m := re.search(t_rtprose, new_prose):
-        # order is score, average, count
-        d = parse_template(m[0])[1]
-        d['1'] = score
-        d['3'] = count
-        if float(d['2'])!=float(average):
-            z = str(float(average))
-            if '.00' in average:
-                z = average[0]
-            d['2'] = z
-        new_prose = new_prose.replace(m[0], construct_template('Rotten Tomatoes prose', d))
+        new_prose = new_prose.replace(m[0], rtdata_template('prose', qid=rtmatch.qid))
     else:
         # if not re.search(average_re, text) or not re.search(count_re, text):
         #     pass
-        if (m:=re.search(r'ilms with a (100|0)% rating on Rotten Tom', new_prose)) and m[1] != score:
-            flags.add(r'no longer 0% or 100%')
+        on_list = re.search(r'\[\[\s*(?:List of )?films with a (100|0)% rating on Rotten Tomatoes\s*\|([^]]+)\]\]', new_prose, flags=re.I)
+        if on_list:
+            if on_list[1] != score:
+                new_prose = new_prose.replace(on_list[0], on_list[2].strip())
+                flags.add('no longer 0% or 100%')
+        elif re.search(r'\[\[\s*(List of )?films with a (100|0)% rating on Rotten Tomatoes', new_prose, flags=re.I):
+            flags.add('check wikilink to list of films')
         #else:
         def repl(m):
-            #print(m[0])
             if m['average']:
-                z = str(float(average))
-                if '.00' in average:
-                    z = average[0]
-                if not re.match(r'\d', m['average']):
-                    return z + '/10'
-                if float(m['average'])==float(average):
-                    return m[0]
-                return z + m['outof'] + '10'
+                return rtdata_template('average', qid=rtmatch.qid)
             if m['count']:
-                return count + ' ' + m['count_term']
+                return rtdata_template('count', qid=rtmatch.qid) + ' ' + m['count_term']
             if m['score']:
-                return score + '%'
+                return rtdata_template('score', qid=rtmatch.qid)
         new_prose = re.sub(fr'{average_re}|{count_re}|{score_re}', repl, new_prose)
 
         # Update "As of"
         if m:=re.search(t_asof, new_prose): # As of template
             d = parse_template(m[0])[1]
-            day, month, year = date.today().strftime("%d %m %Y").split()
-            d['1'], d['2'] = year, month
             if '3' in d:
-                d['3'] = day
-            new_prose = new_prose.replace(m[0], construct_template("As of", d))
-        elif m:=re.search(r"[Aa]s of (?=January|February|March|April|May|June|July|August|September|October|November|December|[1-9])[ ,a-zA-Z0-9]{,14}[0-9]{4}(?![0-9])", new_prose):
-            day, month, year = date.today().strftime("%d %m %Y").split()
-            d = {'1':year, '2':month}
-            if pattern_count(r'[0-9]', m[0]) > 4: # if includes day
-                d['3'] = day
+                d['4'] = 'd'
+            if '2' in d:
+                d['3'] = 'm'
+            if '1' in d:
+                d['2'] = 'y'
+            d['1'] = 'date'
+            d['qid'] = rtmatch.qid
+            new_prose = new_prose.replace(m[0], rtdata_template(**d))
+        elif m:=re.search(r"[Aa]s of (?=Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|[1-9]).{,14}(?<![0-9])[0-9]{4}(?![0-9])", new_prose, flags=re.S):
+            d = {'1':'date', '2':'y', '3':'m', 'qid': rtmatch.qid}
+            if pattern_count('[0-9]', m[0]) > 4: # if includes day
+                d['4'] = 'd'
                 if not m[0][6].isdecimal(): # if not day before month
                     d['df'] = 'US'
             if m[0][0] == 'a':
                 d['lc'] = 'y'
-            new_prose = new_prose.replace(m[0], construct_template("As of", d))
+            new_prose = new_prose.replace(m[0], rtdata_template(**d))
         elif re.search(r"\b[Aa]s of\b", new_prose):
             flags.add('As of')
 
-        # Not a weighted average???
+        # Not a weighted average??? At the very least unsourced.
         for wl in wtp.parse(new_prose).wikilinks:
             z = wl.title.strip().lower()
             if re.match(r'weighted (average|(arithmetic )?mean)|average (rating|score)|rating average', z):
@@ -338,17 +342,23 @@ def _suggested_edit(rtmatch, cand, safe_templates_and_wikilinks):
     new_prose = new_prose.replace('"..', '".')
     new_prose = new_prose.replace('.".', '."')
     new_prose = new_prose.replace('".', '."')
-    new_prose = re.sub(someref_re, lambda m: m.group().lstrip(), new_prose, flags=re.S)
+    new_prose = re.sub(someref_re, lambda m: m[0].lstrip(), new_prose, flags=re.S)
+
+    # An xx% rating vs a xx% rating...
+    if score.startswith('8') or score in ('11', '18'):
+        new_prose = new_prose.replace(' a {{RT data|score', ' an {{RT data|score')
+    else:
+        new_prose = new_prose.replace(' an {{RT data|score', ' a {{RT data|score')
+    if average.startswith('8'):
+        new_prose = new_prose.replace(' a {{RT data|average', ' an {{RT data|average')
+    else:
+        new_prose = new_prose.replace(' an {{RT data|average', ' a {{RT data|average')
 
     if (x:=safe_to_add_consensus1(rtmatch, cand, new_prose)) != (y:=safe_to_add_consensus2(rtmatch, cand, new_prose)):
-        flags.add('check critics consensus')
+        flags.add('check critics consensus status')
         # print(x, y, '\n', cand.title, '\n')
     if y:
         new_prose += ' ' + rating_and_consensus_prose(rtmatch.movie)[1]
-
-    # Don't make an edit if the prose (without refs) is the same.
-    if ref and new_prose == text:
-        flags.add('invisible edit')
 
     replacements = []
     # citation update
@@ -356,11 +366,32 @@ def _suggested_edit(rtmatch, cand, safe_templates_and_wikilinks):
         refwikitext = wtp.parse(ref.text)
         if refwikitext.templates:
             t = refwikitext.templates[0]
-            if re.search('cit(e|ation)', t.normal_name().lower()):
-                if t.get_arg('accessdate'):
-                    t.set_arg('accessdate', rtmatch.movie.access_date)
-                else:
-                    t.set_arg('access-date', rtmatch.movie.access_date)
+            d_access_date = {'1': 'access date', 'qid': rtmatch.qid}
+            # d_url = {'1': 'url', 'qid': rtmatch.qid}
+            # d_rtid = {'1': 'rtid', '2':'noprefix', 'qid': rtmatch.qid}
+
+            if x := t.get_arg('accessdate') or t.get_arg('access-date'):
+                value = str(x).partition('=')[2].strip()
+                t.del_arg('accessdate')
+                if re.match(r'\d{4}', value): # then ymd. Default is mdy.
+                    d_access_date['df'] = 'ymd'
+                elif re.match(r'\d', value):
+                    d_access_date['df'] = 'dmy'
+                t.set_arg('access-date', rtdata_template(**d_access_date))
+            if x := t.get_arg('title'):
+                value = str(x).partition('=')[2].strip()
+                new_title = rtmatch.movie.title
+                if value.startswith("''"):
+                    new_title = "''"+new_title+"''"
+                if re.search(r'\d{4}\)$', value):
+                    new_title += ' (' + rtmatch.movie.year + ')'
+                t.set_arg('title', new_title)
+            if t.has_arg('url'):
+                t.set_arg('url', rtmatch.movie.url)            
+            if t.has_arg('id') and re.match(t_citert, str(t), flags=re.S):
+                t.set_arg('id', rtmatch.movie.short_url[2:])
+
+            if 'cit' in t.normal_name().lower():
                 new_citation = str(refwikitext)
             else:
                 new_citation = citation_replacement(rtmatch)
@@ -370,39 +401,37 @@ def _suggested_edit(rtmatch, cand, safe_templates_and_wikilinks):
         if ref.list_defined:
             replacements = [(ref.text, new_citation)]
         else:
-            new_prose = re.sub(someref_re, '', new_prose, flags=re.S)
-            new_prose += new_citation
+            new_prose = re.sub(someref_re, '', new_prose, flags=re.S) + new_citation
     else:
         new_prose += citation_replacement(rtmatch)
 
     # remove citation needed template
     new_prose = re.sub(cn_re, '', new_prose, flags=re.S)
 
+    # remove qid parameter when it matches connected item
+    if True: #cand.qid == rtmatch.qid:
+        new_prose = new_prose.replace('|qid=' + rtmatch.qid, '')
+
     replacements = [(text, new_prose)] + replacements
 
     return Edit(replacements, flags)
 
-def _complete_replacements(rtmatch, cand):
+def _complete_replacements(cand, rtmatch):
     rating, consensus = rating_and_consensus_prose(rtmatch.movie)
     new_citation = citation_replacement(rtmatch)
     span, text, ref = rtmatch.span, cand.text, rtmatch.ref
-    pstart, pend = paragraph_span(span, text)
-    text_to_check = text[pstart:span[0]] + text[span[1]:pend]
 
     new_text = rating
-    if safe_to_add_consensus1(rtmatch, cand):
+    if safe_to_add_consensus2(rtmatch, cand):
         new_text += ' ' + consensus
 
+    replacements = []
     if ref and ref.list_defined:
+        replacements = [(ref.text, new_citation)]
         new_text += f'<ref name="{ref.name}" />'
     else:
         new_text += new_citation
-
-    span = rtmatch.span
-    replacements = [(cand.text[span[0]:span[1]], new_text)]
-    if ref and ref.list_defined:
-        replacements.append( (ref.text, new_citation) )
-
+    replacements = [(text[span[0]:span[1]], new_text)] + replacements
     return replacements
 
 def rating_and_consensus_prose(movie):
@@ -417,16 +446,15 @@ f"of {score}% based on {count} reviews, with an average rating of {average}/10."
     return (s, f'The site\'s critical consensus reads, "{consensus}"')
 
 def citation_replacement(rtmatch):
-    ref = rtmatch.ref
+    ref, movie = rtmatch.ref, rtmatch.movie
     refname = ref.name if ref else None
-    m = rtmatch.movie
     s = "<ref" + f' name="{refname}">' if refname else '>'
     template_dict = {
-        'url': m.url,
-        'title': m.title,
+        'url': movie.url,
+        'title': movie.title,
         'website' : '[[Rotten Tomatoes]]',
         'publisher' : '[[Fandango Media|Fandango]]',
-        'access-date': m.access_date
+        'access-date': rtdata_template('date', qid=rtmatch.qid)
     }
     if ref:
         wikitext = wtp.parse(ref.text)
@@ -434,8 +462,7 @@ def citation_replacement(rtmatch):
             d = parse_template(str(wikitext.templates[0]))[1]
             if (x:= d.get('archive-url') or d.get('archiveurl')):
                 template_dict['archive-url'] = x
-                if (x:= d.get('archive-date') or d.get('archivedate')):
-                    template_dict['archive-date'] = x
+                template_dict['archive-date'] = d.get('archive-date') or d.get('archivedate')
                 template_dict['url-status'] = 'live'
     return s + construct_template('Cite web', template_dict) + "</ref>"
 
@@ -499,12 +526,7 @@ def balanced_brackets(text):
                 return False
     return not stack
 
-
-
-
 if __name__ == "__main__":
-    pass
-
-
+    print(rtdata_template('score', qid='Q333'))
 
 

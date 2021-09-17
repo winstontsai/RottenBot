@@ -92,11 +92,12 @@ def parse_template(template):
     d, counter = dict(), 1
     pieces = [x.strip() for x in template.strip('{}').split('|')]
     for piece in pieces[1:]:
-        if (j := piece.find('=')) == -1:
-            d[str(counter)] = piece
-            counter += 1
+        param, equals, value = piece.partition('=')
+        if equals:
+            d[param.rstrip()] = value.lstrip()
         else:
-            d[piece[:j].rstrip()] = piece[j+1:].lstrip()
+            d[str(counter)] = param
+            counter += 1
     return (pieces[0], d)
 
 def construct_template(name, d):
@@ -109,6 +110,11 @@ def construct_template(name, d):
         if not re.fullmatch(r"[1-9][0-9]*", k):
             named += f"|{k}={v}"
     return '{{' + name + positional + named + '}}'
+
+def rtdata_template(*args, **kwargs):
+    for i, arg in enumerate(args, start=1):
+        kwargs[str(i)] = arg
+    return construct_template('RT data', kwargs)
 
 ##############################################################################
 # Regular expressions

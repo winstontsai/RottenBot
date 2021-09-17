@@ -7,7 +7,7 @@ Many film articles on Wikipedia contain Rotten Tomatoes data for the film. For s
 RottenBot also has a simple flagging system to prevent certain undesirable edits from being made. Flagged edits must be reviewed and cleared by the bot operator in order to be uploaded.
 
 ## Limitations
-The bot does not handle [shortened footnote](https://en.wikipedia.org/wiki/Help:Shortened_footnotes) citation styles or [link rot](https://en.wikipedia.org/wiki/Wikipedia:Link_rot).
+The bot does not handle [shortened footnote](https://en.wikipedia.org/wiki/Help:Shortened_footnotes) citation styles or [link rot](https://en.wikipedia.org/wiki/Wikipedia:Link_rot) if the movie has been removed from Rotten Tomatoes.
 
 ## See Also
 * [Rotten Tomatoes FAQ](https://www.rottentomatoes.com/faq)

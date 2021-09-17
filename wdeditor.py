@@ -94,7 +94,11 @@ def date_from_claim(c):
             y, m, d = wbtime.year or 1, wbtime.month or 1, wbtime.day or 1
             return date(y, m, d)
 
-    return date(1, 1, 1 + (c.rank=='normal') + 2*(c.rank=='preferred'))
+    if c.rank == 'preferred':
+        return date(1, 1, 3)
+    if c.rank == 'normal':
+        return date(1, 1, 2)
+    return date(1, 1, 1)
 
 def most_recent_score_data(item):
     # item.purge()
@@ -205,11 +209,10 @@ def score_claims_from_movie(movie):
     # set up reference
     statedin = make_claim(P_STATED_IN, RTitem)
     rtid_claim = make_claim(P_ROTTEN_TOMATOES_ID, movie.short_url)
-    # title = make_claim(P_TITLE, pwb.WbMonolingualText(movie.title, 'en'))
-    # languageofwork = make_claim(P_LANGUAGE, make_item(Q_ENGLISH))
-    # retrieved = make_claim(P_RETRIEVED, wbtimetoday)
-
-    source_order = [statedin, rtid_claim]
+    title = make_claim(P_TITLE, pwb.WbMonolingualText(movie.title, 'en'))
+    languageofwork = make_claim(P_LANGUAGE, make_item(Q_ENGLISH))
+    retrieved = make_claim(P_RETRIEVED, wbtimetoday)
+    source_order = [statedin, rtid_claim, title, retrieved]
 
     # add qualifiers, reference, and rank for percent claim
     for x in [review_score_by, number_of_reviews, point_in_time, percent_method]:
@@ -245,15 +248,14 @@ def add_RT_claims_to_item(movie, item):
     item.addClaim(average_claim, summary='Add Rotten Tomatoes average rating. Test edit. See [[Wikidata:Requests for permissions/Bot/RottenBot]].')
     return True
 
-def add_RTmovie_data_to_item(movie, qid):
+def add_RTmovie_data_to_item(movie, item):
     """
     Adds/updates the Rotten Tomatoes data in a Wikidata item.
     Currently this means the Rotten Tomatoes ID and the two score claims.
     """
+    print(f"Checking item {item.getID()} aka {item.labels.get('en')}.")
     changed = False
     title = movie.title
-    item = make_item(qid)
-    print(f"Checking item {item.getID()} aka {item.labels.get('en')}.")
 
     titlediff = title.lower() != item.labels['en'].lower()
     if titlediff and title not in (s.lower() for s in item.aliases['en']):
@@ -297,7 +299,7 @@ def update_film_items(id_pairs, limit = 1):
             print(f'Item {qid} has invalid RTID {rtid}.')
             continue
 
-        j += add_RTmovie_data_to_item(movie, qid)
+        j += add_RTmovie_data_to_item(movie, make_item(qid))
         if j >= limit:
             break
     return j

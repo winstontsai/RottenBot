@@ -79,7 +79,7 @@ def find_candidates(xmlfile, get_user_input = False):
     WIKIDATA_LOCK = multiprocessing.Lock()
     GOOGLESEARCH_LOCK = multiprocessing.Lock()
     WQS_LOCK = multiprocessing.Lock()   # Wikidata Query Service
-    with ProcessPoolExecutor(max_workers=10,
+    with ProcessPoolExecutor(max_workers=13,
             initializer=_init, initargs=(WIKIDATA_LOCK,GOOGLESEARCH_LOCK, WQS_LOCK)) as executor:
         futures = {executor.submit(candidate_from_entry, e) : e.title for e in xml_entries}
 
@@ -129,13 +129,13 @@ def candidate_from_entry(entry):
     # Get allowed refnames.
     # Dictionary maps refname to match object of the citation definition.
     refnames = dict()
-    for m in re.finditer(fr'<ref +name *= *"?(?P<refname>[^>]+?)"? *>((?!<ref).)*{t_alternates}((?!<ref).)*</ref *>', text, flags=re.S):
+    for m in re.finditer(fr'<ref +name\s*=\s*"?(?P<refname>[^>]+?)"?\s*>((?!<ref).)*{t_alternates}((?!<ref).)*</ref\s*>', text, flags=re.S):
         refnames[m['refname']] = m
 
     rtref_re = citation_re
     if refnames:
         allowed_refname = alternates(map(re.escape, refnames))
-        ldref_re = fr'<ref +name *= *"?(?P<ldrefname>{allowed_refname})"? */>|{{{{ *[rR] *\| *(?P<ldrefname>{allowed_refname}) *}}}}'
+        ldref_re = fr'<ref +name\s*=\s*"?(?P<ldrefname>{allowed_refname})"?\s*/>|{{{{\s*[rR]\s*\|\s*(?P<ldrefname>{allowed_refname})\s*}}}}'
         rtref_re = alternates([citation_re,ldref_re])
     rtref_re = fr'\s*{rtref_re}'
     
@@ -322,7 +322,10 @@ def _find_citation_and_id(title, m, refnames):
     if x := m['rt_id']:
         movieid = x
     elif citert := m['citert']:
-        movieid = "m/" + parse_template(citert)[1]['id']
+        d = parse_template(citert)[1]
+        if not d['type'][0].lower() == 'm':
+            return None, None
+        movieid = "m/" + d['id']
     elif rt := m['rt']:
         d = parse_template(rt)[1]
         if 'id' in d:

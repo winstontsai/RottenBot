@@ -48,12 +48,12 @@ def upload_edits(args):
         for e in fulledit.edits:
             if e.flags:
                 continue
-            if e.replacements[0][0] not in text:
-                continue
             all_edits.append(e)
 
         all_edits.sort(key=lambda e: len(e.replacements))
         for e in all_edits:
+            if any(old not in text for old, new in e.replacements):
+                continue
             for old, new in e.replacements:
                 # print('OLD ' + old + '\n')
                 # print('NEW ' + new + '\n')

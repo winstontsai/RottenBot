@@ -257,16 +257,28 @@ def add_RTmovie_data_to_item(movie, item):
     changed = False
     title = movie.title
 
-    titlediff = title.lower() != item.labels['en'].lower()
-    if titlediff and title not in (s.lower() for s in item.aliases['en']):
-        item.editAliases( {'en': item.aliases['en']+[title] }, summary=f'Add alias {title}. Test edit. See [[Wikidata:Requests for permissions/Bot/RottenBot]].')
+    if 'en' not in item.labels:
+        item.editLabels( {'en': title}, summary=f'Add English label {title}. Test edit. See [[Wikidata:Requests for permissions/Bot/RottenBot]].')
+    current_label = item.labels['en']
+
+    # different language?
+    titlediff = title.lower() != current_label.lower()
+    current_aliases = item.aliases.get('en', [])
+    if titlediff and title not in (s.lower() for s in current_aliases):
+        item.editAliases( {'en': current_aliases+[title]}, summary=f'Add alias {title}. Test edit. See [[Wikidata:Requests for permissions/Bot/RottenBot]].')
 
     # check if up-to-date Rotten Tomatoes ID exists, add if it does not.
     # also add P_NAMED_AS qualifier if the RT title is different from the label
     for claim in item.claims.get(P_ROTTEN_TOMATOES_ID, []):
         if claim.target == movie.short_url:
-            if titlediff and P_NAMED_AS not in claim.qualifiers:
-                claim.addQualifier(make_claim(P_NAMED_AS, title), summary='Add {{P|1810}} qualifier to {{P|1358}} claim. Test edit. See [[Wikidata:Requests for permissions/Bot/RottenBot]].')
+            if titlediff:
+                if P_NAMED_AS not in claim.qualifiers:
+                    claim.addQualifier(make_claim(P_NAMED_AS, title), summary='Add "named as" qualifier to Rotten Tomatoes ID claim. Test edit. See [[Wikidata:Requests for permissions/Bot/RottenBot]].')
+                    changed = True
+                elif claim.qualifiers[P_NAMED_AS][0].target != title:
+                    claim.removeQualifier(claim.qualifiers[P_NAMED_AS][0])
+                    claim.addQualifier(make_claim(P_NAMED_AS, title), summary='Add "named as" qualifier to Rotten Tomatoes ID claim. Test edit. See [[Wikidata:Requests for permissions/Bot/RottenBot]].')
+                    changed = True
             break
     else:
         d, m, y = map(int, date.today().strftime('%d %m %Y').split())
@@ -329,7 +341,7 @@ if __name__ == "__main__":
     #     rtid = result['rtid']['value']
     #     pairs.append((qid, rtid))
 
-    pairs = [('Q943338', 'm/hitch')]
+    pairs = [('Q2201', 'm/1217700-kick_ass')]
     update_film_items(pairs)
 
 

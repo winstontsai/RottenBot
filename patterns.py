@@ -126,11 +126,11 @@ ones = ["one", "two", "three", "four", "five", "six", "seven", "eight", "nine"]
 teens = ["ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen"]
 tens = ["twenty", "thirty", "forty", "fifty", "sixty", "seventy", "eighty", "ninety"]
 # 5 <= x <= 99
-numword_re1 = alternates([fr"{alternates(tens)}([ -]{alternates(ones)})?"]+teens+ones[4:])
+numword_re1 = alternates([fr"{alternates(tens)}(?:[ -]{alternates(ones)})?"]+teens+ones[4:])
 # 0 <= x <= 100
 numword_re2 = alternates([fr"{alternates(tens)}([ -]{alternates(ones)})?"]+teens+ones+['zero','one[ -]hundred'])
 
-count_re = fr"\b(?P<count>[5-9]|[1-9][0-9]|[1-9][0-9][0-9]|{numword_re1}) (?P<count_term>(critic(al)? )?review(er)?s|(surveyed )?critics)"
+count_re = fr"\b(?P<count>[5-9]|[1-9][0-9]|[1-9][0-9][0-9]|{numword_re1}) (?P<count_term>(?:critic(?:al)? )?review(?:er)?s|(?:surveyed )?critics|votes)"
 average_re = fr"\b(?P<average>([0-9]|10)(\.\d\d?)?|{alternates(ones+['zero','ten'])})(?P<outof>/| out of )(?:10|ten)\b"
 score_re = fr"\b(?P<score>[0-9]|[1-9][0-9]|100|{numword_re2})(?:%| percent)"
 
@@ -183,7 +183,7 @@ def section(name):
     Returns regex matching the specified section. Case is ignored in name.
     """
     return r'(?<=\n)={2,} *' + fr'(?i:{name})' + r' *={2,}'
-notinbadsection = fr"(?<!{section('(references( and notes)?|notes( and references)?|external links|see also|further reading)')}((?!\n==).)*)"
+notinbadsection = fr"(?<!{section('(?:references(?: and notes)?|notes(?: and references)?|external links|see also|further reading)')}((?!\n==).)*)"
 
 template_re = r'(?(DEFINE)(?P<template>\{(?:[^}{]|(?&template))*\}))'
 notincurly = r'(?!((?!\n\n)[^}{]|(?&template))*\})' # i.e. not in template
@@ -202,8 +202,8 @@ cn_redirects = ['cb', 'ciation needed', 'cit', 'cita requerida', 'citaiton neede
 cn_re = fr'(?i:{template_pattern(construct_redirects(cn_redirects))})'
 
 
-infobox_film_redirects = ['infobox (film|movie)', 'film infobox',
-'infobox hollywood cartoon', 'infobox (tamil|japanese|short) film']
+infobox_film_redirects = ['infobox (?:film|movie)', 'film infobox',
+'infobox hollywood cartoon', 'infobox (?:tamil|japanese|short) film']
 infobox_film_re = fr'(?i:{template_pattern(construct_redirects(infobox_film_redirects))})'
 
 if __name__ == "__main__":

@@ -79,7 +79,7 @@ def find_candidates(xmlfile, get_user_input = False):
     WIKIDATA_LOCK = multiprocessing.Lock()
     GOOGLESEARCH_LOCK = multiprocessing.Lock()
     WQS_LOCK = multiprocessing.Lock()   # Wikidata Query Service
-    with ProcessPoolExecutor(max_workers=13,
+    with ProcessPoolExecutor(max_workers=14,
             initializer=_init, initargs=(WIKIDATA_LOCK,GOOGLESEARCH_LOCK, WQS_LOCK)) as executor:
         futures = {executor.submit(candidate_from_entry, e) : e.title for e in xml_entries}
 
@@ -129,7 +129,7 @@ def candidate_from_entry(entry):
     # Get allowed refnames.
     # Dictionary maps refname to match object of the citation definition.
     refnames = dict()
-    for m in re.finditer(fr'<ref +name\s*=\s*"?(?P<refname>[^>]+?)"?\s*>((?!<ref).)*{t_alternates}((?!<ref).)*</ref\s*>', text, flags=re.S):
+    for m in re.finditer(fr'<ref +name\s*=\s*"?(?P<refname>[^>]+?)"?\s*>((?!<ref).)*{t_alternates}((?!<ref).)*</ref\s*>', text, flags=re.S|re.I):
         refnames[m['refname']] = m
 
     rtref_re = citation_re
@@ -145,7 +145,7 @@ def candidate_from_entry(entry):
     cand = Candidate(title, text)
     previous_end = -9999
     id_set = set()
-    for m in re.finditer(final_re, text, flags=re.S):
+    for m in re.finditer(final_re, text, flags=re.S|re.I):
         # print(m)
         span = _find_span(m, title)
         if span[0] < previous_end:
@@ -393,7 +393,7 @@ def _find_RTMovie(cand, rtm, make_guess = False):
     # Check Google
     def probably_correct():
         lead = text[:text.index('\n==')]
-        if m := re.search(infobox_film_re, text, flags=re.DOTALL|re.I):
+        if m := re.search(infobox_film_re, text, flags=re.S|re.I):
             infobox = m[0]
         else:
             infobox = lead
@@ -402,9 +402,9 @@ def _find_RTMovie(cand, rtm, make_guess = False):
 
         if any(x not in infobox for x in dnames+[movie.year]):
             return False
-        if re.search(re.escape(movie.title), infobox, flags=re.I):
+        if re.search(re.escape(movie.title), infobox, flags=re.S|re.I):
             return True
-        if not re.search(f"''{re.escape(movie.title)}''", lead, flags=re.I):
+        if not re.search(f"''{re.escape(movie.title)}''", lead, flags=re.S|re.I):
             return False
         if not movie.runtime:
             return False

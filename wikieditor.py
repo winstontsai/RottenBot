@@ -342,7 +342,7 @@ def _suggested_edit(cand, rtmatch, safe_templates_and_wikilinks):
             flags.add('As of')
 
         # Not a weighted average??? At the very least unsourced.
-        if 'Metacritic' not in flags:
+        if 'Metacritic' not in flags and 'IMDb' not in flags:
             for wl in wtp.parse(new_prose).wikilinks:
                 z = wl.title.strip().lower()
                 if re.match(r'weighted (average|(arithmetic )?mean)|average (rating|score)|rating average', z):
@@ -383,24 +383,23 @@ def _suggested_edit(cand, rtmatch, safe_templates_and_wikilinks):
         refwikitext = wtp.parse(ref.text)
         if refwikitext.templates:
             t = refwikitext.templates[0]
-
+            d_rtid = {'1': 'rtid', 'noprefix':'y'}
             d_access_date = {'1': 'access date'}
-            if x := t.get_arg('accessdate') or t.get_arg('access-date'):
+            d_url = {'1': 'url'}
+
+            # common parameters
+            ####################################################################
+            if x := t.get_arg('accessdate') or t.get_arg('access-date'): # check for df
                 value = str(x).partition('=')[2].strip()
-                t.del_arg('accessdate')
                 if re.match(r'\d{4}-', value): # then iso. Default is mdy.
                     d_access_date['df'] = 'iso'
                 elif re.match(r'\d{4}', value):
                     d_access_date['df'] = 'ymd'
                 elif re.match(r'\d', value):
                     d_access_date['df'] = 'dmy'
+            t.del_arg('accessdate')
             d_access_date['qid'] = rtmatch.qid
             t.set_arg('access-date', rtdata_template(**d_access_date))
-
-            d_rtid = {'1': 'rtid', 'noprefix':'y'}
-            if t.has_arg('id') and re.match(t_citert, str(t), flags=re.S):
-                d_rtid['qid'] = rtmatch.qid
-                t.set_arg('id', rtdata_template(**d_rtid))
 
             new_title = rtmatch.movie.title
             if x := t.get_arg('title'):
@@ -410,24 +409,30 @@ def _suggested_edit(cand, rtmatch, safe_templates_and_wikilinks):
                 if re.search(r'\d{4}\)$', value):
                     new_title += ' (' + rtmatch.movie.year + ')'
             t.set_arg('title', new_title)
+            ####################################################################
+            if re.match(t_citert, str(t), flags=re.S): # for Cite Rotten Tomatoes parameters
+                d_rtid['qid'] = rtmatch.qid
+                t.set_arg('id', rtdata_template(**d_rtid))
+                t.set_arg('type', 'm')
+            else:                                      # for general citation templates
+                if t.has_arg('work'):
+                    t.set_arg('work', '[[Rotten Tomatoes]]')
+                    t.del_arg('website')
+                else:
+                    t.set_arg('website', '[[Rotten Tomatoes]]')
+                d_url['qid'] = rtmatch.qid
+                t.set_arg('url', rtmatch.movie.url)
+                # t.set_arg('url', rtdata_template(**d_url))
+                t.set_arg('publisher', '[[Fandango Media|Fandango]]')
 
-            d_url = {'1': 'url'}
-            t.set_arg('url', rtmatch.movie.url)
-
-            if t.has_arg('work'):
-                t.set_arg('work', '[[Rotten Tomatoes]]')
-                t.del_arg('website')
-            else:
-                t.set_arg('website', '[[Rotten Tomatoes]]')
-
-            t.set_arg('publisher', '[[Fandango Media|Fandango]]')
+            # these parmeters shouldn't be used
             t.del_arg('via')
             t.del_arg('last')
             t.del_arg('first')
             t.del_arg('date')
             t.del_arg('author')
 
-            if 'cit' in t.normal_name().lower():
+            if 'cit' in t.normal_name().lower(): # cursory check if citation template
                 new_citation = str(refwikitext)
             else:
                 new_citation = citation_replacement(rtmatch)
@@ -491,9 +496,12 @@ f"of {score}% based on {count} reviews, with an average rating of {average}/10."
 def citation_replacement(rtmatch):
     ref, movie = rtmatch.ref, rtmatch.movie
     refname = ref.name if ref else None
-    s = "<ref"
-    s += f' name="{refname}">' if refname else '>'
+    if refname:
+        s = f'<ref name="{refname}">'
+    else:
+        s = '<ref>'
     template_dict = {
+        # 'url': rtdata_template('url', qid=rtmatch.qid),
         'url': movie.url,
         'title': movie.title,
         'website' : '[[Rotten Tomatoes]]',
@@ -506,7 +514,7 @@ def citation_replacement(rtmatch):
             d = parse_template(str(wikitext.templates[0]))[1]
             if (x:= d.get('archive-url') or d.get('archiveurl')):
                 template_dict['archive-url'] = x
-                template_dict['archive-date'] = d.get('archive-date') or d.get('archivedate')
+                template_dict['archive-date'] = d.get('archive-date') or d.get('archivedate') or ''
                 template_dict['url-status'] = 'live'
     return s + construct_template('Cite web', template_dict) + "</ref>"
 

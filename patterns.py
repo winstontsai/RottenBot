@@ -130,7 +130,7 @@ numword_re1 = alternates([fr"{alternates(tens)}(?:[ -]{alternates(ones)})?"]+tee
 # 0 <= x <= 100
 numword_re2 = alternates([fr"{alternates(tens)}([ -]{alternates(ones)})?"]+teens+ones+['zero','one[ -]hundred'])
 
-count_re = fr"\b(?P<count>[5-9]|[1-9][0-9]|[1-9][0-9][0-9]|{numword_re1}) (?P<count_term>(?:critic(?:al)? )?review(?:er)?s|(?:surveyed )?critics|votes)"
+count_re = fr"\b(?P<count>[5-9]|[1-9][0-9]|[1-9][0-9][0-9]|{numword_re1}) (?P<count_term>(?:critic(?:al)? |professional )?review(?:er)?s|(?:surveyed |professional )?critics|votes)"
 average_re = fr"\b(?P<average>([0-9]|10)(\.\d\d?)?|{alternates(ones+['zero','ten'])})(?P<outof>/| out of )(?:10|ten)\b"
 score_re = fr"\b(?P<score>[0-9]|[1-9][0-9]|100|{numword_re2})(?:%| percent)"
 

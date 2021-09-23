@@ -53,41 +53,55 @@ def fulledit_from_candidate(cand):
     with open('safe-templates-and-wikilinks.txt', 'r') as f:
         safe_templates_and_wikilinks = set(line.rstrip('\n') for line in f)
 
+    title, text, matches = cand.title, cand.text, cand.matches
+
     cand.qid = None
     # find qid of item connected to cand's article
     # try:
-    #     cand.qid = ItemPage.fromPage(Page(Site('en','wikipedia'), cand.title)).getID()
+    #     cand.qid = ItemPage.fromPage(Page(Site('en','wikipedia'), title)).getID()
     # except pwb.exceptions.NoPageError:
     #     cand.qid = None
 
     # update Wikidata items
-    # for movie, qid in set((m.movie, m.qid) for m in cand.matches):
+    # for movie, qid in set((m.movie, m.qid) for m in matches):
     #     add_RTmovie_data_to_item(movie, make_item(qid))
 
-    fulledit = FullEdit(cand.title, [])
-
-    # fix duplicated citations, if any.
+    # Fix duplicated citations, if any.
     # This is kind of a hacky solution.
-    c = Counter(x.movie.url for x in cand.matches)
-    name_generator = (f'rtdata{i}' for i in range(99) if f'rtdata{i}' not in cand.text)
+    c = Counter(x.movie.url for x in matches)
+    name_generator = (f'rtdata{i}' for i in range(99) if f'rtdata{i}' not in text)
     for url in c:
         if c[url] < 2:
             continue
-        l = [x for x in cand.matches if x.movie.url == url]
-        l.sort(key=lambda z: bool(z.ref)+bool(z.ref and z.ref.name)+z.span[0]/len(cand.text), reverse=True)
+
+        def preferred_ref(match):
+            ref = match.ref
+            val = 6
+            if ref:
+                val -= 2
+                if ref.name:
+                    val -= 2
+                    if ref.list_defined:
+                        val -= 2
+            # extra subtraction to prefer matches found lower in the article
+            return val - match.span[0] / len(cand.text)
+        # we use reversed to pref
+        l = sorted((x for x in matches if x.movie.url == url), key=preferred_ref)
         if not l[0].ref:
             l[0].ref = candidates.Reference('text', name=next(name_generator))
         elif not l[0].ref.name:
             l[0].ref.name = next(name_generator)
         for match in l[1:]:
-            if not (match.ref and match.ref.name):
+            if not (match.ref and match.ref.name) or match.ref.name==l[0].ref.name:
                 match._duplicate_refname = l[0].ref.name
 
-    for match in cand.matches:
+    edits = []
+    # Compute an Edit for each match
+    for match in matches:
         sedit = _suggested_edit(cand, match, safe_templates_and_wikilinks)
-        fulledit.edits.append(sedit)
+        edits.append(sedit)
 
-    return fulledit
+    return FullEdit(title, edits)
 
 
 def _process_manual_reviews(cand, fe):
@@ -407,70 +421,79 @@ def _suggested_edit(cand, rtmatch, safe_templates_and_wikilinks):
     ############################################################################
     # Compute new_citation
     new_citation = citation_replacement(rtmatch)
-    if hasattr(rtmatch, '_duplicate_refname'):
-        new_citation = f'<ref name="{rtmatch._duplicate_refname}"/>'
+    # If inside lead section and no ref, don't add one
+    if span[0] < cand.text.index('\n==') and not ref:
+        new_citation = ''
+    # if duplicated, defer to later citation
+    elif hasattr(rtmatch, '_duplicate_refname'):
+        new_citation = f'<ref name="{rtmatch._duplicate_refname}" />'
     elif ref:
         refwikitext = wtp.parse(ref.text)
         if refwikitext.templates:
             t = refwikitext.templates[0]
-            d_rtid = {'1': 'rtid', 'noprefix':'y'}
-            # d_access_date = {'1': 'access date'}
-            # d_url = {'1': 'url'}
-
-            # common parameters
-            ####################################################################
-            access_date = datetime.strptime(movie.access_date, '%B %d, %Y')
-            new_date = access_date.strftime('%B %d, %Y').replace(' 0', ' ')
-            if x := t.get_arg('accessdate') or t.get_arg('access-date'): # check for df
-                value = str(x).partition('=')[2].strip()
-                if re.match(r'\d{4}-', value): # then iso. Default is mdy.
-                    new_date = access_date.strftime('%Y-%m-%d')
-                elif re.match(r'\d{4}', value):
-                    new_date = access_date.strftime('%Y %B %d').replace(' 0', ' ')
-                elif re.match(r'\d', value):
-                    new_date = access_date.strftime('%d-%m-%Y').lstrip('0')
-            t.del_arg('accessdate')
-            # d_access_date['qid'] = rtmatch.qid
-            t.set_arg('access-date', new_date)
-
-            new_title = movie.title
-            if x := t.get_arg('title'):
-                value = str(x).partition('=')[2].strip()
-                if value.startswith("''"):
-                    new_title = "''"+new_title+"''"
-                if re.search(r'\d{4}\)$', value):
-                    new_title += ' (' + movie.year + ')'
-            t.set_arg('title', new_title)
-            ####################################################################
-            if re.match(t_citert, str(t), flags=re.S): # for Cite Rotten Tomatoes parameters
-                d_rtid['qid'] = rtmatch.qid
-                t.set_arg('id', rtdata_template(**d_rtid))
-                t.set_arg('type', 'm')
-            else:                                      # for general citation templates
-                if t.has_arg('work'):
-                    t.set_arg('work', '[[Rotten Tomatoes]]')
-                    t.del_arg('website')
-                else:
-                    t.set_arg('website', '[[Rotten Tomatoes]]')
-                #d_url['qid'] = rtmatch.qid
-                # t.set_arg('url', rtdata_template(**d_url))
-                t.set_arg('url', movie.url)
-                t.set_arg('publisher', '[[Fandango Media|Fandango]]')
-
-            # these parmeters shouldn't be used
-            t.del_arg('via')
-            t.del_arg('last')
-            t.del_arg('first')
-            t.del_arg('date')
-            t.del_arg('author')
-
             # cursory check if citation template
             if re.search(r'cit', t.normal_name(), flags=re.I):
                 # for duplicate ref handling. See fulledit_from_candidate.
                 if ref.name:
                     refwikitext.get_tags()[0].set_attr('name', ref.name)
-                new_citation = str(refwikitext)
 
+                d_rtid = {'1': 'rtid', 'noprefix':'y'}
+                d_access_date = {'1': 'access date'}
+                # d_url = {'1': 'url'}
+
+                # common parameters
+                ####################################################################
+                access_date = datetime.strptime(movie.access_date, '%B %d, %Y')
+                new_date = access_date.strftime('%B %d, %Y').replace(' 0', ' ')
+                if x := t.get_arg('accessdate') or t.get_arg('access-date'): # check for df
+                    value = str(x).partition('=')[2].strip()
+                    # if re.match(r'\d{4}-', value): # then iso. Default is mdy.
+                    #     new_date = access_date.strftime('%Y-%m-%d')
+                    # elif re.match(r'\d{4}', value):
+                    #     new_date = access_date.strftime('%Y %B %d').replace(' 0', ' ')
+                    # elif re.match(r'\d', value):
+                    #     new_date = access_date.strftime('%d-%m-%Y').lstrip('0')
+                    if re.match(r'\d{4}-', value): # then iso. Default is mdy.
+                        d_access_date['df'] = 'iso'
+                    elif re.match(r'\d{4}', value):
+                        d_access_date['df'] = 'ymd'
+                    elif re.match(r'\d', value):
+                        d_access_date['df'] = 'dmy'
+                t.del_arg('accessdate')
+                d_access_date['qid'] = rtmatch.qid
+                t.set_arg('access-date', rtdata_template(**d_access_date))
+
+                new_title = movie.title
+                if x := t.get_arg('title'):
+                    value = str(x).partition('=')[2].strip()
+                    if value.startswith("''"):
+                        new_title = "''"+new_title+"''"
+                    if re.search(r'\d{4}\)$', value):
+                        new_title += ' (' + movie.year + ')'
+                t.set_arg('title', new_title)
+                ####################################################################
+                if re.match(t_citert, str(t), flags=re.S): # for Cite Rotten Tomatoes parameters
+                    d_rtid['qid'] = rtmatch.qid
+                    t.set_arg('id', rtdata_template(**d_rtid))
+                    t.set_arg('type', 'm')
+                else:                                      # for general citation templates
+                    if t.has_arg('work'):
+                        t.set_arg('work', '[[Rotten Tomatoes]]')
+                        t.del_arg('website')
+                    else:
+                        t.set_arg('website', '[[Rotten Tomatoes]]')
+                    #d_url['qid'] = rtmatch.qid
+                    # t.set_arg('url', rtdata_template(**d_url))
+                    t.set_arg('url', movie.url)
+                    t.set_arg('publisher', '[[Fandango Media|Fandango]]')
+
+                # these parmeters shouldn't be used
+                t.del_arg('via')
+                t.del_arg('last')
+                t.del_arg('first')
+                t.del_arg('date')
+                t.del_arg('author')
+                new_citation = str(refwikitext)
 
     replacements = []
     # Add new_citation to new_prose in the right location
@@ -483,17 +506,14 @@ def _suggested_edit(cand, rtmatch, safe_templates_and_wikilinks):
             new_prose = new_prose.replace(ref.text, new_citation)
     else:
         new_prose += new_citation
+    replacements = [(text, new_prose)] + replacements
 
     # remove citation needed template
     new_prose = re.sub(cn_re, '', new_prose, flags=re.S)
 
-    # remove qid parameter when it matches connected item
-    if cand.qid == rtmatch.qid:
-        new_prose = new_prose.replace(f'|qid={rtmatch.qid}', '')
-        if replacements: # remove from list-defined reference
-            replacements[0] = (replacements[0][0], replacements[0][1].replace(f'|qid={rtmatch.qid}', ''))
-
-    replacements = [(text, new_prose)] + replacements
+    # remove qid= parameter if superfluous
+    if True or cand.qid == rtmatch.qid:
+        replacements = [(z[0], z[1].replace(f'|qid={rtmatch.qid}', '')) for z in replacements]
 
     return Edit(replacements, reduced_flags)
 

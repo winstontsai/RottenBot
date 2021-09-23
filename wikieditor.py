@@ -1,11 +1,15 @@
 # This module takes Candidates and computes replacement text.
+
+# Currently the safe_templates_and_wikilinks feature is not being used since
+# the bot will not be rewriting prose.
 ################################################################################
 import logging
 import sys
 import webbrowser
 
+from collections import Counter
 from dataclasses import dataclass
-from datetime import date
+from datetime import datetime
 
 import editor
 import regex as re
@@ -14,6 +18,8 @@ import wikitextparser as wtp
 from colorama import Fore, Style
 from pywikibot import Page, Site, ItemPage
 from rapidfuzz.fuzz import partial_ratio
+
+import candidates
 
 from patterns import *
 from wdeditor import *
@@ -54,13 +60,33 @@ def fulledit_from_candidate(cand):
     # except pwb.exceptions.NoPageError:
     #     cand.qid = None
 
+    # update Wikidata items
+    # for movie, qid in set((m.movie, m.qid) for m in cand.matches):
+    #     add_RTmovie_data_to_item(movie, make_item(qid))
+
     fulledit = FullEdit(cand.title, [])
-    updated_items = set()
+
+    # fix duplicated citations, if any.
+    # This is kind of a hacky solution.
+    c = Counter(x.movie.url for x in cand.matches)
+    name_generator = (f'rtdata{i}' for i in range(99) if f'rtdata{i}' not in cand.text)
+    for url in c:
+        if c[url] < 2:
+            continue
+        l = [x for x in cand.matches if x.movie.url == url]
+        l.sort(key=lambda z: bool(z.ref)+bool(z.ref and z.ref.name)+z.span[0]/len(cand.text), reverse=True)
+        if not l[0].ref:
+            l[0].ref = candidates.Reference('text', name=next(name_generator))
+        elif not l[0].ref.name:
+            l[0].ref.name = next(name_generator)
+        for match in l[1:]:
+            if not (match.ref and match.ref.name):
+                match._duplicate_refname = l[0].ref.name
+
     for match in cand.matches:
-        # if match.qid not in updated_items:
-        #     add_RTmovie_data_to_item(match.movie, make_item(match.qid))
-        #     updated_items.add(match.qid)
-        fulledit.edits.append(_suggested_edit(cand, match, safe_templates_and_wikilinks))
+        sedit = _suggested_edit(cand, match, safe_templates_and_wikilinks)
+        fulledit.edits.append(sedit)
+
     return fulledit
 
 
@@ -274,17 +300,17 @@ def _compute_flags(rtmatch, cand, safe_templates_and_wikilinks):
 
 def _suggested_edit(cand, rtmatch, safe_templates_and_wikilinks):
     flags = _compute_flags(rtmatch, cand, safe_templates_and_wikilinks)
-    backup = Edit(_complete_replacements(cand, rtmatch), flags)
 
     reduced_flags = set(x for x in flags if not re.match(r'(T|WL):', x))
     reduced_flags -= {'Metacritic', 'IMDb', 'PostTrak', 'CinemaScore'}
-    # reduced_flags -= {'non-RT reference'}
+    reduced_flags -= {'non-RT reference'}
     # if reduced_flags:
-    #     return backup
+    #     return Edit(_complete_replacements(cand, rtmatch), flags)
 
     span, ref = rtmatch.span, rtmatch.ref
     text = cand.text[span[0]:span[1]]
-    score, count, average = rtmatch.movie.tomatometer_score
+    movie = rtmatch.movie
+    score, count, average = movie.tomatometer_score
 
 
     new_prose = re.sub(r'<!--.*?-->', '', text, flags=re.S)
@@ -373,41 +399,47 @@ def _suggested_edit(cand, rtmatch, safe_templates_and_wikilinks):
         flags.add('check critics consensus status')
     if safe2:
         if {'Metacritic','IMDb','PostTrak','CinemaScore'} & flags:
-            new_prose += f' The critical consensus on Rotten Tomatoes reads, "{rtmatch.movie.consensus}"'
+            new_prose += f' The critical consensus on Rotten Tomatoes reads, "{movie.consensus}"'
         else:
-            new_prose += f' The site\'s critical consensus reads, "{rtmatch.movie.consensus}"'
+            new_prose += f' The site\'s critical consensus reads, "{movie.consensus}"'
 
-    replacements = []
-    # citation update
-    if ref:
+    # Update citation and build replacements
+    ############################################################################
+    # Compute new_citation
+    new_citation = citation_replacement(rtmatch)
+    if hasattr(rtmatch, '_duplicate_refname'):
+        new_citation = f'<ref name="{rtmatch._duplicate_refname}"/>'
+    elif ref:
         refwikitext = wtp.parse(ref.text)
         if refwikitext.templates:
             t = refwikitext.templates[0]
             d_rtid = {'1': 'rtid', 'noprefix':'y'}
-            d_access_date = {'1': 'access date'}
-            d_url = {'1': 'url'}
+            # d_access_date = {'1': 'access date'}
+            # d_url = {'1': 'url'}
 
             # common parameters
             ####################################################################
+            access_date = datetime.strptime(movie.access_date, '%B %d, %Y')
+            new_date = access_date.strftime('%B %d, %Y').replace(' 0', ' ')
             if x := t.get_arg('accessdate') or t.get_arg('access-date'): # check for df
                 value = str(x).partition('=')[2].strip()
                 if re.match(r'\d{4}-', value): # then iso. Default is mdy.
-                    d_access_date['df'] = 'iso'
+                    new_date = access_date.strftime('%Y-%m-%d')
                 elif re.match(r'\d{4}', value):
-                    d_access_date['df'] = 'ymd'
+                    new_date = access_date.strftime('%Y %B %d').replace(' 0', ' ')
                 elif re.match(r'\d', value):
-                    d_access_date['df'] = 'dmy'
+                    new_date = access_date.strftime('%d-%m-%Y').lstrip('0')
             t.del_arg('accessdate')
-            d_access_date['qid'] = rtmatch.qid
-            t.set_arg('access-date', rtdata_template(**d_access_date))
+            # d_access_date['qid'] = rtmatch.qid
+            t.set_arg('access-date', new_date)
 
-            new_title = rtmatch.movie.title
+            new_title = movie.title
             if x := t.get_arg('title'):
                 value = str(x).partition('=')[2].strip()
                 if value.startswith("''"):
                     new_title = "''"+new_title+"''"
                 if re.search(r'\d{4}\)$', value):
-                    new_title += ' (' + rtmatch.movie.year + ')'
+                    new_title += ' (' + movie.year + ')'
             t.set_arg('title', new_title)
             ####################################################################
             if re.match(t_citert, str(t), flags=re.S): # for Cite Rotten Tomatoes parameters
@@ -420,9 +452,9 @@ def _suggested_edit(cand, rtmatch, safe_templates_and_wikilinks):
                     t.del_arg('website')
                 else:
                     t.set_arg('website', '[[Rotten Tomatoes]]')
-                d_url['qid'] = rtmatch.qid
-                t.set_arg('url', rtmatch.movie.url)
+                #d_url['qid'] = rtmatch.qid
                 # t.set_arg('url', rtdata_template(**d_url))
+                t.set_arg('url', movie.url)
                 t.set_arg('publisher', '[[Fandango Media|Fandango]]')
 
             # these parmeters shouldn't be used
@@ -432,24 +464,25 @@ def _suggested_edit(cand, rtmatch, safe_templates_and_wikilinks):
             t.del_arg('date')
             t.del_arg('author')
 
-            if 'cit' in t.normal_name().lower(): # cursory check if citation template
+            # cursory check if citation template
+            if re.search(r'cit', t.normal_name(), flags=re.I):
+                # for duplicate ref handling. See fulledit_from_candidate.
+                if ref.name:
+                    refwikitext.get_tags()[0].set_attr('name', ref.name)
                 new_citation = str(refwikitext)
-            else:
-                new_citation = citation_replacement(rtmatch)
-        else:
-            new_citation = citation_replacement(rtmatch)
 
+
+    replacements = []
+    # Add new_citation to new_prose in the right location
+    if ref:
         if ref.list_defined:
             replacements = [(ref.text, new_citation)]
+        elif safe2 or 'non-RT reference' not in flags:
+            new_prose = new_prose.replace(ref.text, '') + new_citation
         else:
-            #new_prose = re.sub(someref_re, '', new_prose, flags=re.S) + new_citation
-            if safe2 or 'non-RT reference' not in flags:
-                new_prose = new_prose.replace(ref.text, '')
-                new_prose += new_citation
-            else:
-                new_prose = new_prose.replace(ref.text, new_citation)
+            new_prose = new_prose.replace(ref.text, new_citation)
     else:
-        new_prose += citation_replacement(rtmatch)
+        new_prose += new_citation
 
     # remove citation needed template
     new_prose = re.sub(cn_re, '', new_prose, flags=re.S)
@@ -464,23 +497,23 @@ def _suggested_edit(cand, rtmatch, safe_templates_and_wikilinks):
 
     return Edit(replacements, reduced_flags)
 
-def _complete_replacements(cand, rtmatch):
-    rating, consensus = rating_and_consensus_prose(rtmatch.movie)
-    new_citation = citation_replacement(rtmatch)
-    span, text, ref = rtmatch.span, cand.text, rtmatch.ref
+# def _complete_replacements(cand, rtmatch):
+#     rating, consensus = rating_and_consensus_prose(rtmatch.movie)
+#     new_citation = citation_replacement(rtmatch)
+#     span, text, ref = rtmatch.span, cand.text, rtmatch.ref
 
-    new_text = rating
-    if safe_to_add_consensus2(rtmatch, cand):
-        new_text += ' ' + consensus
+#     new_text = rating
+#     if safe_to_add_consensus2(rtmatch, cand):
+#         new_text += ' ' + consensus
 
-    replacements = []
-    if ref and ref.list_defined:
-        replacements = [(ref.text, new_citation)]
-        new_text += f'<ref name="{ref.name}" />'
-    else:
-        new_text += new_citation
-    replacements = [(text[span[0]:span[1]], new_text)] + replacements
-    return replacements
+#     replacements = []
+#     if ref and ref.list_defined:
+#         replacements = [(ref.text, new_citation)]
+#         new_text += f'<ref name="{ref.name}" />'
+#     else:
+#         new_text += new_citation
+#     replacements = [(text[span[0]:span[1]], new_text)] + replacements
+#     return replacements
 
 def rating_and_consensus_prose(movie):
     title = movie.title

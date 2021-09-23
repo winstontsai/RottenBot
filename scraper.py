@@ -59,7 +59,7 @@ def find_substring(s, indicator, terminator):
         
     return s[i + len(indicator) : j]
 
-@dataclass
+@dataclass(frozen=True)
 class RTMovie:
     short_url: str
     url: str = None

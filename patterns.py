@@ -205,7 +205,7 @@ infobox_film_redirects = ['Infobox film', 'Infobox movie', 'Infobox Hollywood ca
 infobox_film_re = fr'(?i:{template_pattern(construct_redirects(infobox_film_redirects))})'
 
 # Only use Citation, Cite web, or Cite Rotten Tomatoes
-valid_citation_template = ['Citation', 'Cite web', 'Cite Rotten Tomatoes',
+valid_citation_template = citert_redirects + ['Citation', 'Cite web',
 'Cite', 'Cite study', 'Cite technical standard',
 'Cite Technical standard', 'Citation/lua', 'Cite citation', 'Cite citation/lua',
 'Cite asin', 'Citație', 'Obra citada', 'Citar ref', 'Web-reference', 'Web cite',
@@ -214,8 +214,7 @@ valid_citation_template = ['Citation', 'Cite web', 'Cite Rotten Tomatoes',
 'Cite web.', 'Cite website article', 'Cite web/lua', 'Cite w', 'Cite wb',
 'Chú thích web', 'Ref web', 'Cite URL', 'یادکرد وب', 'Citace elektronické monografie',
 'Web reference', '웹 인용', 'Cite we', 'Citat web', 'Citweb', 'مرجع ويب', 'Web link',
-'Navedi splet', 'Citaweb', 'استشهاد ويب', 'Ref-web', 'CITEWEB', 'Cite rotten tomatoes',
-'Cite rt', 'Cite RT']
+'Navedi splet', 'Citaweb', 'استشهاد ويب', 'Ref-web', 'CITEWEB']
 
 if __name__ == "__main__":
     d = {'hi':'bye'}

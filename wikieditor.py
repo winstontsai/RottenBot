@@ -397,8 +397,8 @@ def _suggested_edit(cand, rtmatch, safe_templates_and_wikilinks):
 
     safe1 = safe_to_add_consensus1(rtmatch, cand, new_prose)
     safe2 = safe_to_add_consensus2(rtmatch, cand, new_prose)
-    if safe1 != safe2:
-        flags.add('check critics consensus status')
+    if safe2 and not safe1:
+        flags.add(f'check critics consensus status {safe1} {safe2}')
     if safe2:
         if {'Metacritic','IMDb','PostTrak','CinemaScore'} & flags:
             new_prose += f' The critical consensus on Rotten Tomatoes reads, "{movie.consensus}"'
@@ -586,25 +586,21 @@ def safe_to_add_consensus1(rtmatch, cand, new_text = ''):
 # computationally expensive
 def safe_to_add_consensus2(rtmatch, cand, new_text = ''):
     consensus, span, text = rtmatch.movie.consensus, rtmatch.span, cand.text
-    def consensus_likely_in_text(t):
-        return partial_ratio(consensus,t,score_cutoff=60)
-
-    if consensus is None:
+    if not consensus:
         return False
     if len(cand.matches) > 1 and rtmatch.span[0] < text.index('\n=='):
         return False
-
     p_start, p_end = paragraph_span(rtmatch.span, text)
     pattern = someref_re + r"|''.*?''|\{.*?\}|\[[^]]*\||<!--.*?-->|\W"
-
-    before   = re.sub(pattern, '', text[p_start:span[0]], flags=re.S)
-    after    =  re.sub(pattern, '', text[span[1]: p_end], flags=re.S)
-    new_text = re.sub(pattern, '', new_text, flags=re.S)
-
+    after     = re.sub(pattern, '', text[span[1]: p_end], flags=re.S)
+    new_text  = re.sub(pattern, '', new_text, flags=re.S)
+    before    = re.sub(pattern, '', text[p_start:span[0]], flags=re.S)
     consensus = re.sub(pattern, '', consensus, flags=re.S)
     if not consensus: # edge cases such as The Emoji Movie or Tour De Pharmacy
         return False
 
+    def consensus_likely_in_text(t):
+        return partial_ratio(consensus,t,score_cutoff=60)
     return not any(map(consensus_likely_in_text, [after, new_text, before]))
 
 def balanced_brackets(text):

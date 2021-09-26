@@ -333,14 +333,6 @@ def update_film_items(id_pairs, limit = 1):
 if __name__ == "__main__":
     SITE.login()
 
-    data = json.load(open('/Users/Winston/Downloads/wikidata-films-to-update.json'))
-    # pairs = []
-    # for result in data['results']['bindings'][60:65]:
-    #     entity_uri = result['item']['value']
-    #     qid = entity_uri.split('/')[-1]
-    #     rtid = result['rtid']['value']
-    #     pairs.append((qid, rtid))
-
     pairs = [('Q2201', 'm/1217700-kick_ass')]
     update_film_items(pairs)
 

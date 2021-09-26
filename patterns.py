@@ -137,14 +137,6 @@ score_re = fr"\b(?P<score>[0-9]|[1-9][0-9]|100|{numword_re2})(?:%| percent)"
 
 url_re = r"rottentomatoes.com/(?P<rt_id>m/[-A-Za-z0-9_]+)"
 
-# for the {{Cite web}} and {{Cite news}} and {{Citation}} templates
-# citeweb_redirects = [
-#     "Cite web", "Cite-web", "Citeweb", "Cite Web",
-#     "Cite news", "Citenews", "Cite-news", "Cite News",
-#     "Citation", "Cite",
-#     ]
-# t_citeweb = fr"(?P<citeweb>{{{{{construct_redirects(citeweb_redirects)}.+?{url_re}.*?}}}})"
-
 # This will be used to match any reference which includes the RT url pattern.
 # This is a generalization of the Cite web, Cite news, and Citation templates.
 # Can handle edge cases, such as where a template is not used.
@@ -155,8 +147,9 @@ citert_redirects = ["Cite Rotten Tomatoes", "Cite rotten tomatoes", "Cite rt", "
 t_citert = fr"(?P<citert>{template_pattern(construct_redirects(citert_redirects))})"
 
 # {{Rotten Tomatoes}} template
-rt_redirects = [ "Rotten [tT]omatoes", "Rotten-?tomatoes", "Rotten(?:tomatoes.com)?"]
-t_rt = fr"(?P<rt>{template_pattern(construct_redirects(rt_redirects))})"
+rt_redirects = ['Rotten Tomatoes', 'Rotten-tomatoes', 'Rotten tomatoes',
+'Rottentomatoes.com', 'Rottentomatoes', 'Rotten']
+t_rt = fr"(?P<rt>{template_pattern(construct_redirects(map(re.escape, rt_redirects)))})"
 
 # {{Rotten Tomatoes prose}} template
 rtprose_redirects = ['Rotten Tomatoes prose', 'RT prose', 'RT']
@@ -190,24 +183,43 @@ notincurly = r'(?!((?!\n\n)[^}{]|(?&template))*\})' # i.e. not in template
 notincom = r'(?!((?!<!--|\n\n).)*-->)'
 notinref = r'(?!((?!<ref|\n\n).)*</ref)'
 
-cn_redirects = ['cb', 'ciation needed', 'cit', 'cita requerida', 'citaiton needed',
-'cit(ation|e) missing', 'citation[ -]?needed', 'citation requested',
-'citation ?required', 'citationeeded', 'citazione necessaria', 'cite[ -]?needed',
-'cite ?source', 'ci?tn', 'cn( needed)?', 'facts?', 'fcitation need(ed)?',
-'me-fact', 'need ?citation', 'need sources', 'need-ref', 'needcite',
-'needs citations?', 'needs reference', 'needs-cite', 'needsref',
-'no source given', 'prov-statement', 'prove ?it', 'ref[ -]?needed',
-'reference needed', 'refplease', 'request citation', 'source needed',
-'sourceme', 'uncited', 'unreferenced inline', 'unsourced-inline']
-cn_re = fr'(?i:{template_pattern(construct_redirects(cn_redirects))})'
+cn_redirects = ['Citation needed', 'Facts', 'Citeneeded', 'Citationneeded', 'Cite needed', 'Cite-needed',
+'Citation required', 'Uncited', 'Cn', 'Needs citation', 'Reference needed',
+'Citation-needed', 'Me-fact', 'CB', 'Sourceme', 'Cb', 'Refneeded', 'Source needed',
+'Citation missing', 'FACT', 'Cite missing', 'Citation Needed', 'Proveit', 'CN',
+'Source?', 'Fact', 'Refplease', 'Needcite', 'Needsref', 'Ref?', 'Citationeeded',
+'Are you sure?', 'Citesource', 'Cite source', 'Ref needed', 'Citation requested',
+'Needs citations', 'Fcitation needed', 'Need sources', 'Request citation',
+'Citation Requested', 'Request Citation', 'Prove it', 'Ctn', 'Citation need',
+'PROV-statement', 'Ciation needed', 'Cit', 'Unsourced-inline', 'Ref-needed',
+'Fact?', 'Need Citation', 'CitationNeeded', 'No source given', 'Need-ref',
+'Citaiton needed', 'Needcitation', 'Citationrequired', 'Unreferenced inline',
+'Cita requerida', 'Needs reference', 'Need citation', 'Citn', 'Citazione necessaria',
+'Cn needed', 'Needs-cite']
+cn_re = template_pattern(construct_redirects(map(re.escape, cn_redirects)))
 
 
-infobox_film_redirects = ['infobox (?:film|movie)', 'film infobox',
-'infobox hollywood cartoon', 'infobox (?:tamil|japanese|short) film']
+infobox_film_redirects = ['Infobox film', 'Infobox movie', 'Infobox Hollywood cartoon',
+'Infobox Movie', 'Film infobox', 'Infobox Tamil film', 'Infobox Japanese film',
+'Infobox Film', 'Infobox short film', 'Infobox Japanese Film']
 infobox_film_re = fr'(?i:{template_pattern(construct_redirects(infobox_film_redirects))})'
 
+# Only use Citation, Cite web, or Cite Rotten Tomatoes
+valid_citation_template = ['Citation', 'Cite web', 'Cite Rotten Tomatoes',
+'Cite', 'Cite study', 'Cite technical standard',
+'Cite Technical standard', 'Citation/lua', 'Cite citation', 'Cite citation/lua',
+'Cite asin', 'Citație', 'Obra citada', 'Citar ref', 'Web-reference', 'Web cite',
+'Cite website', 'Cite-web', 'Citeweb', 'Web citation', 'Cite url', 'Cite blog',
+'Cite Web', 'Weblink', 'Cite webpage', 'Cita web', 'C web', 'Cit web',
+'Cite web.', 'Cite website article', 'Cite web/lua', 'Cite w', 'Cite wb',
+'Chú thích web', 'Ref web', 'Cite URL', 'یادکرد وب', 'Citace elektronické monografie',
+'Web reference', '웹 인용', 'Cite we', 'Citat web', 'Citweb', 'مرجع ويب', 'Web link',
+'Navedi splet', 'Citaweb', 'استشهاد ويب', 'Ref-web', 'CITEWEB', 'Cite rotten tomatoes',
+'Cite rt', 'Cite RT']
+
 if __name__ == "__main__":
-    print(t_rtprose)
+    d = {'hi':'bye'}
+    print(rtdata_template(**d, qid='234'))
 
 
 

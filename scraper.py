@@ -59,7 +59,7 @@ def find_substring(s, indicator, terminator):
         
     return s[i + len(indicator) : j]
 
-@dataclass(frozen=True)
+@dataclass
 class RTMovie:
     short_url: str
     url: str = None
@@ -96,14 +96,14 @@ class RTMovie:
             html = url_contents(rt_url(self.short_url))
         except requests.exceptions.HTTPError as x:
             if x.response.status_code == 403:
-                logger.exception("Probably blocked by rottentomatoes.com. Exiting.")
+                logger.exception("Probably blocked by Rotten Tomatoes. Exiting.")
                 sys.exit()
             elif x.response.status_code == 404:
                 logger.debug("404 Client Error", exc_info=True)
             elif x.response.status_code == 500:
                 logger.debug("500 Server Error", exc_info=True)
             elif x.response.status_code == 503:
-                logger.exception("Probably blocked by rottentomatoes.com? Exiting.")
+                logger.exception("Probably blocked by Rotten Tomatoes? Exiting.")
                 sys.exit()
             elif x.response.status_code == 504:
                 logger.debug("504 Server Error", exc_info=True)
@@ -165,7 +165,7 @@ class RTMovie:
                 self.audience_score = (str(s), str(c), str(a))
 
 if __name__ == "__main__":
-    movie = RTMovie('m/society')
+    movie = RTMovie('m/altered_states')
     print(movie)
 
 

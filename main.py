@@ -14,65 +14,48 @@ import pywikibot as pwb
 import candidates
 import wikieditor
 ################################################################################
+def loaddata(file):
+    with open(file, 'rb') as f:
+        data = pickle.load(f)
+    return data
 
 def store_candidates(args):
-    data = candidates.find_candidates(args.file1, get_user_input=args.interactive)
+    data = list(candidates.find_candidates(args.file1, get_user_input=args.interactive))
     with open(args.file2, 'wb') as f:
-        pickle.dump(list(data), f)
+        pickle.dump(data, f)
 
 def store_edits(args):
-    if args.file1.endswith('.cands'):
-        with open(args.file1, 'rb') as f:
-            cands = pickle.load(f)         
-    else:
+    if args.file1.endswith('.xml'):
         cands = candidates.find_candidates(args.file1, get_user_input=args.interactive)
+    else:
+        cands = loaddata(args.file1)  
 
-    edits = wikieditor.compute_edits(cands, get_user_input=args.interactive)
+    edits = list(wikieditor.compute_edits(cands, get_user_input=args.interactive))
     with open(args.file2, 'wb') as f:
-        pickle.dump(list(edits), f)
+        pickle.dump(edits, f)
 
-
-# function for upload command
 def upload_edits(args):
-    with open(args.file, 'rb') as f:
-        data = pickle.load(f)
-
     site = pwb.Site('en', 'wikipedia')
-    site.login()
+    site.login(user='RottenBot')
 
+    data = loaddata(args.file)
     for fulledit in data:
-        print(f'Currently editing {fulledit.title}.')
+        print(f'Editing {fulledit.title}.')
         page = pwb.Page(site, fulledit.title)
-        text = page.text
-        all_edits = []
-        for e in fulledit.edits:
+        for edit in fulledit.edits:
             if e.flags:
                 continue
-            all_edits.append(e)
-
-        all_edits.sort(key=lambda e: len(e.replacements))
-        for e in all_edits:
-            if any(old not in text for old, new in e.replacements):
-                continue
-            for old, new in e.replacements:
-                # print('OLD ' + old + '\n')
-                # print('NEW ' + new + '\n')
-                text = text.replace(old, new)
-            page.text = text
+            for old, new in edit.replacements:
+                page.text = page.text.replace(old, new)
             edit_summary = 'Updated Rotten Tomatoes prose. Trial edit. See [[Wikipedia:Bots/Requests for approval/RottenBot|BRFA]].'
             if e.reviewed:
-                edit_summary += ' (Human reviewed)'
+                edit_summary += ' Human reviewed.'
 
             time.sleep(5)
-            page.save(summary = edit_summary,
-                      minor = False,)
-
+            page.save(summary = edit_summary, minor = False,)
 
 def print_data(args):
-    with open(args.file, 'rb') as f:
-        data = pickle.load(f)
-    print(type(data))
-    print(data)
+    print(loaddata(args.file))
 
 def listpages(args):
     site = pwb.Site('en','wikipedia')

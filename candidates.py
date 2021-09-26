@@ -146,7 +146,7 @@ def candidate_from_entry(entry):
     previous_end = -9999
     id_set = set()
     for m in re.finditer(final_re, text, flags=re.S|re.I):
-        # print(m)
+        #print(m)
         span = _find_span(m, title)
         if span[0] < previous_end:
             continue
@@ -177,11 +177,8 @@ def candidate_from_entry(entry):
             cand.matches[0].safe_to_guess = True
         if cand.matches[-2].span[0] < j < cand.matches[-1].span[0]:
             cand.matches[-1].safe_to_guess = True
-    # at most one match after lead section
-    single = sum(j < rtm.span[0] for rtm in cand.matches) <= 1
-    single2 = len(id_set) < 2
+
     for rtm in cand.matches:
-        # rtm.safe_to_guess = single2 or rtm.span[0] < j
         rtm.movie = _find_RTMovie(cand, rtm, make_guess=rtm.safe_to_guess)
         # If there is an initial RTID, wait a bit and try again
         if not rtm.movie and rtm.initial_rtid:
@@ -289,13 +286,18 @@ def _find_span(match, title):
     text = match.string[:para_start] + text + match.string[para_end:]
     #text = text[:matchstart] + text[matchstart: para_end].replace('\n',' ') + text[para_end:]
 
-    p4 = re.compile(r'(?:([.!][ \']?"|(?<![A-Z])[.!])((\s*[@`]+)+|(?=\s+[^a-z]))|}}\s*@+|\n)\s*', flags=re.REVERSE)
+    # p4 = re.compile(r'(?:([.!][ \']?"|(?<![A-Z])[.!])((\s*[@`]+)+|(?=\s+[^a-z]))|}}\s*@+|\n)\s*', flags=re.REVERSE)
+
+    # this version accounts for .{{citation needed}} and .{{sfn}}, etc
+    p4 = re.compile(r'(?:([.!][ \']?"|(?<![A-Z])[.!])(({{a+}})+|(\s*[@`]+)+|(?=\s+[^a-z]))|}}\s*@+|\n)\s*', flags=re.REVERSE)
     i = p4.search(text, 0, matchstart+1).end()
 
-    p5 = re.compile(r'([.!][ \']?"|(?<![A-Z])[.!])((\s*[@`]+)+|(?=\s+[^a-z]))|}}\s*@+|(?=\n\n|\n==)')
+    # p5 = re.compile(r'([.!][ \']?"|(?<![A-Z])[.!])((\s*[@`]+)+|(?=\s+[^a-z]))|}}\s*@+|(?=\n\n|\n==)')
+
+    # this version accounts for .{{citation needed}} and .{{sfn}}, etc
+    p5 = re.compile(r'([.!][ \']?"|(?<![A-Z])[.!])(({{a+}})+|(\s*[@`]+)+|(?=\s+[^a-z]))|}}\s*@+|(?=\n\n|\n==)')
     j = p5.search(text, pos=rindex_pattern(r'\w', text, 0, match.end())).end()
 
-    #print(match.string[i:j])
     return (i, j)
 
 def P1258(title):

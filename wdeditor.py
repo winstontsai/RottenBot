@@ -12,7 +12,7 @@ import regex as re
 
 from pywikibot import Claim, ItemPage, Site
 
-from scraper import RTMovie, USER_AGENT
+from scraper import RTmovie, USER_AGENT
 ################################################################################
 SITE = Site('wikidata', 'wikidata')
 
@@ -60,7 +60,7 @@ class RTID_to_QID:
         query = "SELECT ?item ?itemLabel ?rtid WHERE{?item wdt:P1258 ?rtid.FILTER REGEX(?rtid, '^m/')}"
         data = dict()
         for z in get_results(query):
-            qid = z['item']['value'].split('/')[-1]
+            qid = z['item']['value'].rpartition('/')[2]
             rtid = z['rtid']['value'].lower()
             data[rtid] = qid
         self.data = data
@@ -101,8 +101,13 @@ def date_from_claim(c):
     return date(1, 1, 1)
 
 def most_recent_score_data(item):
-    # item.purge()
-    # item.get(force=True)
+    """
+    Returns most recent score, count, and average on Wikidata.
+    Return value is a triple of strings (score, count, average),
+    each being the value of the corresponding Wikidata claim,
+    e.g. '69%' not '69'.
+    Empty strings are used for missing data.
+    """
     score, count, average = '', '', ''
     newest_date = date(1,1,1)
     for c in item.claims.get(P_REVIEW_SCORE, []):
@@ -133,16 +138,10 @@ def most_recent_score_data(item):
             if date_from_claim(c) == newest_date:
                 average = c.target
                 break
-
     return score, count, average
     
 
 def should_add_RT_claims(movie, item):
-    """
-    If should add RT claims, return the two claims (percent and average)
-    to be added.
-    Otherwise return False.
-    """
     if not movie.tomatometer_score:
         return False
     new_score, new_count, new_average = movie.tomatometer_score
@@ -153,28 +152,23 @@ def should_add_RT_claims(movie, item):
 
     old_score, old_count, old_average = most_recent_score_data(item)
     #print(old_score, old_count, old_average)
-    if not old_score:
-        return score_claims_from_movie(movie)
 
     if m := re.fullmatch(r'([0-9]|[1-9][0-9]|100)(%| percent)', old_score):
         old_score = int(m[1])
     else:
-        return score_claims_from_movie(movie)
+        return True
 
     if re.fullmatch(r'\d+', old_count):
         old_count = int(old_count)
     else:
-        return score_claims_from_movie(movie)
+        return True
     
     if old_average:
         if m := re.fullmatch(r'(([0-9]|10)(\.\d\d?)?)(?:/| out of )10', old_average):
             old_average = float(m[1])
         else:
-            return score_claims_from_movie(movie)
-
-    if (old_score, old_count, old_average) != (new_score, new_count, new_average):
-        return score_claims_from_movie(movie)
-    return False
+            return True
+    return (old_score, old_count, old_average)!=(new_score, new_count, new_average):
 
 def score_claims_from_movie(movie):
     """
@@ -232,8 +226,8 @@ def score_claims_from_movie(movie):
     return percent_claim, average_claim
 
 def add_RT_claims_to_item(movie, item):
-    if z := should_add_RT_claims(movie, item):
-        percent_claim, average_claim = z
+    if should_add_RT_claims(movie, item):
+        percent_claim, average_claim = score_claims_from_movie(movie)
     else:
         return False
 
@@ -300,13 +294,14 @@ def add_RTmovie_data_to_item(movie, item):
 
 def update_film_items(id_pairs, limit = 1):
     """
-    id_pairs should be list of (qid, rtid) pairs.
+    id_pairs should be list of (qid, rtid) pairs, which can be obtained
+    from the Wikidata Query Service.
     """
     j = 0
     for qid, rtid in id_pairs:
         #print(limit, j)
         try:
-            movie = RTMovie(rtid)
+            movie = RTmovie(rtid)
         except Exception:
             print(f'Item {qid} has invalid RTID {rtid}.')
             continue
@@ -315,6 +310,25 @@ def update_film_items(id_pairs, limit = 1):
         if j >= limit:
             break
     return j
+
+def find_items_to_update():
+    """
+    Find film items to update by using the Wikidata Query Service to find
+    items without a review score qualified by
+    Q108403540 (Rotten Tomatoes average rating).
+    For use with update_film_items.
+    """
+    q = """SELECT ?item ?rtid
+WHERE 
+{
+  ?item wdt:P1258 ?rtid.
+  FILTER(regex(?rtid, '^m/'))
+  FILTER NOT EXISTS {
+    ?item p:P444 ?reviewstatement.
+    ?reviewstatement pq:P459 wd:Q108403540.
+  }
+}"""
+    return [(r['item']['value'].rpartition('/')[2], r['rtid']['value']) for r in get_results(q)]
 
 # class FilmTypes:
 #     film_types = None
@@ -335,6 +349,7 @@ if __name__ == "__main__":
 
     pairs = [('Q2201', 'm/1217700-kick_ass')]
     update_film_items(pairs)
+    print(find_items_to_update())
 
 
 

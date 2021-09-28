@@ -60,7 +60,7 @@ def find_substring(s, indicator, terminator):
     return s[i + len(indicator) : j]
 
 @dataclass
-class RTMovie:
+class RTmovie:
     short_url: str
     url: str = None
     access_date: str = None
@@ -155,7 +155,7 @@ class RTMovie:
         self.title = self.score_data["scoreboard"]["title"]
         #if self.score_data['modal']["hasTomatometerScoreAll"]:
         if sd := self.score_data['modal']["tomatometerScoreAll"]:
-            s, c, a = sd["score"], sd["ratingCount"], sd["averageRating"]
+            s, c, a = sd["score"], sd["ratingCount"], sd["averageRating"] or ''
             if s is not None:
                 self.tomatometer_score = (str(s), str(c), str(a))
         #if self.score_data['modal']["hasAudienceScoreAll"]:
@@ -165,7 +165,7 @@ class RTMovie:
                 self.audience_score = (str(s), str(c), str(a))
 
 if __name__ == "__main__":
-    movie = RTMovie('m/altered_states')
+    movie = RTmovie('m/wifemistress')
     print(movie)
 
 

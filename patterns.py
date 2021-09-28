@@ -216,9 +216,11 @@ valid_citation_template = citert_redirects + ['Citation', 'Cite web',
 'Web reference', '웹 인용', 'Cite we', 'Citat web', 'Citweb', 'مرجع ويب', 'Web link',
 'Navedi splet', 'Citaweb', 'استشهاد ويب', 'Ref-web', 'CITEWEB']
 
+non_boundary_abbrs = ['Mr.', 'Mrs.', 'Ms.', 'Hon.', 'Rev.', 'Dr.', 'Prof.', 'St.', 'i.e.', 'e.g.']
+no_bad_abbr_re = fr'(?<!{alternates(map(re.escape, non_boundary_abbrs))})'
+
 if __name__ == "__main__":
-    d = {'hi':'bye'}
-    print(rtdata_template(**d, qid='234'))
+    print(s)
 
 
 

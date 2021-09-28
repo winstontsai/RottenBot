@@ -284,21 +284,16 @@ def _find_span(match, title):
     text = re.sub(re.escape(title), rep, text)
     
     text = match.string[:para_start] + text + match.string[para_end:]
-    #text = text[:matchstart] + text[matchstart: para_end].replace('\n',' ') + text[para_end:]
 
-    # p4 = re.compile(r'(?:([.!][ \']?"|(?<![A-Z])[.!])((\s*[@`]+)+|(?=\s+[^a-z]))|}}\s*@+|\n)\s*', flags=re.REVERSE)
+    p4 = re.compile(r'(?:([.!?][ \']?"|[!?]|(?<![A-Z])\.' + no_bad_abbr_re + r')(({{a+}})+|(\s*[@`]+)+|(?=\s+[^a-z]))|}}\s*@+|\n)\s*', flags=re.REVERSE)
+    m = p4.search(text, 0, matchstart+1)
+    i = m.end()
 
-    # this version accounts for .{{citation needed}} and .{{sfn}}, etc
-    p4 = re.compile(r'(?:([.!][ \']?"|(?<![A-Z])[.!])(({{a+}})+|(\s*[@`]+)+|(?=\s+[^a-z]))|}}\s*@+|\n)\s*', flags=re.REVERSE)
-    i = p4.search(text, 0, matchstart+1).end()
+    p5 = re.compile(r'([.!?][ \']?"|[!?]|(?<![A-Z])\.' + no_bad_abbr_re + r')(({{a+}})+|(\s*[@`]+)+|(?=\s+[^a-z]))|}}\s*@+|(?=\n\n|\n==)')
+    m = p5.search(text, pos=rindex_pattern(r'\w', text, 0, match.end()))
+    j = m.end()
 
-    # p5 = re.compile(r'([.!][ \']?"|(?<![A-Z])[.!])((\s*[@`]+)+|(?=\s+[^a-z]))|}}\s*@+|(?=\n\n|\n==)')
-
-    # this version accounts for .{{citation needed}} and .{{sfn}}, etc
-    p5 = re.compile(r'([.!][ \']?"|(?<![A-Z])[.!])(({{a+}})+|(\s*[@`]+)+|(?=\s+[^a-z]))|}}\s*@+|(?=\n\n|\n==)')
-    j = p5.search(text, pos=rindex_pattern(r'\w', text, 0, match.end())).end()
-
-    return (i, j)
+    return i, j
 
 def P1258(title):
     with WIKIDATA_LOCK:

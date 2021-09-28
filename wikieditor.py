@@ -223,10 +223,6 @@ def _compute_flags(rtmatch, cand, safe_templates_and_wikilinks):
     if re.search(average_re, cand.title+movie.title):
         flags.add('average pattern in title')
 
-    # Check brackets and quotes
-    if not balanced_brackets(text):
-        flags.add('mismatched brackets/quotes')
-
     # Reference other than Rotten Tomatoes?
     if pattern_count(fr'<ref|{template_pattern("[rR]")}', text) - bool(rtmatch.ref):
         flags.add(f"non-RT reference")
@@ -245,6 +241,10 @@ def _compute_flags(rtmatch, cand, safe_templates_and_wikilinks):
 
     # delete refs (comments already deleted)
     text_no_refs = re.sub(someref_re, '', text, flags=re.S)
+
+    # Check brackets and quotes
+    if x := unbalanced_brackets(text_no_refs):
+        flags.add(f'unbalanced {x}')
 
     # Check for other scores which might interfere: Metacritic, IMDb, PostTrak, CinemaScore
     if re.search(r'Metacritic', text_no_refs, flags=re.I):
@@ -533,8 +533,11 @@ def rating_and_consensus_prose(movie):
     title = movie.title
     score, count, average = movie.tomatometer_score
     consensus = movie.consensus
-    s = (f"On [[Rotten Tomatoes]], ''{title}'' holds an approval rating " +
-f"of {score}% based on {count} reviews, with an average rating of {average}/10.")
+    s = f"On [[Rotten Tomatoes]], ''{title}'' holds an approval rating of {score}% based on {count} reviews"
+    if average:
+        s += f', with an average rating of {average}/10.'
+    else:
+        s += '.'
     if consensus or int(count)>=20:
         s = s.replace('approval rating of 100%', '[[List of films with a 100% rating on Rotten Tomatoes|approval rating of 100%]]')
         s = s.replace('approval rating of 0%', '[[List of films with a 0% rating on Rotten Tomatoes|approval rating of 0%]]')
@@ -603,24 +606,25 @@ def safe_to_add_consensus2(rtmatch, cand, new_text = ''):
         return partial_ratio(consensus,t,score_cutoff=60)
     return not any(map(consensus_likely_in_text, [after, new_text, before]))
 
-def balanced_brackets(text):
+def unbalanced_brackets(text):
     rbrackets = {']':'[', '}':'{', ')':'(', '>':'<'}
     lbrackets = rbrackets.values()
     stack= []
-    for i in text:
-        if i == '"':
+    for c in text:
+        if c == '"':
             if stack and stack[-1]=='"':
                 stack.pop()
             else:
                 stack.append('"')
-        elif i in lbrackets:
-            stack.append(i)
-        elif i in rbrackets:
-            if stack and stack[-1]==rbrackets[i]:
+        elif c in lbrackets:
+            stack.append(c)
+        elif c in rbrackets:
+            if stack and stack[-1]==rbrackets[c]:
                 stack.pop()
             else:
-                return False
-    return not stack
+                return c
+    
+    return stack[-1] if stack else False
 
 def has_non_score_url(text):
     wt = wtp.parse(text)

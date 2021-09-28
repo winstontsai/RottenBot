@@ -47,7 +47,7 @@ def upload_edits(args):
                 continue
             for old, new in edit.replacements:
                 page.text = page.text.replace(old, new)
-            edit_summary = 'Updated Rotten Tomatoes prose. Trial edit. See [[Wikipedia:Bots/Requests for approval/RottenBot|BRFA]].'
+            edit_summary = 'Use [[Template:Rotten Tomatoes data]]. Trial edit. See [[Wikipedia:Bots/Requests for approval/RottenBot|BRFA]].'
             if e.reviewed:
                 edit_summary += ' Human reviewed.'
 

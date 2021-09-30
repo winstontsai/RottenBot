@@ -122,7 +122,7 @@ def most_recent_score_data(item):
         if (review_date := date_from_claim(c)) >= newest_date:
             newest_date = review_date
             score = c.target
-            count = str(q[P_REVIEW_COUNT][0].target.amount)
+            count = q[P_REVIEW_COUNT][0].target.amount
 
     # find corresponding average rating, if it exists
     if score:
@@ -138,9 +138,8 @@ def most_recent_score_data(item):
             if date_from_claim(c) == newest_date:
                 average = c.target
                 break
-    return score, count, average
+    return tuple(map(str, [score, count, average] ))
     
-
 def should_add_RT_claims(movie, item):
     if not movie.tomatometer_score:
         return False
@@ -168,7 +167,7 @@ def should_add_RT_claims(movie, item):
             old_average = float(m[1])
         else:
             return True
-    return (old_score, old_count, old_average)!=(new_score, new_count, new_average):
+    return (old_score, old_count, old_average)!=(new_score, new_count, new_average)
 
 def score_claims_from_movie(movie):
     """
@@ -206,7 +205,7 @@ def score_claims_from_movie(movie):
     title = make_claim(P_TITLE, pwb.WbMonolingualText(movie.title, 'en'))
     languageofwork = make_claim(P_LANGUAGE, make_item(Q_ENGLISH))
     retrieved = make_claim(P_RETRIEVED, wbtimetoday)
-    source_order = [statedin, rtid_claim, title, retrieved]
+    source_order = [statedin, rtid_claim, retrieved]
 
     # add qualifiers, reference, and rank for percent claim
     for x in [review_score_by, number_of_reviews, point_in_time, percent_method]:
@@ -226,10 +225,9 @@ def score_claims_from_movie(movie):
     return percent_claim, average_claim
 
 def add_RT_claims_to_item(movie, item):
-    if should_add_RT_claims(movie, item):
-        percent_claim, average_claim = score_claims_from_movie(movie)
-    else:
+    if not should_add_RT_claims(movie, item):
         return False
+    percent_claim, average_claim = score_claims_from_movie(movie)
 
     # set rank of all existing non-deprecated RT score claims to 'normal'
     for c in item.claims.get(P_REVIEW_SCORE, []):
@@ -238,8 +236,8 @@ def add_RT_claims_to_item(movie, item):
             if val == make_item(Q_ROTTEN_TOMATOES) and c.rank == 'preferred':
                 c.changeRank('normal')
 
-    item.addClaim(percent_claim, summary='Add Rotten Tomatoes score. Test edit. See [[Wikidata:Requests for permissions/Bot/RottenBot]].')
-    item.addClaim(average_claim, summary='Add Rotten Tomatoes average rating. Test edit. See [[Wikidata:Requests for permissions/Bot/RottenBot]].')
+    item.addClaim(percent_claim, summary='Add Rotten Tomatoes score.')
+    item.addClaim(average_claim, summary='Add Rotten Tomatoes average rating.')
     return True
 
 def add_RTmovie_data_to_item(movie, item):
@@ -248,31 +246,27 @@ def add_RTmovie_data_to_item(movie, item):
     Currently this means the Rotten Tomatoes ID and the two score claims.
     """
     print(f"Checking item {item.getID()} aka {item.labels.get('en')}.")
+    # time.sleep(5)
+
     changed = False
     title = movie.title
 
     if 'en' not in item.labels:
-        item.editLabels( {'en': title}, summary=f'Add English label {title}. Test edit. See [[Wikidata:Requests for permissions/Bot/RottenBot]].')
-    current_label = item.labels['en']
+        item.editLabels({'en': title}, summary=f'Add English label "{title}".')
+        changed = True
+    en_label = item.labels.get('en', '')
 
-    # different language?
-    titlediff = title.lower() != current_label.lower()
-    current_aliases = item.aliases.get('en', [])
-    if titlediff and title not in (s.lower() for s in current_aliases):
-        item.editAliases( {'en': current_aliases+[title]}, summary=f'Add alias {title}. Test edit. See [[Wikidata:Requests for permissions/Bot/RottenBot]].')
+    titlediff = title.lower() != en_label.lower()
+    if titlediff:
+        en_aliases = item.aliases.get('en', [])
+        if title.lower() not in (x.lower() for x in en_aliases):
+            item.editAliases({'en': en_aliases + [title]}, summary=f'Add English alias "{title}".')
+            changed = True
 
     # check if up-to-date Rotten Tomatoes ID exists, add if it does not.
     # also add P_NAMED_AS qualifier if the RT title is different from the label
     for claim in item.claims.get(P_ROTTEN_TOMATOES_ID, []):
         if claim.target == movie.short_url:
-            if titlediff:
-                if P_NAMED_AS not in claim.qualifiers:
-                    claim.addQualifier(make_claim(P_NAMED_AS, title), summary='Add "named as" qualifier to Rotten Tomatoes ID claim. Test edit. See [[Wikidata:Requests for permissions/Bot/RottenBot]].')
-                    changed = True
-                elif claim.qualifiers[P_NAMED_AS][0].target != title:
-                    claim.removeQualifier(claim.qualifiers[P_NAMED_AS][0])
-                    claim.addQualifier(make_claim(P_NAMED_AS, title), summary='Add "named as" qualifier to Rotten Tomatoes ID claim. Test edit. See [[Wikidata:Requests for permissions/Bot/RottenBot]].')
-                    changed = True
             break
     else:
         d, m, y = map(int, date.today().strftime('%d %m %Y').split())
@@ -330,26 +324,17 @@ WHERE
 }"""
     return [(r['item']['value'].rpartition('/')[2], r['rtid']['value']) for r in get_results(q)]
 
-# class FilmTypes:
-#     film_types = None
-
-#     @classmethod
-#     def has_film_type(cls, item):
-#         if cls.film_types is None:
-#             query = "SELECT ?ft WHERE {?ft wdt:P279* wd:Q11424}"
-#             cls.film_types = set(r['ft']['value'].split('/')[-1] for r in get_results(query))
-#         for c in item.claims.get('P31', []):
-#             if hasattr(c.target, 'getID') and c.target.getID() in cls.film_types:
-#                 return True
-#         return False
-
 
 if __name__ == "__main__":
     SITE.login()
+    t0 = time.perf_counter()
 
-    pairs = [('Q2201', 'm/1217700-kick_ass')]
+    items_to_update = find_items_to_update()
+    pairs = items_to_update
     update_film_items(pairs)
-    print(find_items_to_update())
+
+    t1 = time.perf_counter()
+    print("TIME ELAPSED =", t1-t0, file = sys.stderr)
 
 
 

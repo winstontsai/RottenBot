@@ -165,7 +165,7 @@ class RTmovie:
                 self.audience_score = (str(s), str(c), str(a))
 
 if __name__ == "__main__":
-    movie = RTmovie('m/wifemistress')
+    movie = RTmovie('m/saving_paradise')
     print(movie)
 
 

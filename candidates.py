@@ -43,7 +43,7 @@ class RTMatch:
     """
     span: tuple[int, int]
     ref: Reference
-    movie: scraper.RTMovie = None
+    movie: scraper.RTmovie = None
     qid: str = None   # special value 'connected' means use connected Wikidata item
     initial_rtid: str = None
     safe_to_guess: bool = False
@@ -78,8 +78,8 @@ def find_candidates(xmlfile, get_user_input = False):
 
     WIKIDATA_LOCK = multiprocessing.Lock()
     GOOGLESEARCH_LOCK = multiprocessing.Lock()
-    WQS_LOCK = multiprocessing.Lock()   # Wikidata Query Service
-    with ProcessPoolExecutor(max_workers=14,
+    WQS_LOCK = multiprocessing.Lock()
+    with ProcessPoolExecutor(max_workers=16,
             initializer=_init, initargs=(WIKIDATA_LOCK,GOOGLESEARCH_LOCK, WQS_LOCK)) as executor:
         futures = {executor.submit(candidate_from_entry, e) : e.title for e in xml_entries}
 
@@ -179,11 +179,11 @@ def candidate_from_entry(entry):
             cand.matches[-1].safe_to_guess = True
 
     for rtm in cand.matches:
-        rtm.movie = _find_RTMovie(cand, rtm, make_guess=rtm.safe_to_guess)
+        rtm.movie = _find_RTmovie(cand, rtm, make_guess=rtm.safe_to_guess)
         # If there is an initial RTID, wait a bit and try again
         if not rtm.movie and rtm.initial_rtid:
             time.sleep(60)
-            rtm.movie = _find_RTMovie(cand, rtm, make_guess=rtm.safe_to_guess)
+            rtm.movie = _find_RTmovie(cand, rtm, make_guess=rtm.safe_to_guess)
     return cand
 
 def _ask_for_movies(cand):
@@ -220,7 +220,7 @@ def _ask_for_movie(cand, rtmatch):
             else:
                 print("ID must match the regex 'm/[-a-z0-9_]+'.")
         rtmatch.initial_rtid = user_input
-        if movie := _find_RTMovie(cand, rtmatch):
+        if movie := _find_RTmovie(cand, rtmatch):
             return movie
         print(f"Problem getting Rotten Tomatoes data with id {user_input}.\n")
 
@@ -345,7 +345,7 @@ def googled_id(title):
             return None
     return re.search(url_re, url)['rt_id']
 
-def _find_RTMovie(cand, rtm, make_guess = False):
+def _find_RTmovie(cand, rtm, make_guess = False):
     """
     Attempt to find correct Rotten Tomatoes movie for the RTMatch rtm.
     Uses rtm.initial_rtid for initial guess.
@@ -354,7 +354,7 @@ def _find_RTMovie(cand, rtm, make_guess = False):
     title, text = cand.title, cand.text
     try:
         if rtm.initial_rtid:
-            return scraper.RTMovie(rtm.initial_rtid)
+            return scraper.RTmovie(rtm.initial_rtid)
     except Exception:
         pass
 
@@ -375,7 +375,7 @@ def _find_RTMovie(cand, rtm, make_guess = False):
     if id_from_external_links not in seen_ids:
         seen_ids.add(id_from_external_links)
         try:
-            return scraper.RTMovie(id_from_external_links)
+            return scraper.RTmovie(id_from_external_links)
         except Exception:
             pass
 
@@ -383,7 +383,7 @@ def _find_RTMovie(cand, rtm, make_guess = False):
     if (p := P1258(title)) not in seen_ids:
         seen_ids.add(p)
         try:
-            return scraper.RTMovie(p)
+            return scraper.RTmovie(p)
         except Exception:
             pass
 
@@ -417,7 +417,7 @@ def _find_RTMovie(cand, rtm, make_guess = False):
 
     if (gid := googled_id(title)) not in seen_ids:
         try:
-            movie = scraper.RTMovie(gid)
+            movie = scraper.RTmovie(gid)
         except Exception:
             pass
         else:
@@ -443,7 +443,7 @@ def _find_qid(cand, rtm, rtid_to_qid):
     for claim in sorted(item.claims.get(P_ROTTEN_TOMATOES_ID, []),
             key=lambda c: date_from_claim(c), reverse=True):
         try:
-            movie = RTMovie(claim.target)
+            movie = RTmovie(claim.target)
         except Exception:
             continue
         if movie.short_url == rtm.movie.short_url:

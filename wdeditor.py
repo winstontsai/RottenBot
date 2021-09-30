@@ -267,6 +267,15 @@ def add_RTmovie_data_to_item(movie, item):
     # also add P_NAMED_AS qualifier if the RT title is different from the label
     for claim in item.claims.get(P_ROTTEN_TOMATOES_ID, []):
         if claim.target == movie.short_url:
+            if titlediff:
+                # add P_NAMED_AS if no date
+                if P_POINT_IN_TIME in claim.qualifiers:
+                    pass
+                elif claim.sources and P_RETRIEVED in claim.sources[0]:
+                    pass
+                elif P_NAMED_AS not in claim.qualifiers:
+                    claim.addQualifier(make_claim(P_NAMED_AS, title),
+                        summary='Add "named as" qualifier to Rotten Tomatoes ID statement.')
             break
     else:
         d, m, y = map(int, date.today().strftime('%d %m %Y').split())
@@ -329,9 +338,9 @@ if __name__ == "__main__":
     SITE.login()
     t0 = time.perf_counter()
 
-    items_to_update = find_items_to_update()
-    pairs = items_to_update
-    update_film_items(pairs)
+    pairs = find_items_to_update()
+    print(pairs)
+    #update_film_items(pairs, limit = 1)
 
     t1 = time.perf_counter()
     print("TIME ELAPSED =", t1-t0, file = sys.stderr)

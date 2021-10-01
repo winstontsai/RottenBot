@@ -68,32 +68,32 @@ def fulledit_from_candidate(cand):
 
     # Fix duplicated citations, if any.
     # This is kind of a hacky solution.
-    c = Counter(x.movie.url for x in matches)
-    name_generator = (f'rtdata{i}' for i in range(99) if f'rtdata{i}' not in text)
-    for url in c:
-        if c[url] < 2:
-            continue
+    # c = Counter(x.movie.url for x in matches)
+    # name_generator = (f'rtdata{i}' for i in range(99) if f'rtdata{i}' not in text)
+    # for url in c:
+    #     if c[url] < 2:
+    #         continue
 
-        def preferred_ref(match):
-            ref = match.ref
-            val = 6
-            if ref:
-                val -= 2
-                if ref.name:
-                    val -= 2
-                    if ref.list_defined:
-                        val -= 2
-            # extra subtraction to prefer matches found lower in the article
-            return val - match.span[0] / len(cand.text)
-        # we use reversed to pref
-        l = sorted((x for x in matches if x.movie.url == url), key=preferred_ref)
-        if not l[0].ref:
-            l[0].ref = candidates.Reference('text', name=next(name_generator))
-        elif not l[0].ref.name:
-            l[0].ref.name = next(name_generator)
-        for match in l[1:]:
-            if not (match.ref and match.ref.name) or match.ref.name==l[0].ref.name:
-                match._duplicate_refname = l[0].ref.name
+    #     def preferred_ref(match):
+    #         ref = match.ref
+    #         val = 6
+    #         if ref:
+    #             val -= 2
+    #             if ref.name:
+    #                 val -= 2
+    #                 if ref.list_defined:
+    #                     val -= 2
+    #         # extra subtraction to prefer matches found lower in the article
+    #         return val - match.span[0] / len(cand.text)
+    #     # we use reversed to pref
+    #     l = sorted((x for x in matches if x.movie.url == url), key=preferred_ref)
+    #     if not l[0].ref:
+    #         l[0].ref = candidates.Reference('text', name=next(name_generator))
+    #     elif not l[0].ref.name:
+    #         l[0].ref.name = next(name_generator)
+    #     for match in l[1:]:
+    #         if not (match.ref and match.ref.name) or match.ref.name==l[0].ref.name:
+    #             match._duplicate_refname = l[0].ref.name
 
     edits = []
     # Compute an Edit for each match
@@ -236,8 +236,6 @@ def _compute_flags(rtmatch, cand, safe_templates_and_wikilinks):
     for tag in wikitext.get_tags():
         if tag.name not in ['ref', 'nowiki']:
             flags.add(f'suspicious tag')
-        if has_non_score_url(str(tag)):
-            flags.add('non-score url')
 
     # delete refs (comments already deleted)
     text_no_refs = re.sub(someref_re, '', text, flags=re.S)
@@ -315,99 +313,22 @@ def _compute_flags(rtmatch, cand, safe_templates_and_wikilinks):
 
 def _suggested_edit(cand, rtmatch, safe_templates_and_wikilinks):
     flags = _compute_flags(rtmatch, cand, safe_templates_and_wikilinks)
+    reduced_flags = set(x for x in flags if not re.match(r'(T|WL):', x))
+    reduced_flags -= {'Metacritic', 'IMDb', 'PostTrak', 'CinemaScore'}
+    reduced_flags -= {'non-RT reference'}
 
-    span, ref = rtmatch.span, rtmatch.ref
-    text = cand.text[span[0]:span[1]]
+    span = rtmatch.span
+    ref = rtmatch.ref
     movie = rtmatch.movie
     score, count, average = movie.tomatometer_score
 
-    # Remove comments
-    new_prose = re.sub(r'<!--.*?-->', '', text, flags=re.S)
-    # Fix quote style
-    new_prose = new_prose.translate(str.maketrans('“”‘’','""\'\''))
+    old_text = cand.text[span[0]:span[1]]
+    new_prose = old_text
+    replacements = []
 
-    # If using Template:Rotten Tomatoes prose
-    if m := re.search(t_rtprose, new_prose):
-        new_prose = new_prose.replace(m[0], rtdata_template('prose', qid=rtmatch.qid))
-
-    on_list = re.search(r'\[\[\s*(?:List of )?films with a (100|0)% rating on Rotten Tomatoes\s*\|([^]]+)\]\]', new_prose, flags=re.I)
-    if on_list:
-        if on_list[1] != score:
-            new_prose = new_prose.replace(on_list[0], on_list[2].strip())
-            flags.add('no longer 0% or 100%')
-    elif m := re.search(r'\[\[\s*(?:List of )?films with a (100|0)% rating on Rotten Tomatoes', new_prose, flags=re.I):
-        if m[1] != score:
-            flags.add('no longer 0% or 100%')
-
-    new_prose = re.sub(score_re, rtdata_template('score', qid=rtmatch.qid), new_prose)
-    if not {'Metacritic', 'multiple counts'} & flags:
-        new_prose = re.sub(count_re, rtdata_template('count', qid=rtmatch.qid)+r' \g<count_term>', new_prose)
-    if not {'IMDb', 'multiple averages'} & flags:
-        new_prose = re.sub(average_re, rtdata_template('average', qid=rtmatch.qid), new_prose)
-
-    new_prose = re.sub(r'ilms with a \{\{RT data\|score.*?\}\} rating on Rotten', fr'ilms with a {score}% rating on Rotten', new_prose)
-
-    # Update "As of"
-    if m:=re.search(t_asof, new_prose): # As of template
-        d = parse_template(m[0])[1]
-        if '3' in d:
-            d['4'] = 'd'
-        if '2' in d:
-            d['3'] = 'm'
-        if '1' in d:
-            d['2'] = 'y'
-            if re.search(r'[a-z]', d['1']): # if has letter, assume month here
-                d['3'] = 'm'
-        new_prose = new_prose.replace(m[0], rtdata_template('as of', **d, qid=rtmatch.qid))
-    elif m:=re.search(r"[Aa]s of (?=Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|[1-9]|early|mid|late).{,14}(?<![0-9])[0-9]{4}(?![0-9])", new_prose, flags=re.S):
-        d = {'1':'as of', '2':'y', '3':'m'}
-        if pattern_count('[0-9]', m[0]) > 4: # if includes day
-            d['4'] = 'd'
-            if not m[0][6].isdecimal(): # if not day before month
-                d['df'] = 'US'
-        if m[0][0] == 'a':
-            d['lc'] = 'y'
-        d['qid'] = rtmatch.qid
-        new_prose = new_prose.replace(m[0], rtdata_template(**d))
-    elif re.search(r"\b[Aa]s of\b", new_prose):
-        flags.add('As of')
-
-    # Not a weighted average??? At the very least unsourced.
-    if 'Metacritic' not in flags and 'IMDb' not in flags:
-        for wl in wtp.parse(new_prose).wikilinks:
-            z = wl.title.strip().lower()
-            if re.match(r'weighted (average|(arithmetic )?mean)|average (rating|score)|rating average', z):
-                repl = wl.text.strip() if wl.text else wl.title.strip()
-                new_prose = re.sub(re.escape(str(wl)), repl, new_prose)
-        new_prose = new_prose.replace(' weighted ', ' ')
-        new_prose = new_prose.replace(' a average',' an average')
-
-    # remove "rare" adjective since it is subjective
-    new_prose = re.sub(r'rare (0%|100%|\[\[List|approval rating)', r'\1', new_prose)
-
-    # An xx% rating vs a xx% rating...
-    if score.startswith('8') or score in ('11', '18'):
-        new_prose = new_prose.replace(' a {{RT data|score', ' an {{RT data|score')
-    else:
-        new_prose = new_prose.replace(' an {{RT data|score', ' a {{RT data|score')
-    if average.startswith('8'):
-        new_prose = new_prose.replace(' a {{RT data|average', ' an {{RT data|average')
-    else:
-        new_prose = new_prose.replace(' an {{RT data|average', ' a {{RT data|average')
-
-    safe1 = safe_to_add_consensus1(rtmatch, cand, new_prose)
-    safe2 = safe_to_add_consensus2(rtmatch, cand, new_prose)
-    if safe2 and not safe1:
-        flags.add(f'check critics consensus status {safe1} {safe2}')
-    if safe2:
-        if {'Metacritic','IMDb','PostTrak','CinemaScore'} & flags:
-            new_prose += f' The critical consensus on Rotten Tomatoes reads, "{movie.consensus}"'
-        else:
-            new_prose += f' The site\'s critical consensus reads, "{movie.consensus}"'
-
-    # Update citation and build replacements
     ############################################################################
-    # Compute new_citation
+    # First, compute new_citation and add it to new_prose.
+    # This way subsequent changes won't affect the replacement of the old citation.
     new_citation = citation_replacement(rtmatch)
     # If inside lead section and no ref, don't add one
     if span[0] < cand.text.index('\n==') and (not ref or ref.text=='text'):
@@ -416,8 +337,8 @@ def _suggested_edit(cand, rtmatch, safe_templates_and_wikilinks):
     elif 'sfn or harv' in flags and (not ref or ref.text=='text'):
         new_citation = ''
     # if duplicated, defer to later citation
-    elif hasattr(rtmatch, '_duplicate_refname'):
-        new_citation = f'<ref name="{rtmatch._duplicate_refname}" />'
+    # elif hasattr(rtmatch, '_duplicate_refname'):
+    #     new_citation = f'<ref name="{rtmatch._duplicate_refname}" />'
     elif ref:
         refwikitext = wtp.parse(ref.text)
         if refwikitext.templates:
@@ -477,19 +398,110 @@ def _suggested_edit(cand, rtmatch, safe_templates_and_wikilinks):
 
                 new_citation = str(refwikitext)
 
-    #new_citation = new_citation.replace('</ref', '{{'+f'RT data|edit|qid={rtmatch.qid}' +'}}</ref')
-
-    # Add new_citation to new_prose in the right location
-    replacements = []
-    if ref:
-        if ref.list_defined:
-            replacements = [(ref.text, new_citation)]
-        elif safe2 or 'non-RT reference' not in flags:
-            new_prose = new_prose.replace(ref.text, '') + new_citation
+    # Need to compute consensus before adding in new_citation.
+    safe1 = safe_to_add_consensus1(rtmatch, cand, new_prose)
+    safe2 = safe_to_add_consensus2(rtmatch, cand, new_prose)
+    if safe2:
+        if not safe1:
+            flags.add(f'check critics consensus status {safe1} {safe2}')
+        if {'Metacritic','IMDb','PostTrak','CinemaScore','non-RT reference'} & flags:
+            new_prose += f' The critical consensus on Rotten Tomatoes reads, "{movie.consensus}"'
         else:
-            new_prose = new_prose.replace(ref.text, new_citation)
+            new_prose += f' The site\'s critical consensus reads, "{movie.consensus}"'
+
+    if new_citation:
+        # add EditAtWikidata button
+        new_citation = new_citation.replace('</ref', '{{'+f'RT data|edit|qid={rtmatch.qid}' +'}}</ref')
+        # Add new_citation to new_prose in the right location
+        if ref:
+            if ref.list_defined:
+                replacements = [(ref.text, new_citation)]
+            elif safe2:
+                new_prose = new_prose.replace(ref.text, '') + new_citation
+            else:
+                new_prose = new_prose.replace(ref.text, new_citation)
+        else:
+            new_prose += new_citation
+
+    ###########################################################################
+    # Reference and critical consensus have been handled above. Now we continue.
+
+    # Remove comments
+    new_prose = re.sub(r'<!--.*?-->', '', new_prose, flags=re.S)
+    # Fix quote style
+    new_prose = new_prose.translate(str.maketrans('“”‘’','""\'\''))
+
+    # Replace Template:Rotten Tomatoes prose with {{RT data|prose}}
+    if m := re.search(t_rtprose, new_prose):
+        new_prose = new_prose.replace(m[0], rtdata_template('prose', qid=rtmatch.qid))
+
+    # Handle cases where linked to [[List of films with a 100% rating on Rotten Tomatoes]]
+    on_list = re.search(r'\[\[\s*(?:List of )?films with a (100|0)% rating on Rotten Tomatoes\s*\|([^]]+)\]\]', new_prose, flags=re.I)
+    if on_list:
+        if on_list[1] != score:
+            new_prose = new_prose.replace(on_list[0], on_list[2].strip())
+            flags.add('no longer 0% or 100%')
+    elif m := re.search(r'\[\[\s*(?:List of )?films with a (100|0)% rating on Rotten Tomatoes', new_prose, flags=re.I):
+        if m[1] != score:
+            flags.add('no longer 0% or 100%')
+
+    # Replace score, count, and and average
+    new_prose = re.sub(score_re + notinref, rtdata_template('score', qid=rtmatch.qid), new_prose, flags=re.S)
+    if not {'Metacritic'} & flags:
+        new_prose = re.sub(count_re + notinref, rtdata_template('count', qid=rtmatch.qid)+r' \g<count_term>', new_prose, flags=re.S)
+    if not {'IMDb'} & flags:
+        new_prose = re.sub(average_re + notinref, rtdata_template('average', qid=rtmatch.qid), new_prose, flags=re.S)
+
+    # Fix Wikilink target so that it doesn't use {{RT data}}
+    new_prose = re.sub(r'ilms with a \{\{RT data\|score.*?\}\} rating on Rotten', fr'ilms with a {score}% rating on Rotten', new_prose, flags=re.S)
+
+    # Update "As of"
+    if m:=re.search(t_asof, new_prose, flags=re.S):
+        d = parse_template(m[0])[1]
+        if '3' in d:
+            d['4'] = 'd'
+        if '2' in d:
+            d['3'] = 'm'
+        if '1' in d:
+            d['2'] = 'y'
+            if re.search(r'[a-z]', d['1']): # if has letter, assume month is incorrectly put here
+                d['3'] = 'm'
+        new_prose = new_prose.replace(m[0], rtdata_template('as of', **d, qid=rtmatch.qid))
+    elif m:=re.search(r"[Aa]s of (?=Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|[1-9]|early|mid|late).{,14}(?<![0-9])[0-9]{4}(?![0-9])" + notinref, new_prose, flags=re.S):
+        d = {'1':'as of', '2':'y', '3':'m'}
+        if pattern_count('[0-9]', m[0]) > 4: # if includes day
+            d['4'] = 'd'
+            if not m[0][6].isdecimal(): # if not day before month
+                d['df'] = 'US'
+        if m[0][0] == 'a':
+            d['lc'] = 'y'
+        d['qid'] = rtmatch.qid
+        new_prose = new_prose.replace(m[0], rtdata_template(**d))
+    elif re.search(r"\b[Aa]s of\b" + notinref, new_prose, flags=re.S):
+        flags.add('As of')
+
+    # Not a weighted average??? At the very least unsourced.
+    if not {'Metacritic','IMDb'} & flags:
+        for wl in wtp.parse(new_prose).wikilinks:
+            z = wl.title.strip().lower()
+            if re.match(r'weighted (average|(arithmetic )?mean)|average (rating|score)|rating average', z):
+                repl = wl.text.strip() if wl.text else wl.title.strip()
+                new_prose = new_prose.replace(str(wl), repl)
+        new_prose = re.sub(' weighted ' + notinref, ' ', new_prose)
+        new_prose = re.sub(' a average' + notinref, ' an average', new_prose)
+
+    # remove "rare" adjective since it is subjective
+    new_prose = re.sub(r'rare (0%|100%|\[\[List|approval rating)', r'\1', new_prose)
+
+    # An xx% rating vs a xx% rating...
+    if score.startswith('8') or score in ('11', '18'):
+        new_prose = new_prose.replace(' a {{RT data|score', ' an {{RT data|score')
     else:
-        new_prose += new_citation
+        new_prose = new_prose.replace(' an {{RT data|score', ' a {{RT data|score')
+    if average.startswith('8'):
+        new_prose = new_prose.replace(' a {{RT data|average', ' an {{RT data|average')
+    else:
+        new_prose = new_prose.replace(' an {{RT data|average', ' a {{RT data|average')
 
     # Minor (usually correct) fixes
     new_prose = new_prose.replace('"..', '".')
@@ -500,15 +512,12 @@ def _suggested_edit(cand, rtmatch, safe_templates_and_wikilinks):
     # remove citation needed template
     new_prose = re.sub(cn_re, '', new_prose, flags=re.S)
 
-    replacements = [(text, new_prose)] + replacements
+    replacements = [(old_text, new_prose)] + replacements
 
     # remove qid= parameter if superfluous
     if True or cand.qid == rtmatch.qid:
         replacements = [(z[0], z[1].replace(f'|qid={rtmatch.qid}', '')) for z in replacements]
 
-    reduced_flags = set(x for x in flags if not re.match(r'(T|WL):', x))
-    reduced_flags -= {'Metacritic', 'IMDb', 'PostTrak', 'CinemaScore'}
-    reduced_flags -= {'non-RT reference', 'multiple counts', 'multiple averages'}
     return Edit(replacements, reduced_flags)
 
 # def _complete_replacements(cand, rtmatch):
@@ -625,14 +634,6 @@ def unbalanced_brackets(text):
                 return c
     
     return stack[-1] if stack else False
-
-def has_non_score_url(text):
-    wt = wtp.parse(text)
-    if wt.external_links:
-        for link in wt.external_links:
-            if not re.search(r'(?:rottentomatoes|imdb|metacritic)\.com', str(link)):
-                return True
-    return False
 
 if __name__ == "__main__":
     print(rtdata_template('score', qid='Q333'))

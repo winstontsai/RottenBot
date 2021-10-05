@@ -26,6 +26,7 @@ from wdeditor import *
 
 logger = logging.getLogger(__name__)
 ################################################################################
+
 @dataclass
 class Edit:
     replacements: list[tuple[str, str]]
@@ -60,14 +61,13 @@ def fulledit_from_candidate(cand):
     # try:
     #     cand.qid = ItemPage.fromPage(Page(Site('en','wikipedia'), title)).getID()
     # except pwb.exceptions.NoPageError:
-    #     cand.qid = None
+    #     pass
 
     # update Wikidata items
     # for movie, qid in set((m.movie, m.qid) for m in matches):
     #     add_RTmovie_data_to_item(movie, make_item(qid))
 
-    # Fix duplicated citations, if any.
-    # This is kind of a hacky solution.
+    # Fix duplicated citations, if any. This is a hacky solution.
     # c = Counter(x.movie.url for x in matches)
     # name_generator = (f'rtdata{i}' for i in range(99) if f'rtdata{i}' not in text)
     # for url in c:
@@ -85,7 +85,6 @@ def fulledit_from_candidate(cand):
     #                     val -= 2
     #         # extra subtraction to prefer matches found lower in the article
     #         return val - match.span[0] / len(cand.text)
-    #     # we use reversed to pref
     #     l = sorted((x for x in matches if x.movie.url == url), key=preferred_ref)
     #     if not l[0].ref:
     #         l[0].ref = candidates.Reference('text', name=next(name_generator))
@@ -98,8 +97,8 @@ def fulledit_from_candidate(cand):
     edits = []
     # Compute an Edit for each match
     for match in matches:
-        sedit = _suggested_edit(cand, match, safe_templates_and_wikilinks)
-        edits.append(sedit)
+        x = _suggested_edit(cand, match, safe_templates_and_wikilinks)
+        edits.append(x)
 
     return FullEdit(title, edits)
 
@@ -331,15 +330,17 @@ def _suggested_edit(cand, rtmatch, safe_templates_and_wikilinks):
     # This way subsequent changes won't affect the replacement of the old citation.
     new_citation = citation_replacement(rtmatch)
     # If inside lead section and no ref, don't add one
-    if span[0] < cand.text.index('\n==') and (not ref or ref.text=='text'):
-        new_citation = ''
-    # If shortened footnote citation style detected, don't add one
-    elif 'sfn or harv' in flags and (not ref or ref.text=='text'):
-        new_citation = ''
+    if not ref:
+        # Don't add reference to lead section
+        if span[0] < cand.text.index('\n=='):
+            new_citation = ''
+        # If shortened footnote citation style detected, don't add one
+        elif 'sfn or harv' in flags:
+            new_citation = ''
     # if duplicated, defer to later citation
     # elif hasattr(rtmatch, '_duplicate_refname'):
     #     new_citation = f'<ref name="{rtmatch._duplicate_refname}" />'
-    elif ref:
+    else:
         refwikitext = wtp.parse(ref.text)
         if refwikitext.templates:
             t = refwikitext.templates[0]
@@ -371,6 +372,9 @@ def _suggested_edit(cand, rtmatch, safe_templates_and_wikilinks):
                 # for Cite Rotten Tomatoes parameters
                 if t.normal_name(capitalize=True) in citert_redirects:
                     t.set_arg('id', rtdata_template('rtid', noprefix='y', qid=rtmatch.qid))
+                    t.set_arg('type', 'm')
+                    t.del_arg('season')
+                    t.del_arg('episode')
                     if t.has_arg('url-status'):
                         t.set_arg('url-status', 'live')
 
@@ -398,7 +402,10 @@ def _suggested_edit(cand, rtmatch, safe_templates_and_wikilinks):
 
                 new_citation = str(refwikitext)
 
-    # Need to compute consensus before adding in new_citation.
+    # add EditAtWikidata button
+    new_citation = new_citation.replace('</ref', '{{'+f'RT data|edit|qid={rtmatch.qid}' +'}}</ref')
+
+    # Need to compute critics consensus before adding in new_citation.
     safe1 = safe_to_add_consensus1(rtmatch, cand, new_prose)
     safe2 = safe_to_add_consensus2(rtmatch, cand, new_prose)
     if safe2:
@@ -409,19 +416,16 @@ def _suggested_edit(cand, rtmatch, safe_templates_and_wikilinks):
         else:
             new_prose += f' The site\'s critical consensus reads, "{movie.consensus}"'
 
-    if new_citation:
-        # add EditAtWikidata button
-        new_citation = new_citation.replace('</ref', '{{'+f'RT data|edit|qid={rtmatch.qid}' +'}}</ref')
-        # Add new_citation to new_prose in the right location
-        if ref:
-            if ref.list_defined:
-                replacements = [(ref.text, new_citation)]
-            elif safe2:
-                new_prose = new_prose.replace(ref.text, '') + new_citation
-            else:
-                new_prose = new_prose.replace(ref.text, new_citation)
+    # Add new_citation to new_prose in the right location
+    if ref:
+        if ref.list_defined:
+            replacements = [(ref.text, new_citation)]
+        elif safe2:
+            new_prose = new_prose.replace(ref.text, '') + new_citation
         else:
-            new_prose += new_citation
+            new_prose = new_prose.replace(ref.text, new_citation)
+    else:
+        new_prose += new_citation
 
     ###########################################################################
     # Reference and critical consensus have been handled above. Now we continue.
@@ -446,16 +450,19 @@ def _suggested_edit(cand, rtmatch, safe_templates_and_wikilinks):
             flags.add('no longer 0% or 100%')
 
     # Replace score, count, and and average
-    new_prose = re.sub(score_re + notinref, rtdata_template('score', qid=rtmatch.qid), new_prose, flags=re.S)
+    new_prose = re.sub(score_re + notinref,
+        rtdata_template('score', qid=rtmatch.qid), new_prose, flags=re.S)
     if not {'Metacritic'} & flags:
-        new_prose = re.sub(count_re + notinref, rtdata_template('count', qid=rtmatch.qid)+r' \g<count_term>', new_prose, flags=re.S)
+        new_prose = re.sub(count_re + notinref,
+            rtdata_template('count', qid=rtmatch.qid)+r' \g<count_term>', new_prose, flags=re.S)
     if not {'IMDb'} & flags:
-        new_prose = re.sub(average_re + notinref, rtdata_template('average', qid=rtmatch.qid), new_prose, flags=re.S)
+        new_prose = re.sub(average_re + notinref,
+            rtdata_template('average', qid=rtmatch.qid), new_prose, flags=re.S)
 
     # Fix Wikilink target so that it doesn't use {{RT data}}
-    new_prose = re.sub(r'ilms with a \{\{RT data\|score.*?\}\} rating on Rotten', fr'ilms with a {score}% rating on Rotten', new_prose, flags=re.S)
+    new_prose = re.sub(r'ilms with a \{\{RT data\|score.*?\}\} rating on Rotten', fr'ilms with a {score}% rating on Rotten', new_prose)
 
-    # Update "As of"
+    # Update "As of" date
     if m:=re.search(t_asof, new_prose, flags=re.S):
         d = parse_template(m[0])[1]
         if '3' in d:
@@ -487,8 +494,8 @@ def _suggested_edit(cand, rtmatch, safe_templates_and_wikilinks):
             if re.match(r'weighted (average|(arithmetic )?mean)|average (rating|score)|rating average', z):
                 repl = wl.text.strip() if wl.text else wl.title.strip()
                 new_prose = new_prose.replace(str(wl), repl)
-        new_prose = re.sub(' weighted ' + notinref, ' ', new_prose)
-        new_prose = re.sub(' a average' + notinref, ' an average', new_prose)
+        new_prose = re.sub(' weighted ' + notinref, ' ', new_prose, flags=re.S)
+        new_prose = re.sub(' a average' + notinref, ' an average', new_prose, flags=re.S)
 
     # remove "rare" adjective since it is subjective
     new_prose = re.sub(r'rare (0%|100%|\[\[List|approval rating)', r'\1', new_prose)
@@ -519,38 +526,6 @@ def _suggested_edit(cand, rtmatch, safe_templates_and_wikilinks):
         replacements = [(z[0], z[1].replace(f'|qid={rtmatch.qid}', '')) for z in replacements]
 
     return Edit(replacements, reduced_flags)
-
-# def _complete_replacements(cand, rtmatch):
-#     rating, consensus = rating_and_consensus_prose(rtmatch.movie)
-#     new_citation = citation_replacement(rtmatch)
-#     span, text, ref = rtmatch.span, cand.text, rtmatch.ref
-
-#     new_text = rating
-#     if safe_to_add_consensus2(rtmatch, cand):
-#         new_text += ' ' + consensus
-
-#     replacements = []
-#     if ref and ref.list_defined:
-#         replacements = [(ref.text, new_citation)]
-#         new_text += f'<ref name="{ref.name}" />'
-#     else:
-#         new_text += new_citation
-#     replacements = [(text[span[0]:span[1]], new_text)] + replacements
-#     return replacements
-
-def rating_and_consensus_prose(movie):
-    title = movie.title
-    score, count, average = movie.tomatometer_score
-    consensus = movie.consensus
-    s = f"On [[Rotten Tomatoes]], ''{title}'' holds an approval rating of {score}% based on {count} reviews"
-    if average:
-        s += f', with an average rating of {average}/10.'
-    else:
-        s += '.'
-    if consensus or int(count)>=20:
-        s = s.replace('approval rating of 100%', '[[List of films with a 100% rating on Rotten Tomatoes|approval rating of 100%]]')
-        s = s.replace('approval rating of 0%', '[[List of films with a 0% rating on Rotten Tomatoes|approval rating of 0%]]')
-    return (s, f'The site\'s critical consensus reads, "{consensus}"')
 
 def citation_replacement(rtmatch):
     ref, movie = rtmatch.ref, rtmatch.movie
@@ -634,6 +609,38 @@ def unbalanced_brackets(text):
                 return c
     
     return stack[-1] if stack else False
+
+# def _complete_replacements(cand, rtmatch):
+#     rating, consensus = rating_and_consensus_prose(rtmatch.movie)
+#     new_citation = citation_replacement(rtmatch)
+#     span, text, ref = rtmatch.span, cand.text, rtmatch.ref
+
+#     new_text = rating
+#     if safe_to_add_consensus2(rtmatch, cand):
+#         new_text += ' ' + consensus
+
+#     replacements = []
+#     if ref and ref.list_defined:
+#         replacements = [(ref.text, new_citation)]
+#         new_text += f'<ref name="{ref.name}" />'
+#     else:
+#         new_text += new_citation
+#     replacements = [(text[span[0]:span[1]], new_text)] + replacements
+#     return replacements
+
+# def rating_and_consensus_prose(movie):
+#     title = movie.title
+#     score, count, average = movie.tomatometer_score
+#     consensus = movie.consensus
+#     s = f"On [[Rotten Tomatoes]], ''{title}'' holds an approval rating of {score}% based on {count} reviews"
+#     if average:
+#         s += f', with an average rating of {average}/10.'
+#     else:
+#         s += '.'
+#     if consensus or int(count)>=20:
+#         s = s.replace('approval rating of 100%', '[[List of films with a 100% rating on Rotten Tomatoes|approval rating of 100%]]')
+#         s = s.replace('approval rating of 0%', '[[List of films with a 0% rating on Rotten Tomatoes|approval rating of 0%]]')
+#     return (s, f'The site\'s critical consensus reads, "{consensus}"')
 
 if __name__ == "__main__":
     print(rtdata_template('score', qid='Q333'))

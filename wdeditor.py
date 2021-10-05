@@ -1,5 +1,6 @@
 # This module is for editing Rotten Tomatoes scores on Wikidata.
 ###############################################################################
+import json
 import sys
 import time
 
@@ -33,8 +34,6 @@ P_TITLE                     = 'P1476'
 P_PUBLISHER                 = 'P123'
 P_LANGUAGE                  = 'P407'
 P_STATED_IN                 = 'P248'
-P_REASON_FOR_PREFERRED_RANK = 'P7452'
-P_REASON_FOR_DEPRECATION    = 'P2241'
 P_NAMED_AS                  = 'P1810'
 
 def make_claim(pid, target):
@@ -77,8 +76,8 @@ class RTID_to_QID:
 def date_from_claim(c):
     """
     Returns "point in time" date, otherwise "retrieved" date, otherwise
-    date(1, 1, 3) if the rank is preferred, and date(1,1,2) if rank is normal,
-    date(1, 1, 1) if rank is deprecated
+    date(1, 1, 3) if rank is preferred, date(1,1,2) if  normal,
+    and date(1, 1, 1) if deprecated.
     """
     q = c.qualifiers
     if P_POINT_IN_TIME in q:
@@ -115,7 +114,7 @@ def most_recent_score_data(item):
             continue
         if P_REVIEW_COUNT not in q or P_DETERMINATION_METHOD not in q:
             continue
-        if q[P_DETERMINATION_METHOD][0].target.getID() != Q_TOMATOMETER:
+        if q[P_DETERMINATION_METHOD][0].target.id != Q_TOMATOMETER:
             continue
 
         if (review_date := date_from_claim(c)) >= newest_date:
@@ -131,13 +130,13 @@ def most_recent_score_data(item):
                 continue
             if P_DETERMINATION_METHOD not in q:
                 continue
-            if q[P_DETERMINATION_METHOD][0].target.getID() != Q_ROTTEN_TOMATOES_AVERAGE:
+            if q[P_DETERMINATION_METHOD][0].target.id != Q_ROTTEN_TOMATOES_AVERAGE:
                 continue
 
             if date_from_claim(c) == newest_date:
                 average = c.target
                 break
-    return tuple(map(str, [score, count, average] ))
+    return score, str(count), average
     
 def should_add_RT_claims(movie, item):
     if not movie.tomatometer_score:
@@ -149,7 +148,6 @@ def should_add_RT_claims(movie, item):
         new_average = float(new_average)
 
     old_score, old_count, old_average = most_recent_score_data(item)
-    #print(old_score, old_count, old_average)
 
     if m := re.fullmatch(r'([0-9]|[1-9][0-9]|100)(%| percent)', old_score):
         old_score = int(m[1])
@@ -204,7 +202,7 @@ def score_claims_from_movie(movie):
     title = make_claim(P_TITLE, pwb.WbMonolingualText(movie.title, 'en'))
     languageofwork = make_claim(P_LANGUAGE, make_item(Q_ENGLISH))
     retrieved = make_claim(P_RETRIEVED, wbtimetoday)
-    source_order = [statedin, rtid_claim, retrieved]
+    source_order = [statedin, rtid_claim, title, retrieved]
 
     # add qualifiers, reference, and rank for percent claim
     for x in [review_score_by, number_of_reviews, point_in_time, percent_method]:
@@ -228,13 +226,6 @@ def add_RT_claims_to_item(movie, item):
         return False
     percent_claim, average_claim = score_claims_from_movie(movie)
 
-    # set rank of all existing non-deprecated RT score claims to 'normal'
-    for c in item.claims.get(P_REVIEW_SCORE, []):
-        if P_REVIEW_SCORE_BY in c.qualifiers: # review by
-            val = c.qualifiers[P_REVIEW_SCORE_BY][0].target
-            if val == make_item(Q_ROTTEN_TOMATOES) and c.rank == 'preferred':
-                c.changeRank('normal')
-
     item.addClaim(percent_claim, summary='Add Rotten Tomatoes score.')
     item.addClaim(average_claim, summary='Add Rotten Tomatoes average rating.')
     return True
@@ -244,8 +235,7 @@ def add_RTmovie_data_to_item(movie, item):
     Adds/updates the Rotten Tomatoes data in a Wikidata item.
     Currently this means the Rotten Tomatoes ID and the two score claims.
     """
-    print(f"Checking item {item.getID()} aka {item.labels.get('en')}.")
-    # time.sleep(5)
+    print(f"Checking item {item.id} aka {item.labels.get('en')}...", end='')
 
     changed = False
     title = movie.title
@@ -262,54 +252,51 @@ def add_RTmovie_data_to_item(movie, item):
             item.editAliases({'en': en_aliases + [title]}, summary=f'Add English alias "{title}".')
             changed = True
 
-    # check if up-to-date Rotten Tomatoes ID exists, add if it does not.
-    # also add P_NAMED_AS qualifier if the RT title is different from the label
-    for claim in item.claims.get(P_ROTTEN_TOMATOES_ID, []):
-        if claim.target == movie.short_url:
-            if claim.rank == 'deprecated':
-                claim.changeRank('preferred')
-                changed = True
-            if titlediff:
-                # add P_NAMED_AS if no date
-                if date_from_claim(claim).year == 1 and P_NAMED_AS not in claim.qualifiers:
-                    claim.addQualifier(make_claim(P_NAMED_AS, title),
-                        summary='Add "named as" qualifier to Rotten Tomatoes ID statement.')
-                    changed = True
-            break
-    else:
-        d, m, y = map(int, date.today().strftime('%d %m %Y').split())
-        retrieved = make_claim(P_RETRIEVED, pwb.WbTime(y, m, d, site=SITE))
-        rtid_claim = make_claim(P_ROTTEN_TOMATOES_ID, movie.short_url)
-        rtid_claim.addSource(retrieved)
+    # Ensure Rotten Tomatoes ID statement is up-to-date.
+    # Also add P_NAMED_AS qualifier if needed.
+    rtid_claims = item.claims.get(P_ROTTEN_TOMATOES_ID, [])
+    if rtid_claims:
+        x = rtid_claims[0]
+        if x.target != movie.short_url:
+            x.changeTarget(movie.short_url)
         if titlediff:
-            rtid_claim.addQualifier(make_claim(P_NAMED_AS, title))
-        item.addClaim(rtid_claim)
+            if P_NAMED_AS in x.qualifiers:
+                if x.qualifiers[P_NAMED_AS][0].target != title:
+                    x.removeQualifiers(x.qualifiers[P_NAMED_AS])
+            if P_NAMED_AS not in x.qualifiers:
+                x.addQualifier(make_claim(P_NAMED_AS, title))
+    else:
+        new_claim = make_claim(P_ROTTEN_TOMATOES_ID, movie.short_url)
+        if titlediff:
+            new_claim.addQualifier(make_claim(P_NAMED_AS, title))
+        item.addClaim(new_claim)
         changed = True
 
     if add_RT_claims_to_item(movie, item):
         changed = True
 
     if changed:
-        print(f"Updated item {item.getID()} aka {item.labels.get('en')}.")
+        print(f" UPDATED.")
+    else:
+        print()
     return changed
 
 
-def update_film_items(id_pairs, limit = 1):
+def update_film_items(id_pairs, limit = None):
     """
     id_pairs should be list of (qid, rtid) pairs, which can be obtained
     from the Wikidata Query Service.
     """
     j = 0
     for qid, rtid in id_pairs:
-        #print(limit, j)
         try:
             movie = RTmovie(rtid)
         except Exception:
-            print(f'Item {qid} has invalid RTID {rtid}.')
+            print(f'Failed to load {rtid} from item {qid}.')
             continue
 
         j += add_RTmovie_data_to_item(movie, make_item(qid))
-        if j >= limit:
+        if limit is not None and j >= limit:
             break
     return j
 
@@ -327,24 +314,27 @@ WHERE
   FILTER(regex(?rtid, '^m/'))
   FILTER NOT EXISTS {
     ?item p:P444 ?reviewstatement.
-    ?reviewstatement pq:P459 wd:Q108403540.
+    ?reviewstatement pq:P447 wd:Q105584.
+    ?reviewstatement pq:P585 ?date.
+    FILTER ((12*YEAR(NOW())+MONTH(NOW())) - (12*YEAR(?date)+MONTH(?date)) < 4)
   }
 }"""
-    return [(r['item']['value'].rpartition('/')[2], r['rtid']['value']) for r in get_results(q)]
+    p = [(r['item']['value'].rpartition('/')[2], r['rtid']['value']) for r in get_results(q)]
+    return p
 
 
 if __name__ == "__main__":
-    SITE.login()
+    SITE.login(user='RottenBot')
     t0 = time.perf_counter()
 
-    pairs = find_items_to_update()
-    print(pairs)
-    #update_film_items(pairs, limit = 1)
+    data = json.load(open('storage/film_items_to_update.json'))
+    print(len(data))
+    pairs = data[100:200]
+    j = update_film_items(pairs)
+    print(f'UPDATED {j} ITEMS.')
 
     t1 = time.perf_counter()
     print("TIME ELAPSED =", t1-t0, file = sys.stderr)
-
-
 
 
 

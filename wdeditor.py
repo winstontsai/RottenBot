@@ -1,10 +1,13 @@
 # This module is for editing Rotten Tomatoes scores on Wikidata.
 ###############################################################################
 import json
+import logging
 import sys
 import time
 
+from concurrent.futures import as_completed, ThreadPoolExecutor
 from datetime import date
+
 
 import pywikibot as pwb
 import pywikibot.data.sparql as sparql
@@ -13,6 +16,8 @@ import regex as re
 from pywikibot import Claim, ItemPage, Site
 
 from scraper import RTmovie, USER_AGENT
+
+logger = logging.getLogger(__name__)
 ################################################################################
 SITE = Site('wikidata', 'wikidata')
 
@@ -36,23 +41,6 @@ P_LANGUAGE                  = 'P407'
 P_STATED_IN                 = 'P248'
 P_NAMED_AS                  = 'P1810'
 
-def make_claim(pid, target):
-    """
-    Return pwb.Claim object for entity with pid and specified target.
-    """
-    c = Claim(SITE, pid)
-    c.setTarget(target)
-    return c
-
-def make_item(qid):
-    return ItemPage(SITE, qid)
-
-def get_results(query):
-    headers = dict(sparql.DEFAULT_HEADERS)
-    headers['User-Agent'] = USER_AGENT
-    data = sparql.SparqlQuery().query(query, headers)
-    return data['results']['bindings']
-
 class RTID_to_QID:
     def __init__(self):
         query = "SELECT ?item ?itemLabel ?rtid WHERE{?item wdt:P1258 ?rtid.FILTER REGEX(?rtid, '^m/')}"
@@ -72,6 +60,24 @@ class RTID_to_QID:
         if not re.fullmatch('m/[-a-z0-9_]+', rtid) or not re.fullmatch('Q[0-9]+', value):
             return
         self.data[rtid] = value
+
+
+def make_claim(pid, target):
+    """
+    Return pwb.Claim object for entity with pid and specified target.
+    """
+    c = Claim(SITE, pid)
+    c.setTarget(target)
+    return c
+
+def make_item(qid):
+    return ItemPage(SITE, qid)
+
+def get_results(query):
+    headers = dict(sparql.DEFAULT_HEADERS)
+    headers['User-Agent'] = USER_AGENT
+    data = sparql.SparqlQuery().query(query, headers)
+    return data['results']['bindings']
 
 def date_from_claim(c):
     """
@@ -137,34 +143,6 @@ def most_recent_score_data(item):
                 average = c.target
                 break
     return score, str(count), average
-    
-def should_add_RT_claims(movie, item):
-    if not movie.tomatometer_score:
-        return False
-    new_score, new_count, new_average = movie.tomatometer_score
-    new_score = int(new_score)
-    new_count = int(new_count)
-    if new_average:
-        new_average = float(new_average)
-
-    old_score, old_count, old_average = most_recent_score_data(item)
-
-    if m := re.fullmatch(r'([0-9]|[1-9][0-9]|100)(%| percent)', old_score):
-        old_score = int(m[1])
-    else:
-        return True
-
-    if re.fullmatch(r'\d+', old_count):
-        old_count = int(old_count)
-    else:
-        return True
-    
-    if old_average:
-        if m := re.fullmatch(r'(([0-9]|10)(\.\d\d?)?)(?:/| out of )10', old_average):
-            old_average = float(m[1])
-        else:
-            return True
-    return (old_score, old_count, old_average)!=(new_score, new_count, new_average)
 
 def score_claims_from_movie(movie):
     """
@@ -175,7 +153,7 @@ def score_claims_from_movie(movie):
     if average == '': # in rare cases, no average is available
         pass
     elif '00' in average:
-        average = average[0] + '/10'
+        average = average.partition('.')[0] + '/10'
     else:
         average = str(float(average)) + '/10'
 
@@ -221,6 +199,34 @@ def score_claims_from_movie(movie):
 
     return percent_claim, average_claim
 
+def should_add_RT_claims(movie, item):
+    if not movie.tomatometer_score:
+        return False
+    new_score, new_count, new_average = movie.tomatometer_score
+    new_score = int(new_score)
+    new_count = int(new_count)
+    if new_average:
+        new_average = float(new_average)
+
+    old_score, old_count, old_average = most_recent_score_data(item)
+
+    if m := re.fullmatch(r'([0-9]|[1-9][0-9]|100)(%| percent)', old_score):
+        old_score = int(m[1])
+    else:
+        return True
+
+    if re.fullmatch(r'\d+', old_count):
+        old_count = int(old_count)
+    else:
+        return True
+    
+    if old_average:
+        if m := re.fullmatch(r'(([0-9]|10)(\.\d\d?)?)(?:/| out of )10', old_average):
+            old_average = float(m[1])
+        else:
+            return True
+    return (old_score, old_count, old_average)!=(new_score, new_count, new_average)
+
 def add_RT_claims_to_item(movie, item):
     if not should_add_RT_claims(movie, item):
         return False
@@ -235,7 +241,7 @@ def add_RTmovie_data_to_item(movie, item):
     Adds/updates the Rotten Tomatoes data in a Wikidata item.
     Currently this means the Rotten Tomatoes ID and the two score claims.
     """
-    print(f"Checking item {item.id} aka {item.labels.get('en')}...", end='')
+    print(f"Checking item {item.id} aka {item.labels.get('en')}...", end='', flush=True)
 
     changed = False
     title = movie.title
@@ -243,7 +249,7 @@ def add_RTmovie_data_to_item(movie, item):
     if 'en' not in item.labels:
         item.editLabels({'en': title}, summary=f'Add English label "{title}".')
         changed = True
-    en_label = item.labels.get('en', '')
+    en_label = item.labels.get('en', title)
 
     titlediff = title.lower() != en_label.lower()
     if titlediff:
@@ -259,12 +265,14 @@ def add_RTmovie_data_to_item(movie, item):
         x = rtid_claims[0]
         if x.target != movie.short_url:
             x.changeTarget(movie.short_url)
+            changed = True
         if titlediff:
             if P_NAMED_AS in x.qualifiers:
                 if x.qualifiers[P_NAMED_AS][0].target != title:
                     x.removeQualifiers(x.qualifiers[P_NAMED_AS])
             if P_NAMED_AS not in x.qualifiers:
                 x.addQualifier(make_claim(P_NAMED_AS, title))
+                changed = True
     else:
         new_claim = make_claim(P_ROTTEN_TOMATOES_ID, movie.short_url)
         if titlediff:
@@ -276,13 +284,13 @@ def add_RTmovie_data_to_item(movie, item):
         changed = True
 
     if changed:
-        print(f" UPDATED.")
+        print(f" UPDATED.", flush=True)
     else:
         print()
     return changed
 
 
-def update_film_items(id_pairs, limit = None):
+def update_film_items(id_pairs):
     """
     id_pairs should be list of (qid, rtid) pairs, which can be obtained
     from the Wikidata Query Service.
@@ -294,10 +302,7 @@ def update_film_items(id_pairs, limit = None):
         except Exception:
             print(f'Failed to load {rtid} from item {qid}.')
             continue
-
         j += add_RTmovie_data_to_item(movie, make_item(qid))
-        if limit is not None and j >= limit:
-            break
     return j
 
 def find_items_to_update():
@@ -329,9 +334,8 @@ if __name__ == "__main__":
 
     data = json.load(open('storage/film_items_to_update.json'))
     print(len(data))
-    pairs = data[100:200]
-    j = update_film_items(pairs)
-    print(f'UPDATED {j} ITEMS.')
+    start = [i for i,j in data].index('Q4327791')
+    print(f'UPDATED {update_film_items(data[start : ])} ITEMS.')
 
     t1 = time.perf_counter()
     print("TIME ELAPSED =", t1-t0, file = sys.stderr)

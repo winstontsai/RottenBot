@@ -152,7 +152,7 @@ class RTmovie:
         sd = str(soup.find('script', id='score-details-json'))
         self.score_data = json.loads(sd[sd.find('>')+1 : sd.rfind('</scr')])
         self.year = self.score_data["scoreboard"]["info"].split(',')[0]
-        self.title = self.score_data["scoreboard"]["title"]
+        self.title = self.score_data["scoreboard"]["title"].strip()
         #if self.score_data['modal']["hasTomatometerScoreAll"]:
         if sd := self.score_data['modal']["tomatometerScoreAll"]:
             s, c, a = sd["score"], sd["ratingCount"], sd["averageRating"] or ''
@@ -165,7 +165,7 @@ class RTmovie:
                 self.audience_score = (str(s), str(c), str(a))
 
 if __name__ == "__main__":
-    movie = RTmovie('m/saving_paradise')
+    movie = RTmovie('m/fragment_of_an_empire')
     print(movie)
 
 

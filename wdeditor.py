@@ -247,8 +247,11 @@ def add_RTmovie_data_to_item(movie, item):
     title = movie.title
 
     if 'en' not in item.labels:
-        item.editLabels({'en': title}, summary=f'Add English label "{title}".')
-        changed = True
+        try:
+            item.editLabels({'en': title}, summary=f'Add English label "{title}".')
+            changed = True
+        except pwb.exceptions.OtherPageSaveError:
+            pass
     en_label = item.labels.get('en', title)
 
     titlediff = title.lower() != en_label.lower()
@@ -327,14 +330,15 @@ WHERE
     p = [(r['item']['value'].rpartition('/')[2], r['rtid']['value']) for r in get_results(q)]
     return p
 
-
 if __name__ == "__main__":
     SITE.login(user='RottenBot')
     t0 = time.perf_counter()
 
     data = json.load(open('storage/film_items_to_update.json'))
     print(len(data))
-    start = [i for i,j in data].index('Q4327791')
+    start = [i for i,j in data].index('Q12756530')
+    print(start)
+
     print(f'UPDATED {update_film_items(data[start : ])} ITEMS.')
 
     t1 = time.perf_counter()

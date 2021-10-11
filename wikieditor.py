@@ -334,7 +334,8 @@ def _suggested_edit(cand, rtmatch, safe_templates_and_wikilinks):
         # Don't add reference to lead section
         if span[0] < cand.text.index('\n=='):
             new_citation = ''
-        # If shortened footnote citation style detected, don't add one
+        # Don't add reference if shortened footnotes detected
+        # This is a naive check
         elif 'sfn or harv' in flags:
             new_citation = ''
     # if duplicated, defer to later citation
@@ -351,7 +352,7 @@ def _suggested_edit(cand, rtmatch, safe_templates_and_wikilinks):
                 d_access_date = {'1': 'access date'}
                 if x := t.get_arg('accessdate') or t.get_arg('access-date'): # check for df
                     value = x.value.strip()
-                    if re.match(r'\d{4}-', value): # then iso. Default is mdy.
+                    if re.match(r'\d{4}-', value): # then iso. Template default is mdy.
                         d_access_date['df'] = 'iso'
                     elif re.match(r'\d{4}', value):
                         d_access_date['df'] = 'ymd'

@@ -23,8 +23,9 @@ from pywikibot.xmlreader import XmlDump
 
 import scraper
 
+
 from patterns import *
-from wdeditor import *
+from wdeditor import date_from_claim, RTID_to_QID
 
 logger = logging.getLogger(__name__)
 ################################################################################

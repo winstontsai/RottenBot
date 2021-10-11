@@ -42,17 +42,18 @@ def upload_edits(args):
     for fulledit in data:
         print(f'Editing {fulledit.title}.')
         page = pwb.Page(site, fulledit.title)
-        for edit in fulledit.edits:
-            if e.flags:
+        for edit in sorted(fulledit.edits, key=lambda x:len(x.replacements)):
+            if edit.flags:
                 continue
+
             for old, new in edit.replacements:
                 page.text = page.text.replace(old, new)
-            edit_summary = 'Use [[Template:Rotten Tomatoes data]]. Trial edit. See [[Wikipedia:Bots/Requests for approval/RottenBot|BRFA]].'
-            if e.reviewed:
+
+            edit_summary = 'Updating Rotten Tomatoes info. Trial edit. See [[Template:RT data]] and the [[Wikipedia:Bots/Requests for approval/RottenBot|BRFA]].'
+            if edit.reviewed:
                 edit_summary += ' Human reviewed.'
 
-            time.sleep(5)
-            page.save(summary = edit_summary, minor = False,)
+            page.save(summary=edit_summary, minor=False,)
 
 def print_data(args):
     print(loaddata(args.file))

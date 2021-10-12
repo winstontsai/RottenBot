@@ -61,7 +61,7 @@ def print_data(args):
 def listpages(args):
     site = pwb.Site('en','wikipedia')
     for catname in args.catname:
-        cat = pwb.Category(pwb.Page(site, catname, ns=14))
+        cat = pwb.Category(pwb.Page(site, catname))
         for x in cat.articles(recurse=True, namespaces=0):
             print(x.title())
 

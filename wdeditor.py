@@ -331,18 +331,15 @@ WHERE
     return p
 
 if __name__ == "__main__":
-    SITE.login(user='RottenBot')
     t0 = time.perf_counter()
 
     data = json.load(open('storage/film_items_to_update.json'))
     print(len(data))
-    start = [i for i,j in data].index('Q64787973')
+    start = 0
     print(start)
 
     print(f'UPDATED {update_film_items(data[start : ])} ITEMS.')
 
     t1 = time.perf_counter()
     print("TIME ELAPSED =", t1-t0, file = sys.stderr)
-
-
 

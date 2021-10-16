@@ -22,10 +22,9 @@ from pywikibot import Page, Site, ItemPage
 from pywikibot.xmlreader import XmlDump
 
 import scraper
-
+import wdeditor
 
 from patterns import *
-from wdeditor import date_from_claim, RTID_to_QID
 
 logger = logging.getLogger(__name__)
 ################################################################################
@@ -84,7 +83,7 @@ def find_candidates(xmlfile, get_user_input = False):
             initializer=_init, initargs=(WIKIDATA_LOCK,GOOGLESEARCH_LOCK, WQS_LOCK)) as executor:
         futures = {executor.submit(candidate_from_entry, e) : e.title for e in xml_entries}
 
-        rtid_to_qid = RTID_to_QID()
+        rtid_to_qid = wdeditor.RTID_to_QID()
 
         for future in as_completed(futures):
             total += 1
@@ -297,15 +296,16 @@ def _find_span(match, title):
     return i, j
 
 def P1258(title):
+    #print(title)
     with WIKIDATA_LOCK:
         try:
             item = ItemPage.fromPage(Page(Site('en','wikipedia'), title))
         except pwb.exceptions.NoPageError:
             return None
         item.get()
-    if rtid_claims := item.claims.get(P_ROTTEN_TOMATOES_ID):
+    if rtid_claims := item.claims.get(wdeditor.P_ROTTEN_TOMATOES_ID):
         if rtid_claims[0].target.startswith('m/'):
-            return max(rtid_claims, key=lambda c: date_from_claim(c)).target
+            return rtid_claims[0].target
     return None
 
 def _find_citation_and_id(title, m, refnames):
@@ -442,7 +442,7 @@ def _find_qid(cand, rtm, rtid_to_qid):
         return item.getID()
 
     for claim in sorted(item.claims.get(P_ROTTEN_TOMATOES_ID, []),
-            key=lambda c: date_from_claim(c), reverse=True):
+            key=lambda c: wdeditor.date_from_claim(c), reverse=True):
         try:
             movie = RTmovie(claim.target)
         except Exception:

@@ -1,9 +1,7 @@
 # This module takes Candidates and computes replacement text.
-
-# Currently the safe_templates_and_wikilinks feature is not being used since
-# the bot will not be rewriting prose.
 ################################################################################
 import logging
+import json
 import sys
 import webbrowser
 
@@ -42,30 +40,33 @@ def compute_edits(candidates, get_user_input = False):
     """
     candidates is an iterable of candidate objects.
     """
+    data = json.load(open('films_with_scores.json'))
+    films_with_scores = set(r['item'].rpartition('/')[2] for r in data)
+
     for cand in candidates:
-        fe = fulledit_from_candidate(cand)
+        fe = fulledit_from_candidate(cand, films_with_scores)
         if not fe.edits:
             continue
         if get_user_input:
             _process_manual_reviews(cand, fe)
         yield fe
 
-def fulledit_from_candidate(cand):
-    with open('safe-templates-and-wikilinks.txt', 'r') as f:
-        safe_templates_and_wikilinks = set(line.rstrip('\n') for line in f)
-
+def fulledit_from_candidate(cand, films_with_scores):
     title, text, matches = cand.title, cand.text, cand.matches
 
     cand.qid = None
     # find qid of item connected to cand's article
-    # try:
-    #     cand.qid = ItemPage.fromPage(Page(Site('en','wikipedia'), title)).getID()
-    # except pwb.exceptions.NoPageError:
-    #     pass
+    site = Site('en','wikipedia')
+    try:
+        cand.qid = ItemPage.fromPage(Page(site, title)).id
+    except pwb.exceptions.NoPageError:
+        pass
 
     # update Wikidata items
-    # for movie, qid in set((m.movie, m.qid) for m in matches):
-    #     add_RTmovie_data_to_item(movie, make_item(qid))
+    for movie, qid in ((m.movie, m.qid) for m in matches):
+        if not qid in films_with_scores:
+            add_RTmovie_data_to_item(movie, make_item(qid))
+            films_with_scores.add(qid)
 
     # Fix duplicated citations, if any. This is a hacky solution.
     # c = Counter(x.movie.url for x in matches)
@@ -94,113 +95,91 @@ def fulledit_from_candidate(cand):
     #         if not (match.ref and match.ref.name) or match.ref.name==l[0].ref.name:
     #             match._duplicate_refname = l[0].ref.name
 
+
     edits = []
     # Compute an Edit for each match
     for match in matches:
-        x = _suggested_edit(cand, match, safe_templates_and_wikilinks)
+        x = _suggested_edit(cand, match)
         edits.append(x)
 
     return FullEdit(title, edits)
 
 
-def _process_manual_reviews(cand, fe):
-    with open('safe-templates-and-wikilinks.txt', 'r') as f:
-        safe_templates_and_wikilinks = set(line.rstrip('\n') for line in f)
-
-    for i, edit in enumerate(fe.edits):
-        if not edit.flags:
-            continue
-        _ask_for_review(cand.title, cand.text,
-            cand.matches[i], edit, safe_templates_and_wikilinks)
+# def _process_manual_reviews(cand, fe):
+#     for i, edit in enumerate(fe.edits):
+#         if not edit.flags:
+#             continue
+#         _ask_for_review(cand.title, cand.text,
+#             cand.matches[i], edit)
     
-    with open('safe-templates-and-wikilinks.txt', 'w') as f:
-        for x in sorted(safe_templates_and_wikilinks):
-            print(x, file = f)
 
-def _ask_for_review(title, text, rtmatch, edit, safe_templates_and_wikilinks):
-    edit.reviewed = True
-    i, j = rtmatch.span[0], rtmatch.span[1]
-    pspan = paragraph_span((i,j), text)
-    oldtext, newtext = edit.replacements[0]
-    print(f"""{Fore.CYAN+Style.BRIGHT}An edit in [[{title}]] has been flagged for review.{Style.RESET_ALL}
-{Fore.YELLOW+Style.BRIGHT}Flags = {sorted(edit.flags)}{Style.RESET_ALL}
-{Fore.GREEN+Style.BRIGHT}Old Wikitext------------------------------------------{Style.RESET_ALL}
-{text[pspan[0]: i] + Style.BRIGHT + oldtext + Style.RESET_ALL + text[j: pspan[1]]}
-{Fore.GREEN+Style.BRIGHT}New Wikitext (Replace bolded above)-------------------{Style.RESET_ALL}
-{Style.BRIGHT+newtext+Style.RESET_ALL}
-{Fore.GREEN+Style.BRIGHT}------------------------------------------------------{Style.RESET_ALL}""")
-    prompt = """Select an option ([k]eep edit, open in [e]ditor, open in [b]rowser,
-    [r]ecord template/wikilink, [s]kip, or [q]uit): """
-    while (user_input:=input(prompt)) not in ('k','e','s','q'):
-        if user_input == 'b':
-            webbrowser.open(Page(Site('en','wikipedia'), title).full_url())
-        elif user_input == 'r':
-            while (user_input:=input('Template/wikilink (Press Enter to finish): ')):
-                remove = False
-                if user_input[0] == '-':
-                    remove = True
-                    user_input = user_input[1:]
-                if not re.fullmatch(r'(T|WL):.+', user_input):
-                    print("Use T:Name for templates and WL:Name for wikilinks. Prepend '-' to remove.")
-                    continue
-                if remove:
-                    try:
-                        safe_templates_and_wikilinks.remove(user_input)
-                    except KeyError:
-                        print(f'{user_input} was already unsafe.')
-                else:
-                    safe_templates_and_wikilinks.add(user_input)
-        else:
-            print("Invalid selection.")
-    print()
+# def _ask_for_review(title, text, rtmatch, edit):
+#     edit.reviewed = True
+#     i, j = rtmatch.span[0], rtmatch.span[1]
+#     pspan = paragraph_span((i,j), text)
+#     oldtext, newtext = edit.replacements[0]
+#     print(f"""{Fore.CYAN+Style.BRIGHT}An edit in [[{title}]] has been flagged for review.{Style.RESET_ALL}
+# {Fore.YELLOW+Style.BRIGHT}Flags = {sorted(edit.flags)}{Style.RESET_ALL}
+# {Fore.GREEN+Style.BRIGHT}Old Wikitext------------------------------------------{Style.RESET_ALL}
+# {text[pspan[0]: i] + Style.BRIGHT + oldtext + Style.RESET_ALL + text[j: pspan[1]]}
+# {Fore.GREEN+Style.BRIGHT}New Wikitext (Replace bolded above)-------------------{Style.RESET_ALL}
+# {Style.BRIGHT+newtext+Style.RESET_ALL}
+# {Fore.GREEN+Style.BRIGHT}------------------------------------------------------{Style.RESET_ALL}""")
+#     prompt = """Select an option ([k]eep edit, open in [e]ditor, open in [b]rowser, [s]kip, [q]uit): """
+#     while (user_input:=input(prompt)) not in ('k','e','s','q'):
+#         if user_input == 'b':
+#             webbrowser.open(Page(Site('en','wikipedia'), title).full_url())
+#         else:
+#             print("Invalid selection.")
+#     print()
 
-    if user_input == 'k':
-        edit.flags.clear()
-    elif user_input == 'e':
-        review_edit(title, text[pspan[0]:pspan[1]], edit)
-    elif user_input == 's':
-        print(f"Skipping edit.")
-        edit.flags.add('skip')
-    elif user_input == 'q':
-        print("Quitting program.")
-        sys.exit()  
+#     if user_input == 'k':
+#         edit.flags.clear()
+#     elif user_input == 'e':
+#         review_edit(title, text[pspan[0]:pspan[1]], edit)
+#     elif user_input == 's':
+#         print(f"Skipping edit.")
+#         edit.flags.add('skip')
+#     elif user_input == 'q':
+#         print("Quitting program.")
+#         sys.exit()  
 
-def review_edit(title, context, edit):
-    """
-    Opens text editor for user to review edit.
-    """
-    initial_text = f"""Reviewing edit for [[{title}]].
+# def review_edit(title, context, edit):
+#     """
+#     Opens text editor for user to review edit.
+#     """
+#     initial_text = f"""Reviewing edit for [[{title}]].
 
-Remember not to remove a list-defined Rotten Tomatoes reference
-since the reference definition will still be replaced.
-Leave either TO BE REPLACED or REPLACEMENT empty to skip this edit.
--------------------------------------------------------------------------------
-Context:
-{context}
--------------------------------------------------------------------------------
-TO BE REPLACED   (put wikitext between the arrows):
-🡺🡺🡺{edit.replacements[0][0]}🡸🡸🡸
--------------------------------------------------------------------------------
-REPLACEMENT      (put wikitext between the arrows):
-🡺🡺🡺{edit.replacements[0][1]}🡸🡸🡸
-"""
-    x = editor.edit(contents=initial_text).decode()
-    old, new = [m[1] for m in re.finditer(r'🡺🡺🡺(.*?)🡸🡸🡸', x, re.S)]
+# Remember not to remove a list-defined Rotten Tomatoes reference
+# since the reference definition will still be replaced.
+# Leave either TO BE REPLACED or REPLACEMENT empty to skip this edit.
+# -------------------------------------------------------------------------------
+# Context:
+# {context}
+# -------------------------------------------------------------------------------
+# TO BE REPLACED   (put wikitext between the arrows):
+# 🡺🡺🡺{edit.replacements[0][0]}🡸🡸🡸
+# -------------------------------------------------------------------------------
+# REPLACEMENT      (put wikitext between the arrows):
+# 🡺🡺🡺{edit.replacements[0][1]}🡸🡸🡸
+# """
+#     x = editor.edit(contents=initial_text).decode()
+#     old, new = [m[1] for m in re.finditer(r'🡺🡺🡺(.*?)🡸🡸🡸', x, re.S)]
 
-    if not old or not new:
-        # edit will have flags, so it will be skipped
-        edit.flags.add('skip')
-        print('Skipping edit.')
-        return
-    # Clear the flags so that edit goes through
-    edit.flags.clear()
-    edit.replacements[0] = (old, new)
+#     if not old or not new:
+#         # edit will have flags, so it will be skipped
+#         edit.flags.add('skip')
+#         print('Skipping edit.')
+#         return
+#     # Clear the flags so that edit goes through
+#     edit.flags.clear()
+#     edit.replacements[0] = (old, new)
 
 
 #################################################################################
 # Functions for creating replacement text.
 #################################################################################
-def _compute_flags(rtmatch, cand, safe_templates_and_wikilinks):
+def _compute_flags(rtmatch, cand):
     """
     Compute initial set of flags for a match.
     Flags indicate that an edit needs review.
@@ -300,18 +279,16 @@ def _compute_flags(rtmatch, cand, safe_templates_and_wikilinks):
     for x in wikitext_no_quotes.wikilinks:
         z = x.title.strip()
         z = f'WL:{z[:1].upper()+z[1:]}'
-        if z not in safe_templates_and_wikilinks:
-            flags.add(z)
+        flags.add(z)
 
     for x in wikitext_no_quotes.templates:
         z = f'T:{x.normal_name(capitalize=True)}'
-        if z not in safe_templates_and_wikilinks:
-            flags.add(z)
+        flags.add(z)
 
     return flags
 
-def _suggested_edit(cand, rtmatch, safe_templates_and_wikilinks):
-    flags = _compute_flags(rtmatch, cand, safe_templates_and_wikilinks)
+def _suggested_edit(cand, rtmatch):
+    flags = _compute_flags(rtmatch, cand)
     reduced_flags = set(x for x in flags if not re.match(r'(T|WL):', x))
     reduced_flags -= {'Metacritic', 'IMDb', 'PostTrak', 'CinemaScore'}
     reduced_flags -= {'non-RT reference'}
@@ -485,7 +462,7 @@ def _suggested_edit(cand, rtmatch, safe_templates_and_wikilinks):
             d['lc'] = 'y'
         d['qid'] = rtmatch.qid
         new_prose = new_prose.replace(m[0], rtdata_template(**d))
-    elif re.search(r"\b[Aa]s of\b" + notinref, new_prose, flags=re.S):
+    elif re.search(r"\b[Aa]s of\b|\b20\d\d\b" + notinref, new_prose, flags=re.S):
         flags.add('As of')
 
     # Not a weighted average??? At the very least unsourced.
@@ -502,14 +479,7 @@ def _suggested_edit(cand, rtmatch, safe_templates_and_wikilinks):
     new_prose = re.sub(r'rare (0%|100%|\[\[List|approval rating)', r'\1', new_prose)
 
     # An xx% rating vs a xx% rating...
-    if score.startswith('8') or score in ('11', '18'):
-        new_prose = new_prose.replace(' a {{RT data|score', ' an {{RT data|score')
-    else:
-        new_prose = new_prose.replace(' an {{RT data|score', ' a {{RT data|score')
-    if average.startswith('8'):
-        new_prose = new_prose.replace(' a {{RT data|average', ' an {{RT data|average')
-    else:
-        new_prose = new_prose.replace(' an {{RT data|average', ' a {{RT data|average')
+    new_prose = re.sub(fr' an? ({template_pattern("RT data")})', ' {{a or an|' + r'\1' + '}}', new_prose)
 
     # Minor (usually correct) fixes
     new_prose = new_prose.replace('"..', '".')
@@ -523,7 +493,7 @@ def _suggested_edit(cand, rtmatch, safe_templates_and_wikilinks):
     replacements = [(old_text, new_prose)] + replacements
 
     # remove qid= parameter if superfluous
-    if True or cand.qid == rtmatch.qid:
+    if cand.qid == rtmatch.qid:
         replacements = [(z[0], z[1].replace(f'|qid={rtmatch.qid}', '')) for z in replacements]
 
     return Edit(replacements, reduced_flags)

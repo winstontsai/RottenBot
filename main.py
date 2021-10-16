@@ -7,7 +7,6 @@ import argparse
 import logging
 import logging.handlers
 logger = logging.getLogger(__name__)
-print_logger = logging.getLogger('print_logger')
 
 import pywikibot as pwb
 
@@ -49,11 +48,14 @@ def upload_edits(args):
             for old, new in edit.replacements:
                 page.text = page.text.replace(old, new)
 
-            edit_summary = 'Updating Rotten Tomatoes info. Trial edit. See [[Template:RT data]] and the [[Wikipedia:Bots/Requests for approval/RottenBot|BRFA]].'
+            edit_summary = 'Updating Rotten Tomatoes info. Trial edit. See the [[Wikipedia:Bots/Requests for approval/RottenBot|request for approval]].'
             if edit.reviewed:
                 edit_summary += ' Human reviewed.'
-
-            page.save(summary=edit_summary, minor=False,)
+            try:
+                page.save(summary=edit_summary, minor=False, nocreate=True)
+            except Exception:
+                print(f'An error occurred while saving {fulledit.title}')
+                break
 
 def print_data(args):
     print(loaddata(args.file))
@@ -61,7 +63,7 @@ def print_data(args):
 def listpages(args):
     site = pwb.Site('en','wikipedia')
     for catname in args.catname:
-        cat = pwb.Category(pwb.Page(site, catname))
+        cat = pwb.Category(pwb.Page(site, catname, ns=14))
         for x in cat.articles(recurse=True, namespaces=0):
             print(x.title())
 
@@ -115,7 +117,6 @@ def main():
     os.makedirs("logs/", exist_ok=True)
 
     root_logger = logging.getLogger()
-    print_logger = logging.getLogger('print_logger')
 
     should_roll = os.path.isfile("logs/rottenbot.log")
     file_handler = logging.handlers.RotatingFileHandler(
@@ -135,11 +136,6 @@ def main():
     stream_handler.setLevel(logging.INFO)
     stream_handler.setFormatter(formatter)
 
-    print_logger.addHandler(stream_handler)
-    print_logger.setLevel(logging.INFO)
-    print_logger.propagate = False
-
-    # install_mp_handler(print_logger)
 
 
     # START PROGRAM
@@ -153,8 +149,8 @@ def main():
         pass
 
     t1 = time.perf_counter()
-    logger.info("TIME ELAPSED = {}".format(t1 - t0))
-    print_logger.info("TIME ELAPSED = {}".format(t1 - t0))
+    logger.info(f"TIME ELAPSED = {t1-t0}")
+    print(f"TIME ELAPSED = {t1-t0}")
 
 
 if __name__ == '__main__':

@@ -11,16 +11,9 @@ __pycache__/
 # my files
 logs/
 storage/
-xmldumps/
 env/
-core/
-outputs/
 notes.txt
 play.py
-compare.py
-findspan.py
-
-
 
 # other
 .DS_Store

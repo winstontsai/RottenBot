@@ -373,8 +373,6 @@ def _suggested_edit(cand, rtmatch):
                     t.set_arg('type', 'm')
                     t.del_arg('season')
                     t.del_arg('episode')
-                    if t.has_arg('url-status'):
-                        t.set_arg('url-status', 'live')
 
                 # for general citation templates
                 else:
@@ -384,7 +382,7 @@ def _suggested_edit(cand, rtmatch):
                     temp_dict['website'] = '[[Rotten Tomatoes]]'
                     temp_dict['publisher'] = '[[Fandango Media|Fandango]]'
                     temp_dict['access-date'] = t.get_arg('access-date').value.strip()
-                    if x := t.get_arg('archiveurl') or t.get_arg('archive-url'):
+                    if (x := t.get_arg('archiveurl') or t.get_arg('archive-url')) and x.value.strip():
                         temp_dict['archive-url'] = x.value.strip()
                         temp_dict['archive-date'] = (t.get_arg('archivedate') or t.get_arg('archive-date')).value.strip()
                         temp_dict['url-status'] = 'live'

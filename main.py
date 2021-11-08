@@ -52,6 +52,7 @@ def upload_edits(args):
         try:
             page.save(summary=edit_summary, minor=True, botflag=True,
                 nocreate=True, quiet=True)
+            time.sleep(5)
         except Exception:
             print(f'An error occurred while saving {fulledit.title}')
             continue
@@ -148,7 +149,7 @@ def main():
 
     t1 = time.perf_counter()
     logger.info(f"TIME ELAPSED = {t1-t0}")
-    print(f"TIME ELAPSED = {t1-t0}")
+    print(f"TIME ELAPSED = {t1-t0}", file=sys.stderr)
 
 
 if __name__ == '__main__':

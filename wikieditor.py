@@ -40,18 +40,37 @@ def compute_edits(candidates, get_user_input = False):
     """
     candidates is an iterable of candidate objects.
     """
-    data = json.load(open('films_with_scores.json'))
-    films_with_scores = set(r['item'].rpartition('/')[2] for r in data)
+
+    # SELECT ?item
+    # WHERE 
+    # {
+    #   ?item wdt:P1258 ?rtid.
+    #   FILTER(regex(?rtid, '^m/'))
+    #   ?item p:P444 ?reviewstatement.
+    #   ?reviewstatement pq:P447 wd:Q105584.
+    #   ?reviewstatement pq:P585 ?date.
+    #   ?reviewstatement pq:P459 wd:Q108403393.
+      
+    #   ?item p:P444 ?reviewstatement2.
+    #   ?reviewstatement2 pq:P447 wd:Q105584.
+    #   ?reviewstatement2 pq:P585 ?date.
+    #   ?reviewstatement2 pq:P459 wd:Q108403540.
+    # }
+
+    # Use the above SPARQL query to precheck which films already have scores
+    # on Wikidata.
+    data = json.load(open('storage/items_with_scores.json'))
+    items_with_scores = set(r['item'].rpartition('/')[2] for r in data)
 
     for cand in candidates:
-        fe = fulledit_from_candidate(cand, films_with_scores)
+        fe = fulledit_from_candidate(cand, items_with_scores)
         if not fe.edits:
             continue
         if get_user_input:
             _process_manual_reviews(cand, fe)
         yield fe
 
-def fulledit_from_candidate(cand, films_with_scores):
+def fulledit_from_candidate(cand, items_with_scores):
     title, text, matches = cand.title, cand.text, cand.matches
 
     cand.qid = None
@@ -64,9 +83,9 @@ def fulledit_from_candidate(cand, films_with_scores):
 
     # update Wikidata items
     for movie, qid in ((m.movie, m.qid) for m in matches):
-        if not qid in films_with_scores:
-            add_RTmovie_data_to_item(movie, make_item(qid))
-            films_with_scores.add(qid)
+        if qid not in items_with_scores:
+            update_RTmovie_data(movie, make_item(qid))
+            items_with_scores.add(qid)
 
     # Fix duplicated citations, if any. This is a hacky solution.
     # c = Counter(x.movie.url for x in matches)
@@ -290,7 +309,8 @@ def _compute_flags(rtmatch, cand):
 def _suggested_edit(cand, rtmatch):
     flags = _compute_flags(rtmatch, cand)
     reduced_flags = set(x for x in flags if not re.match(r'(T|WL):', x))
-    reduced_flags -= {'Metacritic', 'IMDb', 'PostTrak', 'CinemaScore'}
+    reduced_flags -= {'PostTrak', 'CinemaScore'}
+    # reduced_flags -= {'Metacritic', 'IMDb'}
     reduced_flags -= {'non-RT reference'}
 
     span = rtmatch.span
@@ -389,7 +409,7 @@ def _suggested_edit(cand, rtmatch):
     if safe2:
         if not safe1:
             flags.add(f'check critics consensus status {safe1} {safe2}')
-        if {'Metacritic','IMDb','PostTrak','CinemaScore','non-RT reference'} & flags:
+        if {'Metacritic', 'IMDb', 'PostTrak', 'CinemaScore', 'non-RT reference'} & flags:
             new_prose += f' The critical consensus on Rotten Tomatoes reads, "{movie.consensus}"'
         else:
             new_prose += f' The site\'s critical consensus reads, "{movie.consensus}"'
@@ -433,6 +453,9 @@ def _suggested_edit(cand, rtmatch):
     if not {'Metacritic'} & flags:
         new_prose = re.sub(count_re + notinref,
             rtdata_template('count', qid=rtmatch.qid)+r' \g<count_term>', new_prose, flags=re.S)
+        # MOS:NUMERAL
+        if int(count) <= 9:
+            new_prose = new_prose.replace('{{RT data|count', '{{RT data|count|spell=y')
     if not {'IMDb'} & flags:
         new_prose = re.sub(average_re + notinref,
             rtdata_template('average', qid=rtmatch.qid), new_prose, flags=re.S)
@@ -462,10 +485,10 @@ def _suggested_edit(cand, rtmatch):
             d['lc'] = 'y'
         d['qid'] = rtmatch.qid
         new_prose = new_prose.replace(m[0], rtdata_template(**d))
-    elif re.search(r"\b[Aa]s of\b|\b20\d\d\b" + notinref, new_prose, flags=re.S):
+    elif re.search(r"\b[Aa]s of\b|(January|February|March|April|May|June|July|August|September|October|November|December) 20\d\d\b" + notinref, new_prose, flags=re.S):
         flags.add('As of')
 
-    # Not a weighted average??? At the very least unsourced.
+    # Not a weighted average??? At the very least unsourced info.
     if not {'Metacritic','IMDb'} & flags:
         for wl in wtp.parse(new_prose).wikilinks:
             z = wl.title.strip().lower()
@@ -479,7 +502,7 @@ def _suggested_edit(cand, rtmatch):
     new_prose = re.sub(r'rare (0%|100%|\[\[List|approval rating)', r'\1', new_prose)
 
     # An xx% rating vs a xx% rating...
-    new_prose = re.sub(fr' an? ({template_pattern("RT data")})', ' {{a or an|' + r'\1' + '}}', new_prose)
+    new_prose = re.sub(fr' an? ({template_pattern("RT data")})', r' {{a or an|\1}}', new_prose)
 
     # Minor (usually correct) fixes
     new_prose = new_prose.replace('"..', '".')
@@ -521,12 +544,14 @@ def citation_replacement(rtmatch):
                 template_dict['archive-url'] = x
                 template_dict['archive-date'] = d.get('archive-date') or d.get('archivedate') or ''
                 template_dict['url-status'] = 'live'
-    return s + construct_template('Cite web', template_dict) + "</ref>"
+    return s + construct_template('Cite web', template_dict) + '</ref>'
 
 def safe_to_add_consensus1(rtmatch, cand, new_text = ''):
     consensus = rtmatch.movie.consensus
     text = cand.text
     span = rtmatch.span
+    if rtmatch.qid != cand.qid:
+        return False
     if not consensus:
         return False
     p_start, p_end = paragraph_span(rtmatch.span, text)
@@ -544,6 +569,8 @@ def safe_to_add_consensus1(rtmatch, cand, new_text = ''):
 # computationally expensive
 def safe_to_add_consensus2(rtmatch, cand, new_text = ''):
     consensus, span, text = rtmatch.movie.consensus, rtmatch.span, cand.text
+    if rtmatch.qid != cand.qid:
+        return False
     if not consensus:
         return False
     if len(cand.matches) > 1 and rtmatch.span[0] < text.index('\n=='):
@@ -567,18 +594,17 @@ def unbalanced_brackets(text):
     stack= []
     for c in text:
         if c == '"':
-            if stack and stack[-1]=='"':
+            if stack and stack[-1] == '"':
                 stack.pop()
             else:
                 stack.append('"')
         elif c in lbrackets:
             stack.append(c)
         elif c in rbrackets:
-            if stack and stack[-1]==rbrackets[c]:
+            if stack and stack[-1] == rbrackets[c]:
                 stack.pop()
             else:
                 return c
-    
     return stack[-1] if stack else False
 
 # def _complete_replacements(cand, rtmatch):

@@ -27,7 +27,7 @@ def store_edits(args):
     if args.file1.endswith('.xml'):
         cands = candidates.find_candidates(args.file1, get_user_input=args.interactive)
     else:
-        cands = loaddata(args.file1)  
+        cands = loaddata(args.file1)
 
     edits = list(wikieditor.compute_edits(cands, get_user_input=args.interactive))
     with open(args.file2, 'wb') as f:
@@ -41,21 +41,20 @@ def upload_edits(args):
     for fulledit in data:
         print(f'Editing {fulledit.title}.')
         page = pwb.Page(site, fulledit.title)
-        for edit in sorted(fulledit.edits, key=lambda x:len(x.replacements)):
+        for edit in sorted(fulledit.edits, key=lambda x: len(x.replacements)):
             if edit.flags:
                 continue
 
             for old, new in edit.replacements:
                 page.text = page.text.replace(old, new)
 
-            edit_summary = 'Updating Rotten Tomatoes info. Trial edit. See the [[Wikipedia:Bots/Requests for approval/RottenBot|request for approval]].'
-            if edit.reviewed:
-                edit_summary += ' Human reviewed.'
-            try:
-                page.save(summary=edit_summary, minor=False, nocreate=True)
-            except Exception:
-                print(f'An error occurred while saving {fulledit.title}')
-                break
+        edit_summary = 'Updating Rotten Tomatoes info with Wikidata.'
+        try:
+            page.save(summary=edit_summary, minor=True, botflag=True,
+                nocreate=True, quiet=True)
+        except Exception:
+            print(f'An error occurred while saving {fulledit.title}')
+            continue
 
 def print_data(args):
     print(loaddata(args.file))
@@ -64,7 +63,7 @@ def listpages(args):
     site = pwb.Site('en','wikipedia')
     for catname in args.catname:
         cat = pwb.Category(pwb.Page(site, catname, ns=14))
-        for x in cat.articles(recurse=True, namespaces=0):
+        for x in cat.articles(recurse=False, namespaces=0):
             print(x.title())
 
 def get_args():
@@ -135,7 +134,6 @@ def main():
     formatter = logging.Formatter('%(message)s')
     stream_handler.setLevel(logging.INFO)
     stream_handler.setFormatter(formatter)
-
 
 
     # START PROGRAM

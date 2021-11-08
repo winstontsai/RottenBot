@@ -20,6 +20,7 @@ from scraper import RTmovie, USER_AGENT
 logger = logging.getLogger(__name__)
 ################################################################################
 SITE = Site('wikidata', 'wikidata')
+SITE.login(user='RottenBot')
 
 Q_ROTTEN_TOMATOES           = 'Q105584'
 Q_TOMATOMETER               = 'Q108403393'
@@ -228,27 +229,25 @@ def should_add_RT_claims(movie, item):
     return (old_score, old_count, old_average)!=(new_score, new_count, new_average)
 
 def add_RT_claims_to_item(movie, item):
-    if not should_add_RT_claims(movie, item):
-        return False
     percent_claim, average_claim = score_claims_from_movie(movie)
-
     item.addClaim(percent_claim, summary='Add Rotten Tomatoes score.')
     item.addClaim(average_claim, summary='Add Rotten Tomatoes average rating.')
-    return True
 
-def add_RTmovie_data_to_item(movie, item):
+def update_RTmovie_data(movie, item):
     """
     Adds/updates the Rotten Tomatoes data in a Wikidata item.
     Currently this means the Rotten Tomatoes ID and the two score claims.
     """
-    print(f"Checking item {item.id} aka {item.labels.get('en')}...", end='', flush=True)
+    print(f"Checking item {item.id} aka {item.labels.get('en')}...",
+        end='', flush=True)
 
     changed = False
     title = movie.title
 
     if 'en' not in item.labels:
         try:
-            item.editLabels({'en': title}, summary=f'Add English label "{title}".')
+            item.editLabels({'en': title},
+                summary=f'Add English label "{title}".')
             changed = True
         except pwb.exceptions.OtherPageSaveError:
             pass
@@ -258,7 +257,8 @@ def add_RTmovie_data_to_item(movie, item):
     if titlediff:
         en_aliases = item.aliases.get('en', [])
         if title.lower() not in (x.lower() for x in en_aliases):
-            item.editAliases({'en': en_aliases + [title]}, summary=f'Add English alias "{title}".')
+            item.editAliases({'en': en_aliases + [title]},
+                summary=f'Add English alias "{title}".')
             changed = True
 
     # Ensure Rotten Tomatoes ID statement is up-to-date.
@@ -283,7 +283,8 @@ def add_RTmovie_data_to_item(movie, item):
         item.addClaim(new_claim)
         changed = True
 
-    if add_RT_claims_to_item(movie, item):
+    if should_add_RT_claims(movie, item):
+        add_RT_claims_to_item(movie, item)
         changed = True
 
     if changed:
@@ -305,7 +306,7 @@ def update_film_items(id_pairs):
         except Exception:
             print(f'Failed to load {rtid} from item {qid}.')
             continue
-        j += add_RTmovie_data_to_item(movie, make_item(qid))
+        j += update_RTmovie_data(movie, make_item(qid))
     return j
 
 def find_items_to_update():
@@ -327,7 +328,11 @@ WHERE
     FILTER ((12*YEAR(NOW())+MONTH(NOW())) - (12*YEAR(?date)+MONTH(?date)) < 4)
   }
 }"""
-    p = [(r['item']['value'].rpartition('/')[2], r['rtid']['value']) for r in get_results(q)]
+    p = []
+    for r in get_results(q):
+        qid = r['item']['value'].rpartition('/')[2]
+        rtid = r['rtid']['value']
+        p.append(qid, rtid)
     return p
 
 if __name__ == "__main__":

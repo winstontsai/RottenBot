@@ -356,6 +356,8 @@ def _suggested_edit(cand, rtmatch):
                     elif re.match(r'\d', value):
                         d_access_date['df'] = 'dmy'
                 t.del_arg('accessdate')
+                # doubled to handle the duplication bug with wikitextparser
+                t.set_arg('access-date', rtdata_template(**d_access_date, qid=rtmatch.qid))
                 t.set_arg('access-date', rtdata_template(**d_access_date, qid=rtmatch.qid))
 
                 new_title = movie.title
@@ -365,15 +367,19 @@ def _suggested_edit(cand, rtmatch):
                         new_title = "''"+new_title+"''"
                     if re.search(r'\d{4}\)$', value):
                         new_title += ' (' + movie.year + ')'
+                # doubled to handle the duplication bug with wikitextparser
+                t.set_arg('title', new_title)
                 t.set_arg('title', new_title)
                 ####################################################################
                 # for Cite Rotten Tomatoes parameters
                 if t.normal_name(capitalize=True) in citert_redirects:
+                    # doubled to handle the duplication bug with wikitextparser
                     t.set_arg('id', rtdata_template('rtid', noprefix='y', qid=rtmatch.qid))
+                    t.set_arg('id', rtdata_template('rtid', noprefix='y', qid=rtmatch.qid))
+                    t.set_arg('type', 'm')
                     t.set_arg('type', 'm')
                     t.del_arg('season')
                     t.del_arg('episode')
-
                 # for general citation templates
                 else:
                     temp_dict = dict()
